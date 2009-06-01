@@ -1,0 +1,434 @@
+#!/bin/bash
+# $Id$
+
+# @file psub 
+# @brief wrapper for qsub intended to do, by default, what we usually want, and
+# to simplify options we often use.  This script is intended to contain all the
+# local peculiarities of the clusters we use.  Other sites using Portage or
+# PORTAGEshared may need to adapt this script to their own cluster environment.
+# Look for "CUSTOMIZE HERE" below for spots where we expect you might need to
+# adapt things.
+#
+# @author Eric Joanis / Samuel Larkin
+#
+# Technologies langagieres interactives / Interactive Language Technologies
+# Inst. de technologie de l'information / Institute for Information Technology
+# Conseil national de recherches Canada / National Research Council Canada
+# Copyright 2006 - 2008, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2006 - 2008, Her Majesty in Right of Canada
+
+usage() {
+   for msg in "$@"; do
+      echo $msg >&2
+   done
+   cat <<==EOF== >&2
+
+Usage: psub [options] <command line>
+
+  Wrap <command line> into a PBS script and qsub it.
+  Caveat: <command line> will be interpreted again in the resulting script,
+  so quote or escape any quotes, dollar sign or backslash you need preserved.
+
+Options:
+
+  -h(elp)        print this help message
+  -v(erbose)     print the qsub script before submitting it
+  -N JOB_NAME    specify job name
+  -#             use # CPUs on a node (nodes with # CPUs must exist)
+                 thus getting access to more memory.
+  -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
+                 mapped IO.  Important: use a value less than or equal to the
+                 total size of files you will open using memory mapped IO,
+                 otherwise you risk bringing down a node.
+  -e ERR_FILE    stderr destination
+  -o OUT_FILE    stdout destination
+  -noscript      don't write out the script
+  -l RES=VAL[,RES2=VAL2[,...]]  resources for job (see man pbs_resources)
+                 (separate multiple resources with commas, or repeat -l)
+  -nodes PROPERTIES  properties the node should have; separate multiple
+                 properties with colons, e.g., -nodes c2:blz0:big
+                 (equivalent to -l nodes=PROPERTIES)
+  -qsparams QSUB_PARAMETERS  additional qsub parameters
+  -p PRIORITY    set the job priority; on Balzac, queued jobs with higher
+                 priority will start first. 0 = normal, >0 = high, <0 = low.
+                 Only use > 0 for short, urgent jobs. [0]
+  -t ARRAY       See "qsub -t" in the TORQUE admin manual or man qsub
+  -n             "not really" (dump the PBS script, but don't submit it)
+  -f             force submission even if errors are detected
+  -I             enter interactive mode thus getting a prompt to a node
+  -P PERIOD      Log memory usage of process tree every PERIOD minutes. [6]
+
+Further notes:
+
+  -on Venus, to enable node borrowing, use "-l ckpt=1".
+  -on Venus, to request a minimum amount of memory, use, e.g., "-l mem=1800m"
+  -on Balzac, for temporary storage on local disks, use $TMPDIR.  Use
+   "-nodes bigtmp" if you want lots of local temp storage.
+
+==EOF==
+
+   exit 1
+}
+
+error_exit() {
+   for msg in "$@"; do
+      echo $msg >&2
+   done
+   echo "Use -h for help." >&2
+   exit 1
+}
+
+# arg_check_pos_int $value $arg_name exits with an error if $value does not
+# represent a positive integer, using $arg_name to provide a meaningful error
+# message.
+arg_check_pos_int() {
+   expr $1 + 0 &> /dev/null
+   RC=$?
+   if [ $RC != 0 -a $RC != 1 ] || [ $1 -le 0 ]; then
+      error_exit "Invalid argument to $2 option: $1; positive integer expected."
+   fi
+}
+
+arg_check() {
+   if [ $2 -le $1 ]; then
+      error_exit "Missing argument to $3 option."
+   fi
+}
+
+PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
+CPU_COUNT=1
+MEMORY_POLLING_DELAY=6
+
+while [ $# -gt 0 ]; do
+   case "$1" in
+   -h|-help)        usage;;
+   -v|-verbose)     VERBOSE=1;;
+   -N)              arg_check 1 $# $!; NAME=$2; shift;;
+   -[1-9]|-[1-9][0-9]) CPU_COUNT=$((0 - $1));;
+   -I)              INTMODE=1; NOSCRIPT=1; CPU_COUNT=4;;
+   -memmap)         arg_check 1 $# $!; arg_check_pos_int $2 $1
+                    MEMMAP=$2; shift;;
+   -e)              arg_check 1 $# $!; ERR_FILE=$2; shift;;
+   -o)              arg_check 1 $# $!; OUT_FILE=$2; shift;;
+   -P)              arg_check 1 $# $!; MEMORY_POLLING_DELAY=$2; shift;;
+   -noscript)       NOSCRIPT=1;;
+   -l)              arg_check 1 $# $!
+                    if [ -n "$RESOURCES" ]; then RESOURCES="$RESOURCES,$2"
+                                            else RESOURCES="$2"; fi
+                    shift;;
+   -nodes)          arg_check 1 $# $!
+                    if [[ $NODES ]]; then NODES="$NODES:$2"
+                                     else NODES=$2; fi
+                    shift;;
+   -qsparams)       arg_check 1 $# $!; QSPARAMS=$2; shift;;
+   -p|-t)           arg_check 1 $# $!; QSUB_OPTS="$QSUB_OPTS $1 $2"; shift;;
+   -n)              NOT_REALLY=1;;
+   -f)              FORCE=1;;
+   --)              shift; break;;
+   -*)              error_exit "Unknown options $1.";;
+   *)               break;;
+   esac
+   shift
+done
+
+COMMAND="$*"
+
+if which qsub >& /dev/null; then
+   true # qsub found - we're running on a cluster
+else
+   error_exit "Can't find qsub, we don't seem to be running on a cluster."
+fi
+
+if uname -n | egrep -q 'balzac|blz'; then
+   BALZAC=1
+elif uname -n | egrep -q 'venus|vns'; then
+   VENUS=1
+else
+   # CUSTOMIZE HERE if you want to tune psub to your own cluster.
+   true
+fi
+
+# In interactive mode we need to reserve an entire node
+if [ -n "$INTMODE" ]; then
+   if [ $BALZAC ]; then
+      # Don't allow part of a 2 CPU node, but do allow part of a fat node.
+      if [ $CPU_COUNT = 3 ]; then
+         CPU_COUNT=4
+      elif [ $CPU_COUNT = 1 ]; then
+         CPU_COUNT=2
+      fi
+   elif [ $VENUS ]; then
+      CPU_COUNT=2
+   else
+      # CUSTOMIZE HERE if you want to tune psub to your own cluster.
+      true
+   fi
+fi
+
+# Verifies that we are not trying to open an interactive mode session from an
+# interactive session
+if [ -n "$INTMODE" -a `uname -n | egrep -q 'balzac|venus'; echo $?` -eq 1 ]; then
+   error_exit "STOP: you shouldn't start a new interactive session from a node"
+fi
+
+if [ -z "$COMMAND" -a ! -n "$INTMODE" ]; then
+   error_exit "Missing command, nothing to run!"
+fi
+
+# -memmap is only implemented for Balzac, warn if used elsewhere
+if [ -n "$MEMMAP" -a -z "$BALZAC" ]; then
+   echo Warning: -memmap option only implemented for Balzac at this point.
+fi
+
+if [ $INTMODE ]; then
+   PROG_NAME=Interactive
+else
+   # Guess the executable program or script name
+   PROG_NAME=`echo "$COMMAND" | perl -e '
+      $_ = <>;
+      chomp;
+      # Use STDIN as the job name of the command seems empty
+      $_ or $_ = "STDIN";
+      @tokens = split;
+      print $tokens[0];
+   '`
+fi
+
+# If the command is a script but doesn't have its x permission bit set,
+# call it with its interpreter
+if [ -f $PROG_NAME -a ! -x $PROG_NAME -a ! "$FORCE" ]; then
+   if file $PROG_NAME | grep -q "script text"; then
+      # file is a script
+      HASH_BANG_LINE=`head -1 $PROG_NAME`
+      INTERPRETER=${HASH_BANG_LINE/#\#\!}
+      INTERPRETER=${INTERPRETER%% *}
+      if which "$INTERPRETER" >& /dev/null; then
+         echo Calling your script with "$INTERPRETER"
+         COMMAND="$INTERPRETER $COMMAND"
+      else
+         echo "\"$PROG_NAME\" seems to be a $INTERPRETER script, but \"which\" can't find $INTERPRETER."
+         echo "Make your script executable, fix it, or use -f to submit your command as is"
+         exit 1
+      fi
+   else
+      echo "\"$PROG_NAME\" is neither executable nor a script."
+      echo "Use -f if you really mean to submit your command as is."
+      exit 1
+   fi
+fi
+
+# Determine the default job name if -N is not specified on the command line.
+if [ ! $NAME ]; then
+   NAME=`basename $PROG_NAME`
+fi
+
+# Make sure $NAME is not longer that 15 characters, and starts with a letter
+NAME=`echo $NAME | perl -e '
+   $_ = <>;
+   chomp;
+   s/^([^a-z])/J$1/i;
+   print substr($_, 0, 15);
+'`
+
+if [ $RESOURCES ]; then
+   OLDRESOURCES="$RESOURCES,"
+else
+   OLDRESOURCES=""
+fi
+
+if [ $BALZAC ]; then
+   if [ $CPU_COUNT -gt 1 ]; then
+      PPN_NODES="1:ppn=$CPU_COUNT"
+      #RESOURCES="${OLDRESOURCES}nodes=1:ppn=$CPU_COUNT"
+   fi
+   VMEM_LIMIT_GB=$((8 * $CPU_COUNT))
+   VMEM_HARD_LIMIT_GB=$((7 * $CPU_COUNT))
+   # -memmap adds extra virtual memory
+   if [ $MEMMAP ]; then
+      VMEM_LIMIT_GB=$((VMEM_LIMIT_GB + MEMMAP))
+      VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP))
+   fi
+   VMEM_HARD_LIMIT_KB=$((VMEM_HARD_LIMIT_GB * 1024 * 1024))
+
+   if [ -n "$INTMODE" ]; then
+      # We are in interactive mode thus we need to make sure we reserved the
+      # entire node
+      if [ $CPU_COUNT -gt 4 ]; then
+         true # >4 CPUs can only go to a fat node, no need for explicit request
+      elif [ $CPU_COUNT -gt 2 ]; then
+         PPN_NODES="${PPN_NODES}:c4"
+      else
+         PPN_NODES="${PPN_NODES}:c2"
+      fi
+   fi
+   if echo $RESOURCES | grep -q vmem=; then
+      # User manually specified vmem, do not alter it
+      true
+   else
+      if [[ $RESOURCES ]]; then
+         RESOURCES="${RESOURCES},vmem=${VMEM_LIMIT_GB}g"
+      else
+         RESOURCES="vmem=${VMEM_LIMIT_GB}g"
+      fi
+   fi
+
+   VMEM_LIMIT_SCRIPT_BLOCK="
+# Memory use limited to $VMEM_HARD_LIMIT_GB GB to avoid system crashes.
+# Use a larger -N value if this limit doesn't leave enough memory for your job,
+# or -memmap if you are using memory-mapped IO.
+ulimit -v $VMEM_HARD_LIMIT_KB
+"
+
+   SOFTSTACK_LIMIT_SCRIPT_BLOCK="
+# OpenMP requires lower Soft stack size in order to fit all threads' stack in
+# memory.
+ulimit -s 100000
+"
+
+   # Take avantage of openmp, on Balzac, now one thread per CPU:
+   PORTAGE_OPENMP_NUMBER_THREADS=$CPU_COUNT
+
+else
+   # CUSTOMIZE HERE if you want to tune psub to your own cluster.
+
+   if [ $CPU_COUNT -gt 1 ]; then
+      PPN_NODES="1:ppn=$CPU_COUNT"
+      #RESOURCES="${OLDRESOURCES}nodes=1:ppn=$CPU_COUNT"
+   fi
+
+   # Not on Balzac, we allow one thread per CPU for OpenMP.
+   PORTAGE_OPENMP_NUMBER_THREADS=$CPU_COUNT
+fi
+
+if [[ $PPN_NODES && $NODES ]]; then
+   NODES="$PPN_NODES:$NODES"
+elif [[ $PPN_NODES ]]; then
+   NODES="$PPN_NODES$NODES"
+fi
+
+if [[ $NODES ]]; then
+   if [[ $RESOURCES =~ "(.*nodes=)(.*)" ]]; then
+      RESOURCES=${BASH_REMATCH[1]}$NODES:${BASH_REMATCH[2]}
+   elif [[ $RESOURCES ]]; then
+      RESOURCES=$RESOURCES,nodes=$NODES
+   else
+      RESOURCES=nodes=$NODES
+   fi
+fi
+
+# X forwarding doesn't work well with screen.
+if [[ $TERM != screen ]]; then
+   X_DISPLAY=-X
+fi 
+
+# qsub options we always use: -r n: not rerunable; -N $NAME: name the job
+QSUB_CMD="qsub -r n -N $NAME $QSUB_OPTS $QSPARAMS"
+test -n "$RESOURCES" && QSUB_CMD="$QSUB_CMD -l$RESOURCES"
+if [ -n "$INTMODE" ]; then
+   QSUB_CMD="$QSUB_CMD -I"
+   test -n "$BALZAC" && QSUB_CMD="$QSUB_CMD $X_DISPLAY -d `pwd`"
+   echo "Entering interactive mode."
+   echo "Warning: you will get a fresh login environment.  Any variables set in the"
+   echo "parent shell will not be propagated, only those in your login scripts."
+
+   if [ $NOT_REALLY ]; then
+      echo $QSUB_CMD
+   else
+      $QSUB_CMD
+   fi
+   exit
+fi
+
+test -n "$ERR_FILE" && QSUB_CMD="$QSUB_CMD -e $ERR_FILE"
+test -n "$OUT_FILE" && QSUB_CMD="$QSUB_CMD -o $OUT_FILE"
+
+if [ $BALZAC ]; then
+   TMPDIR_SETUP='# On Balzac, $TMPDIR typically has 9GB, use -nodes bigtmp to get more space.'
+elif [ $VENUS ]; then
+   TMPDIR_SETUP='# On Venus, $TMPDIR points to the PBS allocated scratch dir'
+else
+   TMPDIR_SETUP='# Unknown TMPDIR configuration for this system'
+fi
+
+TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
+trap "rm -f $TMPSCRIPT $TMPSCRIPT.jobid; exit" 0 2 3 13 14 15
+
+cat <<==EOF== > $TMPSCRIPT
+#!/bin/bash
+
+# Preserve important parts of the calling environment
+export PATH=\$PBS_O_PATH
+==EOF==
+
+env | grep ^PORTAGE | sed 's/^/export /' >> $TMPSCRIPT
+for var in LD_LIBRARY_PATH PERL5LIB PYTHONPATH MANPATH; do
+   if [ "`env | grep ^$var=`" != "" ]; then
+      echo "export "`env | grep ^$var=` >> $TMPSCRIPT
+   fi
+done
+
+cat <<==EOF== >> $TMPSCRIPT
+
+# Preserve the calling working directory
+cd \$PBS_O_WORKDIR || exit
+$VMEM_LIMIT_SCRIPT_BLOCK
+$SOFTSTACK_LIMIT_SCRIPT_BLOCK
+# Set the number of allowed openmp threads based on the number of cpus.
+export OMP_NUM_THREADS=$PORTAGE_OPENMP_NUMBER_THREADS
+
+# \$TMPDIR is scratch space on the local node; deleted after job ends.
+$TMPDIR_SETUP
+
+# Periodically monitor the memory usage of the process tree, since PBS does not
+# do so reliably.
+process-memory-usage.pl $(($MEMORY_POLLING_DELAY*60)) \$\$ >&2 &
+
+# Display the exact start time
+echo ============ Starting job $PBS_JOBID on \`date\` on node \`hostname\` >&2
+
+# Trap kill signals
+trap 'echo psub-generated script \`basename \$0\` caught SIGTERM, aborting. >&2; exit 15' 15
+
+# User command
+$COMMAND
+
+# Display the exact end time
+echo ============ Finished $PBS_JOBID on \`date\` >&2
+
+# Display resources used on stderr when the user command has completed
+==EOF==
+
+if false && [ $BALZAC ]; then
+   echo "qstat -f \$PBS_JOBID | egrep '\b(comment)\b' >&2" >> $TMPSCRIPT
+else
+   echo "qstat -f \$PBS_JOBID | egrep '\b(Job Id|resources_used|comment)\b' >&2" >> $TMPSCRIPT
+fi
+
+cat <<==EOF== >> $TMPSCRIPT
+# qsub command executed
+# $QSUB_CMD $TMPSCRIPT
+
+# original psub command given by user (with quotes and \\ removed)
+# $PSUB_CMD
+==EOF==
+
+if [ $VERBOSE ]; then
+   cat $TMPSCRIPT
+   echo ""
+fi
+
+if [ $NOT_REALLY ]; then
+   cat $TMPSCRIPT
+   echo ""
+   exit
+fi
+
+$QSUB_CMD $TMPSCRIPT > $TMPSCRIPT.jobid
+sleep 1 # give TORQUE a chance to breathe when many jobs are submitted
+JOBID=`cat $TMPSCRIPT.jobid`
+SHORTJOBID=${JOBID%%[ ./]*}
+echo $JOBID
+
+if [ ! $NOSCRIPT ]; then
+   cp $TMPSCRIPT $NAME.j${SHORTJOBID:-0}
+fi

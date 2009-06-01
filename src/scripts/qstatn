@@ -1,0 +1,32 @@
+#!/bin/sh
+
+export LC_ALL=C
+
+VENUS_CUT=-c1-6,16-24,34-
+BALZAC_CUT=-c1-9,21-30,40-69,74-
+case $HOST in
+   v*) CUT=$VENUS_CUT;;
+   b*) CUT=$BALZAC_CUT;;
+   *)  echo Unknown cluster, assuming PBS Pro output.; CUT=$VENUS_CUT;;
+esac
+
+
+qstat -n |
+   perl -pe 'chomp; print "\n" unless (s/^ +(blz|vns)/ \1/ or s/^ +\+(blz|vns)/+\1/ or s/^ +--/   --/ or $. == 1); END{print "\n"}' |
+   cut $CUT |
+   perl -nle 'BEGIN {$filter = "'"$*"'"; $filter = "." unless $filter;}
+              while ( s/^(\d\S+)[^-\d ] /$1  / ) {}
+              #s/^(\d+)\. /$1  /;
+              $CPU_count = @temp = /blz\d\d+\/\d/g;
+              while (s#((?:blz|vns)\d+)/(\d+(?:\+\d+)*)\+\1/(\d+)#$1/$2+$3#og) {}
+              print if ($. <= 5 || /$filter/o);
+              @a = split;
+              $user{$a[1]} += $CPU_count if $CPU_count;
+              $pending += 1 if /  Q   --/;
+              END {
+                 print "|||";
+                 print "||| CPUs per user: ", join(" ", %user);
+                 print "||| $pending jobs pending" if $pending > 0;
+              }'
+
+analyze | tail -1

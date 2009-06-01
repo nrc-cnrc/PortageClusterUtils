@@ -1,0 +1,358 @@
+#!/usr/bin/perl
+# $Id$
+
+# @file parallelize.pl
+# @brief Parallelizes a command into N smaller chunks, executes each chunks and
+# merges the results.
+#
+# @author Samuel Larkin
+#
+# COMMENTS:
+#
+# Technologies langagieres interactives / Interactive Language Technologies
+# Inst. de technologie de l'information / Institute for Information Technology
+# Conseil national de recherches Canada / National Research Council Canada
+# Copyright 2007, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2007, Her Majesty in Right of Canada
+
+# WISH LIST
+# - custom splitter (default split).
+#   - split on paragraph for utokenize.pl for example (separate custom splitter).
+# - custom merger   (default cat).
+#   - merge-N 3 tally => merge 3 at a time with tally until all merged (Eric
+#     make-big-lm).
+# - resume based on input chunks not deleted (Partially implemented).
+#   Build a merge.cmd final.  This would allow merging with run-parallel.sh and
+#   make resuming easier.
+# - properly handle gzip.
+#   - Intelligent output format:
+#     Detect if the input is big which may indicate a big output then if the
+#     input is big, gzip the output of each chunks and simply cat all the
+#     chunks into one final output.gz or if the input is small, produce
+#     uncompress chunks' output and cat | gzip all chunks to a final output
+#     file.  Here we are trying to save some intermediate disk space.
+# - use base name of argument for chunk's name (DONE => using argument's name
+#   as intermediate directory name).
+# - split in chunks of size S instead of in X chunks.
+# - Only feasable for output but if no output file is specified, implicitly use
+#   /dev/stdout and /dev/stderr (DONE).
+
+use strict;
+use warnings;
+use POSIX qw(ceil);
+use File::Basename;
+
+sub usage {
+   local $, = "\n";
+   print STDERR @_, "";
+   $0 =~ s#.*/##;
+   print STDERR "
+Usage: $0 [-debug] [-resume] [-s <token>] [-m <token>]
+       [Options]
+       -n N cmd cmd_args
+
+  Parallelizes a command into N smaller chunks, executes each chunks and merges
+  the results.  The files specified with < and > are automatically handled.
+  The input and ouput can be either text files or gzip files.
+
+WARNING:
+  For ease of use, this script detects .gz at the end of a filename and takes
+  care of zipping and unzipping the inputs and outputs thus no need to pipe
+  your outputs to gzip.
+
+Options:
+
+  -h(elp):      print this help message
+  -v(erbose):   increment the verbosity level by 1 (may be repeated)
+  -d(ebug):     print debugging information
+
+  -n N    split the work in N jobs/chunks [3].
+  -np M   number of simultanious workers used to process the N chunks [N].
+  -s <X>  split additional input file X in N chunks where X in cmd_args.
+  -m <Z>  merge additional output file Z where Z in cmd_args.
+  -merge  merge command [cat]
+  -nolocal  Run run-parallel.sh -nolocal
+  -psub <O> Passes specific commands to run-parallel.sh -psub.
+  -rp   <O> Passes specific commands to run-parallel.sh.
+
+Good examples:
+  Tokenize the test_en.txt using 12 nodes.
+  $0 -n 12 \"utokenize.pl -noss -lang=en < test_en.txt > test_en.tok\"
+
+  Tag dev1 using 2 nodes and using a tagger and keeping only the tags with the
+  sed expression.
+  $0 -debug -n 2 \"(./tagger | sed 's#[^ ]*/##g') < dev1 > dev1.tagged\"
+
+  Even though the syntax is not conform, for ease of use $0 handles gzip files
+  as input as if it was a regular file:
+  $0 'cat < input.gz > output'
+  $0 'cat < input.gz > output.gz'
+
+  Handles outputing to stdout transparently.
+  $0 'cat < input.gz'    > output
+  
+  When you have multiple inputs & outputs:
+  $0 \\
+    -s src_in \\
+    -s tgt_in \\
+    -m src_out \\
+    -m tgt_out \\
+    'filter_training_corpus src_in tgt_in src_out tgt_out 100 9'
+
+BAD examples:
+  $0 '(cat | gzip) < input > output.gz'
+  Your output will be zipped twice.
+
+";
+   exit 1;
+}
+
+my $debug_cmd = "";
+
+use Getopt::Long;
+# Note to programmer: Getopt::Long automatically accepts unambiguous
+# abbreviations for all options.
+my $MERGE_PGM = "cat";
+my $verbose = 0;
+my @SPLITS = ();
+my @MERGES = ();
+my $N = 3;
+my $NP = undef;
+my $NOLOCAL = "";
+my $PSUB_OPTS = "";
+my $RP_OPTS = "";
+GetOptions(
+   help        => sub { usage },
+   "verbose+"  => \$verbose,
+   quiet       => sub { $verbose = 0 },
+   debug       => \my $debug,
+
+   "s=s"       => \@SPLITS,
+   "m=s"       => \@MERGES,
+
+   "merge=s"   => \$MERGE_PGM,
+
+   "n=i"       => \$N,
+   "np=i"      => \$NP,
+
+   "psub=s"    => \$PSUB_OPTS,
+   "rp=s"      => \$RP_OPTS,
+   "nolocal"   => sub {$NOLOCAL = "-nolocal"},
+   "resume"    => sub {die "not implemented yet"},
+) or usage;
+
+sub debug {
+   print STDERR "<D> @_\n" if ($debug);
+}
+
+sub verbose {
+   my $level = shift(@_);
+   print STDERR "<V> @_\n" if ($verbose >= $level);
+}
+
+$PSUB_OPTS = "-psub \"$PSUB_OPTS\"" unless ($PSUB_OPTS eq "");
+$NP = $N unless(defined($NP));
+
+
+# Grab the rest of the command line as the command to run
+my $CMD = join " ", @ARGV;
+
+
+# By default, look for input redirection
+if ($CMD =~ /<(\s*)([^ >]+)($|\s*)/) {
+   my $split = $2;
+   verbose(1, "Adding $split to splits");
+   push @SPLITS, $split;
+}
+
+# Check if the user provided an output.
+my $merge = "";
+if ($CMD =~ /[^2]>(\s*)([^ <]+)($|\s*)/) {
+   $merge = $2;
+}
+else {
+   # If no output is given then the user must want to have its output to stdout.
+   $CMD = "$CMD > /dev/stdout";
+   $merge = "/dev/stdout";
+}
+verbose(1, "Adding $merge to merge");
+push @MERGES, $merge;
+
+# Check if the user provided an error output.
+if ($CMD =~ /2>(\s*)([^ <]+)($|\s*)/) {
+   $merge = $2;
+}
+else {
+   # If no err output is given then the user must want to have its output to stderr.
+   $CMD = "$CMD 2> /dev/stderr";
+   $merge = "/dev/stderr";
+}
+verbose(1, "Adding $merge to merge");
+push @MERGES, $merge;
+
+
+# Create a working directory to prevent polluting the environment.
+my $workdir = "parallelize.pl.$$";
+mkdir($workdir);
+
+if ( $debug ) {
+   $debug_cmd = "time ";
+   no warnings;
+   printf STDERR "
+   CMD=$CMD
+   SPLITS=@SPLITS
+   MERGES=@MERGES
+   PSUB_OPTS=$PSUB_OPTS
+   RP_OPTS=$RP_OPTS
+";
+}
+
+
+
+# Make sure there is at least one input file.
+die "You must provide an input file." unless(scalar(@SPLITS) gt 0);
+
+# Check if all SPLITS and all MERGES are arguments of the command.
+foreach my $s (@SPLITS) {
+   # Escape the input since it might have some control characters.
+   die "not an argument of command: $s" unless $CMD =~ /(^|\s|<)\Q$s\E($|\s)/;
+}
+foreach my $m (@MERGES) {
+   # Escape the input since it might have some control characters.
+   die "not an argument of command: $m" unless $CMD =~ /(^|\s|>)\Q$m\E($|\s)/;
+}
+
+
+# Get the basename of all SPLITS and MERGES
+# Since we can't have file names with slashes, will change them for _SLASH_
+sub slash($) {
+   my $t=$_;
+   $t =~ s#/#_SLASH_#g;
+   return $t;
+}
+my %basename = map { $_ => slash($_) } (@MERGES, @SPLITS);
+if ($debug) {
+   print STDERR "basenames:\n";
+   print STDERR join("\n", values %basename);
+   print STDERR "\n";
+}
+
+
+# Create MERGES dir
+foreach my $m (@MERGES) {
+   my $dir = "$workdir/" . $basename{$m};
+   mkdir($dir) unless -e $dir;
+}
+
+
+# Split all SPLITS
+foreach my $s (@SPLITS) {
+   my $dir = "$workdir/" . $basename{$s};
+   mkdir($dir) unless -e $dir;
+   my $NUM_LINE = `gzip -cqfd $s | wc -l`;
+   $NUM_LINE = ceil($NUM_LINE / $N);
+
+   verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
+   my $rc = system("$debug_cmd gzip -cqfd $s | split -a 3 -d -l $NUM_LINE - $dir/");
+   die "Error spliting $s\n" unless($rc eq 0);
+}
+
+
+# Build all sub commands in CMD_FILE
+verbose(1, "Building command file.");
+my $cmd_file = "$workdir/commands";
+open(CMD_FILE, ">$cmd_file") or die "Unable to open command file";
+for (my $i=0; $i<$N; ++$i) {
+   my $SUB_CMD = $CMD;
+   my $index = sprintf("%3.3d", $i);
+   my @delete = ();
+   # For each occurence of a file to split, replace it by a chunk.
+   foreach my $s (@SPLITS) {
+      my $file = "$workdir/" . $basename{$s} . "/$index";
+      push(@delete, $file);
+      unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1$file$2/) {
+         die "Unable to match $s and $file";
+      }
+   }
+   # For each occurence of a file to merge, replace it by a chunk.
+   foreach my $m (@MERGES) {
+      my $file = "$workdir/" . $basename{$m} . "/$index";
+      unless ($SUB_CMD =~ s/(^|\s|>)\Q$m\E($|\s)/$1$file$2/) {
+         die "Unable to match $m and $file";
+      }
+   }
+
+   verbose(1, "\tAdding to the command list: $SUB_CMD");
+   # By deleting the input chunks we say this block was properly process in
+   # case of a resume is needed.
+   #printf(CMD_FILE "$SUB_CMD && rm -rf %s\n", join(" ", @delete));
+   print(CMD_FILE "test ! -f $delete[0] || (($debug_cmd $SUB_CMD) && mv $delete[0] $delete[0].done)\n");
+}
+close(CMD_FILE);
+
+
+verbose(1, "Building merge command file.");
+my $merge_cmd_file = "$workdir/commands.merge";
+open(MERGE_CMD_FILE, ">$merge_cmd_file") or die "Unable to open merge command file";
+foreach my $m (@MERGES) {
+   my $dir = "$workdir/" . $basename{$m};
+   my $sub_cmd;
+   if ($m =~ /.gz$/) {
+      $sub_cmd = "set -o pipefail; $MERGE_PGM $dir/* | gzip > $m";
+   }
+   else {   
+      if ($m =~ m#/dev/stdout#) {
+         $sub_cmd = "$MERGE_PGM $dir/*";
+      }
+      elsif ($m =~ m#/dev/stderr#) {
+         $sub_cmd = "$MERGE_PGM $dir/* 1>&2";
+      }
+      else {
+         $sub_cmd = "$MERGE_PGM $dir/* > $m";
+      }
+   }
+   print MERGE_CMD_FILE "test ! -d $dir || ($debug_cmd $sub_cmd && mv $dir $dir.done)\n";
+}
+close(MERGE_CMD_FILE);
+
+
+# Run all the sub commands
+verbose(1, "Processing all chunks.");
+my $rc = system("$debug_cmd run-parallel.sh $RP_OPTS $PSUB_OPTS $NOLOCAL $cmd_file $NP");
+die "Error running run-parallel.sh" unless($rc eq 0);
+
+
+# If everything is fine merge all MERGES
+verbose(1, "Merging final outputs.");
+$rc = system("$debug_cmd bash $merge_cmd_file");
+die "Error merging output." unless($rc eq 0);
+
+# Disabling elaborated merging since /dev/stdout & /dev/stderr doesn't work
+# with run-parallel.sh.
+if (0) {
+   my $number_item_2_merge = scalar(@MERGES);
+   if ($number_item_2_merge eq 1) {
+      verbose(1, "Only one final output to merge.");
+      my $rc;
+      if ( $NOLOCAL ) {
+         verbose(1, "Using the cluster.");
+         $rc = system("run-parallel.sh $RP_OPTS $PSUB_OPTS -nolocal $merge_cmd_file 1");
+      }
+      else {
+         verbose(1, "Using the current machine.");
+         $rc = system("bash $merge_cmd_file");
+      }
+      die "Error merging output." unless($rc eq 0);
+   }
+   else {
+      verbose(1, "$number_item_2_merge outputs to merge.");
+      my $rc = system("run-parallel.sh $RP_OPTS $PSUB_OPTS $NOLOCAL $merge_cmd_file $number_item_2_merge");
+      die "Error running run-parallel.sh when merging outputs." unless($rc eq 0);
+   }
+}
+
+
+# Clean up on successful work
+verbose(1, "Doing final cleanup.");
+`rm -rf $workdir` unless($debug);
+
