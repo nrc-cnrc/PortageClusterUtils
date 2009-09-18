@@ -68,20 +68,25 @@ while (1) {
       last if eof();
       my $date_line = <>;
       defined $date_line or do { warn "unexpected eof()"; last; };
-      my ($date, $author, $state, $lines) =
+      my ($date, $zone, $author, $state, $lines, $commitid) =
          $date_line =~ /
-                        date:\s*(.*?):\d\d;\s*
+                        date:\s*(.*?):\d\d(?:\s*([-+]\d{4}))?;\s*
                         author:\s*(.*?);\s*
                         state:\s*(.*?);\s*
-                        (?:lines:\s*(.*))?
+                        (?:lines:\s*(.*?);\s*)?
+                        (?:commitid:\s*(.*?);\s*)?
                        /x
             or do { warn "invalid date line $date_line"; next; };
 
       my $local_date;
       if ( my ($year, $month, $day, $hour, $min) =
-           $date =~ m#(\d+)/(\d+)/(\d+) (\d+):(\d+)# ) {
+           $date =~ m#(\d+)[-/](\d+)[-/](\d+) (\d+):(\d+)# ) {
          my $time_t = POSIX::mktime(0, $min, $hour, $day, $month-1, $year-1900);
-         $time_t -= 5 * 3600; # Convert $time_t to the current timezone
+         printf STDERR "ZONE: $zone\n";
+         if ( defined $zone ) {
+            $time_t -= $zone/100 * 3600; # Convert $time_t to UTC
+         }
+         $time_t += -5 * 3600; # Convert $time_t to the Eastern time zone
          $local_date = strftime "%Y/%m/%d %H:%M:%S %Z (%a)", localtime($time_t);
          #print "Date $date LocalDate $local_date\n";
       } else {
@@ -96,7 +101,8 @@ while (1) {
          $log_text .= $_;
       }
 
-      my $key = "$local_date $author\n\n$log_text\n";
+      defined $commitid or $commitid = "";
+      my $key = "$local_date $author $commitid\n\n$log_text\n";
       my $file_rev_info = pad("$revision ", 11) .
                           pad(((defined $lines) ? $lines : ""), 11) .
                           "$file " .
