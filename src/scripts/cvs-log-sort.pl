@@ -82,7 +82,7 @@ while (1) {
       if ( my ($year, $month, $day, $hour, $min) =
            $date =~ m#(\d+)[-/](\d+)[-/](\d+) (\d+):(\d+)# ) {
          my $time_t = POSIX::mktime(0, $min, $hour, $day, $month-1, $year-1900);
-         printf STDERR "ZONE: $zone\n";
+         #printf STDERR "ZONE: $zone\n";
          if ( defined $zone ) {
             $time_t -= $zone/100 * 3600; # Convert $time_t to UTC
          }
