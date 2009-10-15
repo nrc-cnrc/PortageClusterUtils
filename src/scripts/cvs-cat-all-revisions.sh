@@ -52,6 +52,8 @@ test $DEBUG && echo REVISIONS: $REVISIONS
 
 test -z "$REVISIONS" && usage "No revisions found for $CVS_FILE"
 
+trap "echo cvs-cat-all-revisions.sh caught a signal\; aborting. >&2; exit 1" 1 2 3 11 13 14 15 
+
 if [ $DIFF ]; then
    next_rev=""
    for rev in $REVISIONS; do
