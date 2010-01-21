@@ -30,6 +30,7 @@ my $primary = 0;
 my $netcat_mode = 0;
 my $silent = 0;
 my $subst;
+my $mon;
 
 GetOptions ("host=s"   => \$host,
             "port=i"   => \$port,
@@ -40,6 +41,7 @@ GetOptions ("host=s"   => \$host,
             primary    => \$primary,
             netcat     => \$netcat_mode,
             "subst=s"  => \$subst,
+            "mon=s"    => \$mon,
             );
 
 $primary and $quota = 0;
@@ -105,7 +107,7 @@ if ( $netcat_mode ) {
 }
 
 #
-# User request a systematic substitution on commands before running them
+# User requested a systematic substitution on commands before running them
 #
 my ($subst_match, $subst_replacement);
 if ( defined $subst ) {
@@ -128,6 +130,12 @@ sub report_signal($) {
    log_msg "Caught signal $_[0], Aborting job";
    send_recv "SIGNALED ($me) (rc=$_[0]) $reply_rcvd";
    exit;
+}
+
+my $mon_pid;
+if ( $mon ) {
+   $mon_pid = `set -m; process-memory-usage.pl -s 1 60 $$ > $mon & echo -n \$!`;
+   log_msg "Monitor PID $mon_pid";
 }
 
 while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
@@ -172,7 +180,14 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
       $reply_rcvd = send_recv "GET ($me)";
    }
 }
+
+if ( $mon_pid ) {
+   system("kill $mon_pid");
+   log_msg("Killed monitor process $mon_pid");
+}
+
 log_msg "Done.";
+
 
 
 sub PrintHelp{
@@ -220,6 +235,7 @@ print <<'EOF';
               to host:port and printing the response to STDOUT.
     -subst MATCH/REPLACEMENT replaces MATCH by REPLACEMENT in every command
               received before executing it.
+    -mon FILE Run process-memory-usage.pl on self, saving output into FILE
 
 EOF
 }

@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+
+use strict;
+my $filter;
+if ( @ARGV > 0 ) {
+   $filter = "@ARGV";
+} else {
+   $filter = `whoami`;
+   chomp $filter;
+}
+
+open IN, "qstatn '$filter' |" or die "Can't call qstatn: $!";
+while (<IN>) {
+   #if ( defined $filter and ! /$filter/o ) { next; }
+   print;
+   my ($job_id) = /^(\d+(-\d+)?)/ or next;
+   my $full = `qstat -f $job_id`;
+   $full =~ s/\s//g;
+   my ($path) = ($full =~ /PBS_O_WORKDIR=(.*?),/);
+   print "	$path\n";
+   #system "qstat -f $job_id | grep PBS_O_WORKDIR";
+}
+
+

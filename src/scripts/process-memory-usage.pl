@@ -35,9 +35,15 @@ Options:
   -h(elp):      print this help message
   -v(erbose):   increment the verbosity level by 1 (may be repeated)
 
+Note:
+  To silently kill this process, send it signal 10 (SIGUSR1).  The signal will
+  be caught and will cause the process to exit without any further output.
+
 ";
    exit 1;
 }
+
+$SIG{USR1} = sub { exit(0); };
 
 my $Gigabytes = 1024 * 1024;  # Kb to Gb
 use Getopt::Long;
@@ -58,6 +64,8 @@ my $mainpid    = shift || die "Missing PID";
 0 == @ARGV or usage "Superfluous parameter(s): @ARGV";
 
 
+local $| = 1; # autoflush
+
 my $i = 0;
 my $not_present = 0;
 while (1) {
@@ -74,10 +82,10 @@ while (1) {
       $process_info =~ s/^\s+//;   # Remove leading spaces
       my ($ppid, $pid, $vsz, $rss, $pcpu, $comm) = split(/\s+/, $process_info);
 
-      print "<D> $ppid $pid $vsz $rss $pcpu $comm\n" if(defined($debug));
-
       # Is this process part of the process tree
       if (exists $PIDS{$ppid} or $pid == $mainpid) {
+         print "<D> $ppid $pid $vsz $rss $pcpu $comm\n" if(defined($debug));
+
          $PIDS{$pid} = 1;
          $total_vsz  += $vsz;
          $total_rss  += $rss;

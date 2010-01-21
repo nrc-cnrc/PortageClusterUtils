@@ -11,15 +11,19 @@
 BINSCRIPTS = \
         analyze \
         cvs-cat-all-revisions.sh \
+        cvs-diff-all-revisions.sh \
         cvs-log-sort.pl \
         cvs-status-summary.pl \
         parallelize.pl \
         process-memory-usage.pl \
         psub \
+        qstatdir \
         qstatn \
         r-parallel-d.pl \
         r-parallel-worker.pl \
         run-parallel.sh \
+        sh-utils.sh \
+        sum.pl \
         which-test.sh
 
 # The following include statement is here to allow this Makefile to work within

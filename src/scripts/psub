@@ -57,6 +57,8 @@ Options:
   -f             force submission even if errors are detected
   -I             enter interactive mode thus getting a prompt to a node
   -P PERIOD      Log memory usage of process tree every PERIOD minutes. [6]
+  -require       Returns, without executing, how much vmem is required to run
+                 the jobs.
 
 Further notes:
 
@@ -95,8 +97,12 @@ arg_check() {
    fi
 }
 
+# Set some virtual memory constant per cpu.
+VMEM_LIMIT_GB_PER_CPU=8
+VMEM_HARD_LIMIT_GB_PER_CPU=7
+
 PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
-CPU_COUNT=1
+CPU_COUNT=
 MEMORY_POLLING_DELAY=6
 
 while [ $# -gt 0 ]; do
@@ -105,7 +111,7 @@ while [ $# -gt 0 ]; do
    -v|-verbose)     VERBOSE=1;;
    -N)              arg_check 1 $# $!; NAME=$2; shift;;
    -[1-9]|-[1-9][0-9]) CPU_COUNT=$((0 - $1));;
-   -I)              INTMODE=1; NOSCRIPT=1; CPU_COUNT=4;;
+   -I)              INTMODE=1; NOSCRIPT=1; [[ $CPU_COUNT ]] || CPU_COUNT=4;;
    -memmap)         arg_check 1 $# $!; arg_check_pos_int $2 $1
                     MEMMAP=$2; shift;;
    -e)              arg_check 1 $# $!; ERR_FILE=$2; shift;;
@@ -124,6 +130,7 @@ while [ $# -gt 0 ]; do
    -p|-t)           arg_check 1 $# $!; QSUB_OPTS="$QSUB_OPTS $1 $2"; shift;;
    -n)              NOT_REALLY=1;;
    -f)              FORCE=1;;
+   -require)        REQUIREMENTS=1;;
    --)              shift; break;;
    -*)              error_exit "Unknown options $1.";;
    *)               break;;
@@ -131,13 +138,10 @@ while [ $# -gt 0 ]; do
    shift
 done
 
-COMMAND="$*"
+# If, at this point there still no CPU_COUNT defined, we'll define the default value.
+[[ $CPU_COUNT ]] || CPU_COUNT=1
 
-if which qsub >& /dev/null; then
-   true # qsub found - we're running on a cluster
-else
-   error_exit "Can't find qsub, we don't seem to be running on a cluster."
-fi
+COMMAND="$*"
 
 if uname -n | egrep -q 'balzac|blz'; then
    BALZAC=1
@@ -146,6 +150,27 @@ elif uname -n | egrep -q 'venus|vns'; then
 else
    # CUSTOMIZE HERE if you want to tune psub to your own cluster.
    true
+fi
+
+# Must be done before any qsub dependency
+if [ $REQUIREMENTS ]; then
+   VMEM_HARD_LIMIT_GB=0
+   if [ $BALZAC ]; then
+      VMEM_HARD_LIMIT_GB=$(($VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
+      # -memmap adds extra virtual memory
+      if [ $MEMMAP ]; then
+         VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP))
+      fi
+   fi
+   echo $VMEM_HARD_LIMIT_GB
+   exit
+fi
+
+
+if which qsub >& /dev/null; then
+   true # qsub found - we're running on a cluster
+else
+   error_exit "Can't find qsub, we don't seem to be running on a cluster."
 fi
 
 # In interactive mode we need to reserve an entire node
@@ -167,7 +192,7 @@ fi
 
 # Verifies that we are not trying to open an interactive mode session from an
 # interactive session
-if [ -n "$INTMODE" -a `uname -n | egrep -q 'balzac|venus'; echo $?` -eq 1 ]; then
+if [[ $INTMODE && ! $NOT_REALLY && `uname -n | egrep -q 'balzac|venus'; echo $?` -eq 1 ]]; then
    error_exit "STOP: you shouldn't start a new interactive session from a node"
 fi
 
@@ -241,8 +266,8 @@ if [ $BALZAC ]; then
       PPN_NODES="1:ppn=$CPU_COUNT"
       #RESOURCES="${OLDRESOURCES}nodes=1:ppn=$CPU_COUNT"
    fi
-   VMEM_LIMIT_GB=$((8 * $CPU_COUNT))
-   VMEM_HARD_LIMIT_GB=$((7 * $CPU_COUNT))
+   VMEM_LIMIT_GB=$(($VMEM_LIMIT_GB_PER_CPU * $CPU_COUNT))
+   VMEM_HARD_LIMIT_GB=$(($VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
    # -memmap adds extra virtual memory
    if [ $MEMMAP ]; then
       VMEM_LIMIT_GB=$((VMEM_LIMIT_GB + MEMMAP))

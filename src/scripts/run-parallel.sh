@@ -15,6 +15,16 @@
 # Copyright 2005, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2005, Her Majesty in Right of Canada
 
+# Requirements for the run-parallel.sh suite:
+# Make sure the following are in your path:
+# - parallelize.pl
+# - process-memory-usage.pl
+# - psub
+# - r-parallel-d.pl
+# - r-parallel-worker.pl
+# - run-parallel.sh
+# - sum.pl
+# - which-test.sh
 
 usage() {
    for msg in "$@"; do
@@ -85,6 +95,7 @@ General options:
   -h(elp)       Print this help message.
   -d(ebug)      Print debugging information.
   -q(uiet)      Quiet mode only prints commands executed.
+  -cleanup      Remove run-parallel-logs-* files  upon completion.
   -v(erbose)    Increase verbosity level.  If specified once, show the deamon's
                 logs, each worker's logs, etc.  Yet more output is produced if
                 specified twice.
@@ -95,15 +106,15 @@ General options:
        killall  Kill all workers immediately and exit
   -subst MATCH  Have workers substite MATCH in each command by their worker-id
                 before running it.
+  -unordered-cat Outputs to stdout, in an unordered fashion, stdouts from all
+                 the workers.
 
 Cluster mode options:
 
   -N            adds a user defined name to the workers. []
                 Useful when using run-parallel.sh -nolocal -e "job" 1
-  -nolowpri     Do not use the "low priority queue" (useful if you need
-                extra memory on Venus)
-  -highmem      Use 2 CPUs per worker, for extra extra memory.  (Implies
-                -nolowpri.) [propagate the number of CPUs of master job]
+  -highmem      Use 2 CPUs per worker, for extra extra memory.  [propagate the
+                number of CPUs of master job]
   -nohighmem    Use only 1 CPU per worker, even if master job had more.
   -nolocal      psub all workers [run one worker locally, unless on head node] 
   -nocluster    force non-cluster mode [auto-detect if we're on a cluster]
@@ -111,7 +122,7 @@ Cluster mode options:
   -psub         Provide custom psub options.
   -qsub         Provide custom qsub options.
 
-Resource propagation from the master jobs to worker jobs (cluster mode only):
+Resource propagation from the master job to worker jobs (cluster mode only):
 
   Priority: workers will be submitted with a priority 1 level below the master.
 
@@ -153,6 +164,7 @@ error_exit() {
       echo $msg >&2
    done
    echo "Use -h for help." >&2
+   GLOBAL_RETURN_CODE=1
    exit 1
 }
 
@@ -181,23 +193,32 @@ on_head_node()
    fi
 }
 
+if [[ $PBS_JOBID ]]; then
+   SHORT_JOB_ID=${PBS_JOBID:0:13}
+else
+   SHORT_JOB_ID=$$.local
+fi
+
+WORKER_CPU_STRING="Run-parallel-worker-CPU"
+START_TIME=`date +"%s"`
 NUM=
-NOLOWPRI=
 HIGHMEM=
 NOHIGHMEM=
 NOLOCAL=
 if on_head_node; then NOLOCAL=1; fi
 NOCLUSTER=
 VERBOSE=1
+CLEANUP=
 DEBUG=
 SAVE_ARGS="$@"
 CMD_FILE=
 CMD_LIST=
 EXEC=
+UNORDERED_CAT=
 QUOTA=
 PREFIX=""
 JOB_NAME=
-JOBSET_FILENAME=`/usr/bin/uuidgen`.jobs
+JOBSET_FILENAME=`mktemp -u run-p.tmpjobs.$SHORT_JOB_ID.XXX` || error_exit "Can't create temporary jobs file."
 ON_ERROR=continue
 SUBST=
 #TODO: run-parallel.sh -c RP_ARGS -... -... {-exec | -c} cmd args
@@ -208,6 +229,7 @@ while (( $# > 0 )); do
    -p)             arg_check 1 $# $1; PREFIX="$2"; shift;;
    -e)             arg_check 1 $# $1; CMD_LIST=1
                    echo "$2" >> $JOBSET_FILENAME; shift;;
+   -unordered-cat|-unordered_cat) VERBOSE=0; UNORDERED_CAT=1;;
    -exec|-c)       arg_check 1 $# $1; shift; NOLOCAL=1; EXEC=1
                    VERBOSE=$(( $VERBOSE - 1 ))
                    # Special case for make's sake - make invokes uname -s twice
@@ -238,8 +260,7 @@ while (( $# > 0 )); do
                    PSUBOPTS="$PSUBOPTS $RP_PSUB_OPTS";
                    echo "$*" >> $JOBSET_FILENAME;
                    break;;
-   -nolowpri)      NOLOWPRI=1;;
-   -highmem)       NOLOWPRI=1; HIGHMEM=1;;
+   -highmem)       HIGHMEM=1;;
    -nohighmem)     NOHIGHMEM=1;;
    -nolocal)       NOLOCAL=1;;
    -nocluster)     NOCLUSTER=1;;
@@ -253,8 +274,10 @@ while (( $# > 0 )); do
    -subst)         arg_check 1 $# $1; WORKER_SUBST=$2; shift;;
    -v|-verbose)    VERBOSE=$(( $VERBOSE + 1 ));;
    -q|-quiet)      VERBOSE=0;;
+   -cleanup)       CLEANUP=1;;
    -d|-debug)      DEBUG=1;;
    -h|-help)       usage;;
+   -unit-test)     UNIT_TEST=1;; # hidden option for unit testing
    *)              break;;
    esac
    shift
@@ -344,6 +367,14 @@ if [[ "$1" = add || "$1" = quench || "$1" = kill ]]; then
    exit 0
 fi
 
+CLEANLOG=
+if [[ $CLEANUP ]]; then
+   CLEANLOG="run-parallel-logs-${PBS_JOBID-local}"
+fi
+
+# Assume there's a problem until we know things finished cleanly.
+GLOBAL_RETURN_CODE=2
+
 # Process clean up at exit or kill - set this trap early enough that we 
 # clean up no matter what happens.
 trap '
@@ -353,7 +384,7 @@ trap '
    else
       WORKERS=""
    fi
-   if ps -p $DEAMON_PID >& /dev/null; then
+   if [[ `ps -p $DEAMON_PID | wc -l` > 1 ]]; then
       kill $DEAMON_PID
    fi
    if [[ $WORKERS ]]; then
@@ -364,50 +395,35 @@ trap '
          sleep 1
       done
    fi
-   for x in $WORKDIR/log.worker-*; do
-      if [[ -f $x ]]; then
+   for x in $WORKDIR/log.worker-* $WORKDIR/mon.worker-*; do
+      if [[ -s $x ]]; then
          echo $x
          echo ""
          cat $x
          echo ""
       fi
    done > run-parallel-logs-${PBS_JOBID-local}
-   test -n "$DEBUG" || rm -rf $WORKDIR
-   exit
+   test -n "$DEBUG" || rm -rf $WORKDIR $CLEANLOG
+   trap "" 0
+   exit $GLOBAL_RETURN_CODE
 ' 0 1 2 3 13 14 15
 
 # Create a temp directory for all temp files to go into.
-WORKDIR=""
-for attempt in 1 2 3; do
-   if [[ $PBS_JOBID ]]; then
-      SHORT_JOB_ID=${PBS_JOBID:0:13}
-   else
-      SHORT_JOB_ID=$$.local
-   fi
-   SHORT_RANDOM_STR=`/usr/bin/uuidgen | md5sum | cut -c1-6`
-   TMP_DIR_NAME=${PREFIX}run-p.$SHORT_RANDOM_STR.$SHORT_JOB_ID
-   if mkdir -p $TMP_DIR_NAME; then
-      WORKDIR=$TMP_DIR_NAME
-      break
-   else
-      echo "Could not create temp dir - trying a different name" >&2
-   fi
-done
-if [[ ! $WORKDIR ]]; then
-   error_exit "Giving up after three failed attemps to create a temp dir."
-fi
+WORKDIR=`mktemp -d ${PREFIX}run-p.$SHORT_JOB_ID.XXX` || error_exit "Can't create temp WORKDIR."
 if [[ ! -d $WORKDIR ]]; then
    error_exit "Created temp dir $WORKDIR, but somehow it doesn't exist!"
+fi
+if [[ $DEBUG ]]; then
+   echo "   Temp JOBSET_FILENAME = $JOBSET_FILENAME"
 fi
 test -f $JOBSET_FILENAME && mv $JOBSET_FILENAME $WORKDIR/jobs
 JOBSET_FILENAME=$WORKDIR/jobs
 
-if which-test.sh qsub; then
+if [[ $NOCLUSTER ]]; then
+   CLUSTER=
+elif which-test.sh qsub; then
    CLUSTER=1
 else
-   CLUSTER=
-fi
-if [[ $NOCLUSTER ]]; then
    CLUSTER=
 fi
 
@@ -470,7 +486,7 @@ fi
 if [[ $DEBUG ]]; then
    echo "
    NUM       = $NUM
-   NOLOWPRI  = $NOLOWPRI
+   NUM_OF_INSTR = $NUM_OF_INSTR
    HIGHMEM   = $HIGHMEM
    NOHIGHMEM = $NOHIGHMEM
    NOLOCAL   = $NOLOCAL
@@ -497,6 +513,7 @@ fi
 
 if [[ $NUM_OF_INSTR = 0 ]]; then
    echo "No commands to execute!  So I guess I'm done..." >&2
+   GLOBAL_RETURN_CODE=0
    exit
 fi
 
@@ -506,6 +523,174 @@ if (( $NUM_OF_INSTR < $NUM )); then
 elif [[ $NUM = 0 ]]; then
    echo "Need at least one worker (setting num workers to 1)" >&2
    NUM=1
+fi
+
+if [[ $CLUSTER ]]; then
+   if [[ $PSUBOPTS =~ '(^| )-([0-9]+)($| )' ]]; then
+      NCPUS=${BASH_REMATCH[2]}
+      test -n $DEBUG && echo Requested $NCPUS CPUs per worker >&2
+   elif [[ $HIGHMEM ]]; then
+      # For high memory, request two CPUs per worker with ncpus=2.
+      PSUBOPTS="-2 $PSUBOPTS"
+      NCPUS=2
+   elif [[ $NOHIGHMEM ]]; then
+      NCPUS=1
+   fi
+
+   if [[ ! $NOLOCAL ]]; then
+      # We assume by default that we can run one local job.
+      LOCAL_JOBS=1
+
+      if [[ $PBS_JOBID ]]; then
+         if [[ `qstat -f $PBS_JOBID 2> /dev/null` =~ '1:ppn=([[:digit:]]+)' ]]; then
+            PARENT_NCPUS=${BASH_REMATCH[1]}
+         else
+            PARENT_NCPUS=1
+         fi
+      fi
+
+      if [[ $NCPUS && $PARENT_NCPUS ]]; then
+         if [[ $NCPUS -gt $PARENT_NCPUS ]]; then
+            echo Requested more CPUs for workers than master has, setting -nolocal. >&2
+            NOLOCAL=1
+         elif (( $PARENT_NCPUS / $NCPUS > 1 )); then
+            LOCAL_JOBS=$(($PARENT_NCPUS / $NCPUS))
+            echo Parent has enough CPUs for $LOCAL_JOBS local workers. >&2
+            if (( $LOCAL_JOBS > $NUM )); then
+               LOCAL_JOBS=$NUM
+               echo But only requested $NUM worker"(s)".
+            fi
+         fi
+      elif [[ $PARENT_NCPUS && $PARENT_NCPUS -gt 1 && ! $NCPUS ]]; then
+         echo Master was submitted with $PARENT_NCPUS CPUs, propagating to workers. >&2
+         PSUBOPTS="-$PARENT_NCPUS $PSUBOPTS"
+      fi
+   fi
+
+   if [[ -n "$PBS_JOBID" ]]; then
+      MASTER_PRIORITY=`qstat -f $PBS_JOBID 2> /dev/null |
+         egrep 'Priority = -?[0-9][0-9]*$' | sed 's/.*Priority = //'`
+   fi
+   if [[ -z "$MASTER_PRIORITY" ]]; then
+      MASTER_PRIORITY=0
+   fi
+   if [[ $NUM == 1 ]]; then
+      WORKER_PRIORITY=$MASTER_PRIORITY
+   else
+      WORKER_PRIORITY=$((MASTER_PRIORITY - 1))
+   fi
+
+   #echo MASTER_PRIORITY $MASTER_PRIORITY
+   PSUBOPTS="-p $WORKER_PRIORITY $PSUBOPTS"
+   #echo PSUBOPTS $PSUBOPTS
+
+   if [[ ! $NOLOCAL ]]; then
+      # Now that the PSUBOPTS variable has settle down, let see how much vmem the job
+      # requires.
+      JOB_VMEM=`psub -require $PSUBOPTS`
+
+      if [[ $PBS_JOBID ]]; then
+         # How much VMEM was allocated to the parent?
+         if [[ `qstat -f $PBS_JOBID 2> /dev/null` =~ 'Resource_List.vmem = ([[:digit:]]+)gb' ]]; then
+            PARENT_VMEM=${BASH_REMATCH[1]}
+         else
+            [[ $DEBUG ]] && echo "Failed determining PARENT_VMEM" >&2
+         fi
+      else
+         [[ $DEBUG ]] && echo "Not in a PBS_JOB thus not getting PARENT_VMEM" >&2
+      fi
+
+      # If the parent doesn't have enough VMEM it won't be allowed to run a job.
+      if [[ $JOB_VMEM && $PARENT_VMEM ]]; then
+         if [[ $JOB_VMEM -gt $PARENT_VMEM ]]; then
+            echo "Requested more VMEM for workers (${JOB_VMEM}GB) than master has (${PARENT_VMEM}GB), setting -nolocal." >&2
+            NOLOCAL=1
+         else
+            # Let's find out how many jobs can actually fit in local memory
+            if (( $LOCAL_JOBS * $JOB_VMEM > $PARENT_VMEM )); then
+               LOCAL_JOBS=$(($PARENT_VMEM / $JOB_VMEM))
+               echo "Parent has only enough VMEM (${PARENT_VMEM}GB) for $LOCAL_JOBS local workers (at ${JOB_VMEM}GB VMEM each)." >&2
+            fi
+         fi
+      fi
+   fi
+
+
+   # The psub command is fairly complex, so here it is documented in
+   # details
+   #
+   # Elements specified through SUBMIT_CMD:
+   #
+   #  - -o psub-dummy-output: overrides defaut .o output files generated by
+   #    PBS/qsub, since we explicitely redirect STDERR and STDOUT using > and 2>
+   #  - -e: even if the job redirects STDERR, the memory monitoring logs are in
+   #    the .e file, so keep them all and summarize them when run-parallel.sh is
+   #    done
+   #  - -noscript: don't save the .j script file generated by psub
+   #  - $PSUBOPTS: pass on any user-specified psub options
+   #  - qsparams "$QSUBOPTS": pass on any user-specified qsub options, as well as
+   #    a few added above by this script
+   #
+   # Elements specified in the body of the for loop below:
+   #
+   #  - -N c-$i-$PBS_JOBID gives each sub job an easily interpretable
+   #    name
+   #  - \> $OUT 2\> $ERR (notice the \ before >) sends canoe's STDOUT
+   #    and STDERR to $OUT and $ERR, respectively
+   #  - >&2 (not escaped) sends psub's output to STDERR of this script.
+
+   SUBMIT_CMD=(psub
+               -o $WORKDIR/psub-dummy-output
+               -noscript
+               $PSUBOPTS)
+
+   if [[ $QSUBOPTS ]]; then
+      SUBMIT_CMD=("${SUBMIT_CMD[@]}" -qsparams "$QSUBOPTS")
+   fi
+
+   if [[ $NOLOCAL ]]; then
+      FIRST_PSUB=0
+   elif [[ $LOCAL_JOBS ]]; then
+      FIRST_PSUB=$LOCAL_JOBS
+   else
+      warn "Internal error, the code should never get here."
+      FIRST_PSUB=1
+   fi
+
+   if [[ -n "${PBS_JOBID%%.*}" ]]; then
+      WORKER_NAME=${PBS_JOBID%%.*}-${JOB_NAME}w
+   else
+      WORKER_NAME=${JOB_NAME}w
+   fi
+
+   # This file will contain the PBS job IDs of each worker
+   WORKER_JOBIDS=$WORKDIR/worker_jobids
+   cat /dev/null > $WORKER_JOBIDS
+
+   if [[ $DEBUG ]]; then
+      echo "
+   NOLOCAL = $NOLOCAL
+   PBS_JOBID = $PBS_JOBID
+   JOB_VMEM = $JOB_VMEM
+   PARENT_VMEM = $PARENT_VMEM
+   NCPUS = $NCPUS
+   PARENT_NCPUS = $PARENT_NCPUS
+   LOCAL_JOBS = $LOCAL_JOBS
+   FIRST_PSUB = $FIRST_PSUB
+   NUM = $NUM
+   " >&2
+   fi
+
+else
+   # Not running on a cluster
+   NOLOCAL=
+   FIRST_PSUB=$NUM
+fi
+
+if [[ $UNIT_TEST ]]; then
+   trap 'exit' 0 1 2 3 13 14 15
+   rm -r $WORKDIR
+   exit
 fi
 
 if (( $VERBOSE > 1 )); then
@@ -566,118 +751,13 @@ if (( $VERBOSE > 1 )); then
    echo Deamon launched successfully on $MY_HOST:$MY_PORT >&2
 fi
 
-if [[ $PSUBOPTS =~ '(^| )-([0-9]+)($| )' ]]; then
-   NCPUS=${BASH_REMATCH[2]}
-   test -n $DEBUG && echo Requested $NCPUS CPUs per worker >&2
-elif [[ $HIGHMEM ]]; then
-   # For high memory, request two CPUs per worker with ncpus=2.
-   PSUBOPTS="-2 $PSUBOPTS"
-   NCPUS=2
-elif [[ $NOHIGHMEM ]]; then
-   NCPUS=1
-fi
-
-if [[ $PBS_JOBID ]]; then
-   if which-test.sh qstat; then
-      PARENT_NCPUS=` \
-         qstat -f $PBS_JOBID 2> /dev/null |
-         perl -nle 'if ( /1:ppn=(\d+)/ ) { print $1; exit }'`
-   fi
-   if [[ ! $PARENT_NCPUS ]]; then
-      PARENT_NCPUS=1
-   fi
-fi
-
-if [[ $NCPUS && $PARENT_NCPUS && $NCPUS -gt $PARENT_NCPUS ]]; then
-   echo Requested more CPUs for workers than master has, setting -nolocal. >&2
-   NOLOCAL=1
-elif [[ $PARENT_NCPUS && ! $NCPUS ]]; then
-   echo Master was submitted with $PARENT_NCPUS CPUs, propagating to workers. >&2
-   PSUBOPTS="-$PARENT_NCPUS $PSUBOPTS"
-   NOLOWPRI=1
-fi
-
-if [[ -n "$PBS_JOBID" ]]; then
-   MASTER_PRIORITY=`qstat -f $PBS_JOBID 2> /dev/null |
-      egrep 'Priority = -?[0-9][0-9]*$' | sed 's/.*Priority = //'`
-fi
-if [[ -z "$MASTER_PRIORITY" ]]; then
-   MASTER_PRIORITY=0
-fi
-if [[ $NUM == 1 ]]; then
-   WORKER_PRIORITY=$MASTER_PRIORITY
-else
-   WORKER_PRIORITY=$((MASTER_PRIORITY - 1))
-fi
-
-#echo MASTER_PRIORITY $MASTER_PRIORITY
-PSUBOPTS="-p $WORKER_PRIORITY $PSUBOPTS"
-#echo PSUBOPTS $PSUBOPTS
-
-if [[ ! $NOLOWPRI ]]; then
-   # By default specify ckpt=1, which means the job can run on borrowed nodes
-   # Do this only on venus
-   if pbsnodes -a 2> /dev/null | grep -q vns ; then
-      PSUBOPTS="-l ckpt=1 $PSUBOPTS"
-   fi
-fi
-
-
-# The psub command is fairly complex, so here it is documented in
-# details
-#
-# Elements specified through SUBMIT_CMD:
-#
-#  - -o psub-dummy-output: overrides defaut .o output files generated by
-#    PBS/qsub, since we explicitely redirect STDERR and STDOUT using > and 2>
-#  - -e: even if the job redirects STDERR, the memory monitoring logs are in
-#    the .e file, so keep them all and summarize them when run-parallel.sh is
-#    done
-#  - -noscript: don't save the .j script file generated by psub
-#  - $PSUBOPTS: pass on any user-specified psub options
-#  - qsparams "$QSUBOPTS": pass on any user-specified qsub options, as well as
-#    a few added above by this script
-#
-# Elements specified in the body of the for loop below:
-#
-#  - -N c-$i-$PBS_JOBID gives each sub job an easily interpretable
-#    name
-#  - \> $OUT 2\> $ERR (notice the \ before >) sends canoe's STDOUT
-#    and STDERR to $OUT and $ERR, respectively
-#  - >&2 (not escaped) sends psub's output to STDERR of this script.
-
-SUBMIT_CMD=(psub
-            -o $WORKDIR/psub-dummy-output
-            -noscript
-            $PSUBOPTS)
-
-if [[ $QSUBOPTS ]]; then
-   SUBMIT_CMD=("${SUBMIT_CMD[@]}" -qsparams "$QSUBOPTS")
-fi
-
-if [[ $NOLOCAL ]]; then
-   FIRST_PSUB=0
-else
-   FIRST_PSUB=1
-fi
-
-# This file will contain the PBS job IDs of each worker
-WORKER_JOBIDS=$WORKDIR/worker_jobids
-cat /dev/null > $WORKER_JOBIDS
-
-if [[ -n "${PBS_JOBID%%.*}" ]]; then
-   WORKER_NAME=${PBS_JOBID%%.*}-${JOB_NAME}w
-else
-   WORKER_NAME=${JOB_NAME}w
-fi
-
 # Command for launching more workers when some send a STOPPING-DONE message.
 PSUB_CMD_FILE=$WORKDIR/psub_cmd
 SILENT_WORKER=
 if [[ $VERBOSE < 2 ]]; then
    SILENT_WORKER=-silent
 fi
-WORKER_COMMAND="r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT"
+WORKER_COMMAND="/usr/bin/time -f $WORKER_CPU_STRING=user%Us+sys%Ss r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT"
 if [[ $WORKER_SUBST ]]; then
    SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
 else
@@ -695,42 +775,50 @@ if [[ $CLUSTER ]]; then
    done
    echo -n "" -N $WORKER_NAME-__WORKER__ID__ >> $PSUB_CMD_FILE
    echo -n "" -e $WORKDIR/log.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
-   echo -n "" $WORKER_COMMAND $SUBST_OPT $QUOTA \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
+   echo -n "" $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $WORKDIR/mon.worker-__WORKER__ID__ \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
 else
-   echo $WORKER_COMMAND $SUBST_OPT \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
+   echo $WORKER_COMMAND $SUBST_OPT -mon $WORKDIR/mon.worker-__WORKER__ID__ \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
 fi
 echo $NUM > $WORKDIR/next_worker_id
 
-# start worker 0 locally, if not disabled.
+# start local worker(s) locally, if not disabled.
 if [[ ! $NOLOCAL ]]; then
-   # start first worker locally (hostname of deamon process, number of
-   # initial jobs in current call parameter n)
-   OUT=$WORKDIR/out.worker-0
-   ERR=$WORKDIR/err.worker-0
-   if [[ $WORKER_SUBST ]]; then
-      SUBST_OPT="-subst $WORKER_SUBST/0"
-   else
-      SUBST_OPT=""
-   fi
-   if (( $VERBOSE > 2 )); then
-      echo $WORKER_COMMAND $SUBST_OPT -primary \> $OUT 2\> $ERR \& >&2
-   fi
-   eval $WORKER_COMMAND $SUBST_OPT -primary > $OUT 2> $ERR &
+   # start first worker(s) locally
+   for (( i = 0; i < $FIRST_PSUB; ++i )); do
+      OUT=$WORKDIR/out.worker-$i
+      ERR=$WORKDIR/err.worker-$i
+      MON=$WORKDIR/mon.worker-$i
+      if [[ $WORKER_SUBST ]]; then
+         SUBST_OPT="-subst $WORKER_SUBST/$i"
+      fi
+      if (( $VERBOSE > 2 )); then
+         echo $WORKER_COMMAND $SUBST_OPT -primary -mon $MON \> $OUT 2\> $ERR \& >&2
+      fi
+      eval $WORKER_COMMAND $SUBST_OPT -primary -mon $MON > $OUT 2> $ERR &
+   done
 fi
 
 if (( $NUM > $FIRST_PSUB )); then
-   # start workers 0 (or 1) to n-1 using psub, noting their PID/PBS_JOBID
-   if [[ $CLUSTER ]] && qsub -t 2>&1 | grep -q 'option requires an argument'; then
+   if [[ ! $CLUSTER ]]; then
+      echo run-parallel.sh internal error >&2
+      exit 1
+   fi
+   # start remaining workers using psub, noting their PID/PBS_JOBID
+   if qsub -t 2>&1 | grep -q 'option requires an argument'; then
       # Friendlier behaviour on clusters that support it: use the -t option to
       # submit all workers in a single request
       OUT=$WORKDIR/out.worker-
       ERR=$WORKDIR/err.worker-
       LOG=$WORKDIR/log.worker
+      MON=$WORKDIR/mon.worker-
       ID='$PBS_ARRAYID'
-      if (( $VERBOSE > 2 )); then
-         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $QUOTA \> $OUT$ID 2\> $ERR$ID >&2
+      if [[ $WORKER_SUBST ]]; then
+         SUBST_OPT="-subst $WORKER_SUBST/$ID"
       fi
-      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $QUOTA \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS
+      if (( $VERBOSE > 2 )); then
+         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID \> $OUT$ID 2\> $ERR$ID >&2
+      fi
+      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS
       # qstat needs individual job ids, and fails when given the array id, so we
       # need to expand them by hand into the $WORKER_JOBIDS file.
       WORKER_BASE_JOBID=`cat $WORKER_JOBIDS`
@@ -749,26 +837,18 @@ if (( $NUM > $FIRST_PSUB )); then
          OUT=$WORKDIR/out.worker-$i
          ERR=$WORKDIR/err.worker-$i
          LOG=$WORKDIR/log.worker-$i
+         MON=$WORKDIR/mon.worker-$i
          if [[ $WORKER_SUBST ]]; then
             SUBST_OPT="-subst $WORKER_SUBST/$i"
-         else
-            SUBST_OPT=""
          fi
 
-         if [[ $CLUSTER ]]; then
-            if (( $VERBOSE > 2 )); then
-               echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA \> $OUT 2\> $ERR >&2
-            fi
-            "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA \> $OUT 2\> $ERR >> $WORKER_JOBIDS
-            # PBS doesn't like having too many qsubs at once, let's give it a
-            # chance to breathe between each worker submission
-            sleep 1
-         else
-            if (( $VERBOSE > 2 )); then
-               echo $WORKER_COMMAND $SUBST_OPT $QUOTA \> $OUT 2\> $ERR \& >&2
-            fi
-            eval $WORKER_COMMAND $SUBST_OPT $QUOTA > $OUT 2> $ERR &
+         if (( $VERBOSE > 2 )); then
+            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON \> $OUT 2\> $ERR >&2
          fi
+         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON \> $OUT 2\> $ERR >> $WORKER_JOBIDS
+         # PBS doesn't like having too many qsubs at once, let's give it a
+         # chance to breathe between each worker submission
+         sleep 1
       done
    fi
 fi
@@ -821,7 +901,7 @@ if (( $VERBOSE > 0 )); then
             #echo skipping $x
          else
             echo >&2
-            echo ========== $x ========== | sed "s/$WORKDIR\///" >&2
+            echo ========== $x ========== | sed "s|$WORKDIR/||" >&2
             cat $x >&2
          fi
       fi
@@ -844,9 +924,27 @@ if (( $VERBOSE > 0 )); then
    echo "" >&2
 fi
 
+TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null | 
+   egrep -o "[0-9.]+" | sum.pl`
+END_TIME=`date +%s`
+WALL_TIME=$((END_TIME - START_TIME))
+MAX_VSZ=`egrep -ho 'vsz: [0-9.]+G' $WORKDIR/mon.worker-* 2> /dev/null |
+   egrep -o "[0-9.]+" | sum.pl -m`
+MAX_RSS=`egrep -ho 'rss: [0-9.]+G' $WORKDIR/mon.worker-* 2> /dev/null |
+   egrep -o "[0-9.]+" | sum.pl -m`
+RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s Max VMEM ${MAX_VSZ}G Max RAM ${MAX_RSS}G"
+if [[ ! $EXEC ]]; then
+   echo $RPTOTALS >&2
+fi
+
 if [[ `wc -l < $WORKDIR/rc` -ne "$NUM_OF_INSTR" ]]; then
    echo 'Wrong number of job return statuses: got' `wc -l < $WORKDIR/rc` "expected $NUM_OF_INSTR." >&2
+   GLOBAL_RETURN_CODE=-1
    exit -1
+elif [[ $UNORDERED_CAT ]]; then
+   find $WORKDIR | grep -F 'out.worker' | xargs cat
+   find $WORKDIR | grep -F 'err.worker' | xargs cat >&2
+   echo $RPTOTALS >&2
 elif [[ $EXEC ]]; then
    # With -c, we work like the shell's -c: connect stdout and stderr from the
    # job to the this script's, and exit with the job's exit status
@@ -866,10 +964,14 @@ elif [[ $EXEC ]]; then
             }
             print;
          }' >&2
-   exit `cat $WORKDIR/rc`
+   echo $RPTOTALS >&2
+   GLOBAL_RETURN_CODE=`cat $WORKDIR/rc`
+   exit $GLOBAL_RETURN_CODE
 elif grep -q -v '^0$' $WORKDIR/rc >& /dev/null; then
    # At least one job got a non-zero return code
+   GLOBAL_RETURN_CODE=2
    exit 2
 else
+   GLOBAL_RETURN_CODE=0
    exit 0
 fi

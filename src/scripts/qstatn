@@ -2,19 +2,40 @@
 
 export LC_ALL=C
 
-VENUS_CUT=-c1-6,16-24,34-
-BALZAC_CUT=-c1-9,21-30,40-69,74-
+QSTAT_OUTPUT=`
+   qstat -n |
+      perl -pe 'chomp; print "\n" unless (s/^ +(blz|vns)/ \1/ or s/^ +\+(blz|vns)/+\1/ or s/^ +--/   --/ or $. == 1); END{print "\n"}'
+   `
+
+#echo "$QSTAT_OUTPUT"
+
+JOBID_WIDTH=`echo "$QSTAT_OUTPUT" | 
+   perl -e '
+      my $maxlen = 0;
+      while (<>) {
+         if ( /^(\d[\d-]*)/ ) {
+            if ( length($1) > $maxlen ) {
+               $maxlen = length($1);
+            }
+         }
+      }
+      print $maxlen;
+   '`
+
+#echo JOBID_WIDTH $JOBID_WIDTH
+
+VENUS_CUT=-c1-$JOBID_WIDTH,16-24,34-
+BALZAC_CUT=-c1-$JOBID_WIDTH,21-30,40-53,56-63,66-69,74-
 case $HOST in
    v*) CUT=$VENUS_CUT;;
    b*) CUT=$BALZAC_CUT;;
    *)  echo Unknown cluster, assuming PBS Pro output.; CUT=$VENUS_CUT;;
 esac
 
-
-qstat -n |
-   perl -pe 'chomp; print "\n" unless (s/^ +(blz|vns)/ \1/ or s/^ +\+(blz|vns)/+\1/ or s/^ +--/   --/ or $. == 1); END{print "\n"}' |
+echo "$QSTAT_OUTPUT" |
    cut $CUT |
    perl -nle 'BEGIN {$filter = "'"$*"'"; $filter = "." unless $filter;}
+              s/SessID S  /SessID NDS/; # Balzac hack
               while ( s/^(\d\S+)[^-\d ] /$1  / ) {}
               #s/^(\d+)\. /$1  /;
               my $CPU_count = 0;

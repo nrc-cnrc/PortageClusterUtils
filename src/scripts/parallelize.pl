@@ -68,12 +68,13 @@ Options:
 
   -n N    split the work in N jobs/chunks [3].
   -np M   number of simultanious workers used to process the N chunks [N].
+  -w W    Specifies the number of lines in each blocks [Overwrites -n N].
   -s <X>  split additional input file X in N chunks where X in cmd_args.
   -m <Z>  merge additional output file Z where Z in cmd_args.
   -merge  merge command [cat]
   -nolocal  Run run-parallel.sh -nolocal
-  -psub <O> Passes specific commands to run-parallel.sh -psub.
-  -rp   <O> Passes specific commands to run-parallel.sh.
+  -psub <O> Passes additional options to run-parallel.sh -psub.
+  -rp   <O> Passes additional options to run-parallel.sh.
 
 Good examples:
   Tokenize the test_en.txt using 12 nodes.
@@ -83,7 +84,7 @@ Good examples:
   sed expression.
   $0 -debug -n 2 \"(./tagger | sed 's#[^ ]*/##g') < dev1 > dev1.tagged\"
 
-  Even though the syntax is not conform, for ease of use $0 handles gzip files
+  Even though the syntax is non-standard, for ease of use $0 handles gzip files
   as input as if it was a regular file:
   $0 'cat < input.gz > output'
   $0 'cat < input.gz > output.gz'
@@ -118,6 +119,7 @@ my @SPLITS = ();
 my @MERGES = ();
 my $N = 3;
 my $NP = undef;
+my $W = undef;
 my $NOLOCAL = "";
 my $PSUB_OPTS = "";
 my $RP_OPTS = "";
@@ -134,6 +136,7 @@ GetOptions(
 
    "n=i"       => \$N,
    "np=i"      => \$NP,
+   "w=i"       => \$W,
 
    "psub=s"    => \$PSUB_OPTS,
    "rp=s"      => \$RP_OPTS,
@@ -157,6 +160,8 @@ $NP = $N unless(defined($NP));
 # Grab the rest of the command line as the command to run
 my $CMD = join " ", @ARGV;
 
+# W, if exists, must be positive;
+die "-w W must be a positive value." unless (not defined($W) or $W > 0);
 
 # By default, look for input redirection
 if ($CMD =~ /<(\s*)([^ >]+)($|\s*)/) {
@@ -245,24 +250,39 @@ foreach my $m (@MERGES) {
 }
 
 
+my $NUMBER_OF_CHUNK_GENERATED = $N;
+
 # Split all SPLITS
 foreach my $s (@SPLITS) {
    my $dir = "$workdir/" . $basename{$s};
    mkdir($dir) unless -e $dir;
-   my $NUM_LINE = `gzip -cqfd $s | wc -l`;
-   $NUM_LINE = ceil($NUM_LINE / $N);
+
+   my $NUM_LINE = 0;
+   # Did the user specified a number of line to split into?
+   if (defined($W)) {
+      $NUM_LINE = $W;
+   }
+   else {
+      $NUM_LINE = `gzip -cqfd $s | wc -l`;
+      $NUM_LINE = ceil($NUM_LINE / $N);
+   }
 
    verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
    my $rc = system("$debug_cmd gzip -cqfd $s | split -a 3 -d -l $NUM_LINE - $dir/");
    die "Error spliting $s\n" unless($rc eq 0);
+
+   # Calculates the total number of jobs to create which can be different from
+   # -n N if the user specified -w W.
+   $NUMBER_OF_CHUNK_GENERATED = `ls $dir/* | \\wc -l`;
 }
 
 
 # Build all sub commands in CMD_FILE
 verbose(1, "Building command file.");
+verbose(2, "There is $NUMBER_OF_CHUNK_GENERATED commands to build.");
 my $cmd_file = "$workdir/commands";
 open(CMD_FILE, ">$cmd_file") or die "Unable to open command file";
-for (my $i=0; $i<$N; ++$i) {
+for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    my $SUB_CMD = $CMD;
    my $index = sprintf("%3.3d", $i);
    my @delete = ();
@@ -318,13 +338,17 @@ close(MERGE_CMD_FILE);
 
 # Run all the sub commands
 verbose(1, "Processing all chunks.");
-my $rc = system("$debug_cmd run-parallel.sh $RP_OPTS $PSUB_OPTS $NOLOCAL $cmd_file $NP");
+my $cmd = "$debug_cmd run-parallel.sh $RP_OPTS $PSUB_OPTS $NOLOCAL $cmd_file $NP";
+verbose(2, "cmd is: $cmd");
+my $rc = system($cmd);
 die "Error running run-parallel.sh" unless($rc eq 0);
 
 
 # If everything is fine merge all MERGES
 verbose(1, "Merging final outputs.");
-$rc = system("$debug_cmd bash $merge_cmd_file");
+$cmd = "$debug_cmd bash $merge_cmd_file";
+verbose(2, "cmd is: $cmd");
+$rc = system($cmd);
 die "Error merging output." unless($rc eq 0);
 
 # Disabling elaborated merging since /dev/stdout & /dev/stderr doesn't work

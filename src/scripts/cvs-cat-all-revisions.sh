@@ -12,6 +12,8 @@
 # Copyright 2008, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2008, Her Majesty in Right of Canada
 
+source `dirname $0`/sh-utils.sh
+
 usage() {
    for msg in "$@"; do
       echo $msg >&2
@@ -32,7 +34,7 @@ Options:
     exit 1
 }
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
    case "$1" in
    -h|-help)            usage;;
    -d|-debug)           DEBUG=1;;
@@ -42,22 +44,24 @@ while [ $# -gt 0 ]; do
    shift
 done
 
-test $# -eq 0   && usage "Missing cvs_file argument"
+[[ $# -eq 0 ]]  && usage "Missing cvs_file argument"
 CVS_FILE=$1
 shift
-test $# -gt 0   && usage "Superfluous arguments $*"
+[[ $# -gt 0 ]]  && usage "Superfluous argument(s) $*"
 
 REVISIONS=`cvs log -b -N $CVS_FILE | grep '^revision ' | cut -d' ' -f 2`
-test $DEBUG && echo REVISIONS: $REVISIONS
+debug "REVISIONS: $REVISIONS"
 
-test -z "$REVISIONS" && usage "No revisions found for $CVS_FILE"
+[[ ! "$REVISIONS" ]] && error_exit "No revisions found for $CVS_FILE"
+
+[[ $DIFF ]] && REVISIONS="$REVISIONS 0.0"
 
 trap "echo cvs-cat-all-revisions.sh caught a signal\; aborting. >&2; exit 1" 1 2 3 11 13 14 15 
 
-if [ $DIFF ]; then
+if [[ $DIFF ]]; then
    next_rev=""
    for rev in $REVISIONS; do
-      if [ $next_rev ]; then
+      if [[ $next_rev ]]; then
          cvs diff -r$rev -r$next_rev $CVS_FILE 2>&1 | sed "s/^/-$rev+$next_rev: /"
       fi
       next_rev=$rev
