@@ -66,9 +66,9 @@ Options:
   -v(erbose):   increment the verbosity level by 1 (may be repeated)
   -d(ebug):     print debugging information
 
-  -n N    split the work in N jobs/chunks [3].
+  -n N    split the work in N jobs/chunks (at most N with -w) [3].
   -np M   number of simultanious workers used to process the N chunks [N].
-  -w W    Specifies the number of lines in each blocks [Overwrites -n N].
+  -w W    Specifies the minimum number of lines in each block.
   -s <X>  split additional input file X in N chunks where X in cmd_args.
   -m <Z>  merge additional output file Z where Z in cmd_args.
   -merge  merge command [cat]
@@ -154,7 +154,6 @@ sub verbose {
 }
 
 $PSUB_OPTS = "-psub \"$PSUB_OPTS\"" unless ($PSUB_OPTS eq "");
-$NP = $N unless(defined($NP));
 
 
 # Grab the rest of the command line as the command to run
@@ -257,14 +256,12 @@ foreach my $s (@SPLITS) {
    my $dir = "$workdir/" . $basename{$s};
    mkdir($dir) unless -e $dir;
 
-   my $NUM_LINE = 0;
+   my $NUM_LINE = $W;
    # Did the user specified a number of line to split into?
-   if (defined($W)) {
-      $NUM_LINE = $W;
-   }
-   else {
+   if (defined($N)) {
       $NUM_LINE = `gzip -cqfd $s | wc -l`;
       $NUM_LINE = ceil($NUM_LINE / $N);
+      $NUM_LINE = $W if (defined($W) and $W > $NUM_LINE);
    }
 
    verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
@@ -274,7 +271,15 @@ foreach my $s (@SPLITS) {
    # Calculates the total number of jobs to create which can be different from
    # -n N if the user specified -w W.
    $NUMBER_OF_CHUNK_GENERATED = `ls $dir/* | \\wc -l`;
+
+   warn "You requested $N jobs but only $NUMBER_OF_CHUNK_GENERATED were created (due to -w $W)." if (2*$NUMBER_OF_CHUNK_GENERATED < $N);
 }
+
+sub min{
+   return ($_[0] < $_[1]) ? $_[0] : $_[1];
+}
+
+$NP = min($NUMBER_OF_CHUNK_GENERATED, 50) unless (defined($NP));
 
 
 # Build all sub commands in CMD_FILE
