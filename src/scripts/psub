@@ -342,7 +342,7 @@ if [[ $NODES ]]; then
 fi
 
 # X forwarding doesn't work well with screen.
-if [[ $TERM != screen ]]; then
+if [[ $TERM != screen && $DISPLAY ]]; then
    X_DISPLAY=-X
 fi 
 
