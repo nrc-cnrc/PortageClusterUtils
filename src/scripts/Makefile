@@ -23,7 +23,6 @@ BINSCRIPTS = \
         r-parallel-d.pl \
         r-parallel-worker.pl \
         run-parallel.sh \
-        sh-utils.sh \
         sum.pl \
         which-test.sh
 

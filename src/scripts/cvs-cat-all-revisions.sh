@@ -12,7 +12,6 @@
 # Copyright 2008, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2008, Her Majesty in Right of Canada
 
-source `dirname $0`/sh-utils.sh
 
 usage() {
    for msg in "$@"; do
@@ -50,9 +49,9 @@ shift
 [[ $# -gt 0 ]]  && usage "Superfluous argument(s) $*"
 
 REVISIONS=`cvs log -b -N $CVS_FILE | grep '^revision ' | cut -d' ' -f 2`
-debug "REVISIONS: $REVISIONS"
+[[ $DEBUG ]] && echo REVISIONS: $REVISIONS >&2
 
-[[ ! "$REVISIONS" ]] && error_exit "No revisions found for $CVS_FILE"
+[[ ! "$REVISIONS" ]] && usage "No revisions found for $CVS_FILE"
 
 [[ $DIFF ]] && REVISIONS="$REVISIONS 0.0"
 

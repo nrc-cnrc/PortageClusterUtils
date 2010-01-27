@@ -12,8 +12,6 @@
 # Copyright 2009, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2009, Her Majesty in Right of Canada
 
-source `dirname $0`/sh_utils.sh
-
 usage() {
    for msg in "$@"; do
       echo $msg >&2
@@ -44,7 +42,7 @@ done
 
 [[ $# -gt 0 ]]  && usage "Superfluous argument(s) $*"
 
-[[ -r CVS/Repository ]] || error_exit "This directory does not appear to be a CVS sandbox."
+[[ -r CVS/Repository ]] || usage "This directory does not appear to be a CVS sandbox."
 
 REPOSITORY=`cat CVS/Repository`
 
