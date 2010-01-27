@@ -49,7 +49,7 @@ shift
 [[ $# -gt 0 ]]  && usage "Superfluous argument(s) $*"
 
 REVISIONS=`cvs log -b -N $CVS_FILE | grep '^revision ' | cut -d' ' -f 2`
-[[ $DEBUG ]] && echo REVISIONS: $REVISIONS >&2
+[[ $DEBUG ]] && echo REVISIONS: $REVISIONS
 
 [[ ! "$REVISIONS" ]] && usage "No revisions found for $CVS_FILE"
 
