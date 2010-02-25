@@ -100,6 +100,11 @@ Good examples:
     -m tgt_out \\
     'filter_training_corpus src_in tgt_in src_out tgt_out 100 9'
 
+  Example that does an inventory count of characters in a corpus:
+  $0 \\
+    -merge \"merge_counts -\" -w 100000 -n 100 -np 8 \\
+    \"(grep -o . | LC_ALL=C sort | LC_ALL=C uniq -c | perl -ple 's/ *([0-9]+) (.+)/\\\$2 \\\$1/' | LC_ALL=C sort) < corpus > corpus.char\"
+
 BAD examples:
   $0 '(cat | gzip) < input > output.gz'
   Your output will be zipped twice.
@@ -327,10 +332,12 @@ foreach my $m (@MERGES) {
    }
    else {   
       if ($m =~ m#/dev/stdout#) {
-         $sub_cmd = "$MERGE_PGM $dir/*";
+         # MERGE_PGM doesn't apply to stdout
+         $sub_cmd = "cat $dir/*";
       }
       elsif ($m =~ m#/dev/stderr#) {
-         $sub_cmd = "$MERGE_PGM $dir/* 1>&2";
+         # MERGE_PGM doesn't apply to stderr
+         $sub_cmd = "cat $dir/* 1>&2";
       }
       else {
          $sub_cmd = "$MERGE_PGM $dir/* > $m";
