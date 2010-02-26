@@ -61,6 +61,7 @@ if [[ $DIFF ]]; then
    next_rev=""
    for rev in $REVISIONS; do
       if [[ $next_rev ]]; then
+         echo "cvs diff -r$rev -r$next_rev $CVS_FILE 2>&1 | sed \"s/^/-$rev+$next_rev: /\""
          cvs diff -r$rev -r$next_rev $CVS_FILE 2>&1 | sed "s/^/-$rev+$next_rev: /"
       fi
       next_rev=$rev
