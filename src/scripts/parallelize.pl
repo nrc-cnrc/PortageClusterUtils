@@ -100,10 +100,12 @@ Good examples:
     -m tgt_out \\
     'filter_training_corpus src_in tgt_in src_out tgt_out 100 9'
 
-  Example that does an inventory count of characters in a corpus:
+  To illustrate the -merge option, here is an example that does an inventory
+  count of characters in a corpus:
   $0 \\
-    -merge \"merge_counts -\" -w 100000 -n 100 -np 8 \\
-    \"(grep -o . | LC_ALL=C sort | LC_ALL=C uniq -c | perl -ple 's/ *([0-9]+) (.+)/\\\$2 \\\$1/' | LC_ALL=C sort) < corpus > corpus.char\"
+    -merge \"merge_counts -\" -w 100000 -n 100 \\
+    \"(grep -o . | sed 's/^ \$/__/' | get_voc -c | sed 's/^__ /  /' | \\
+       LC_ALL=C sort) < corpus > corpus.char\"
 
 BAD examples:
   $0 '(cat | gzip) < input > output.gz'
@@ -332,11 +334,10 @@ foreach my $m (@MERGES) {
    }
    else {   
       if ($m =~ m#/dev/stdout#) {
-         # MERGE_PGM doesn't apply to stdout
-         $sub_cmd = "cat $dir/*";
+         $sub_cmd = "$MERGE_PGM $dir/*";
       }
       elsif ($m =~ m#/dev/stderr#) {
-         # MERGE_PGM doesn't apply to stderr
+         # MERGE_PGM never applies to stderr
          $sub_cmd = "cat $dir/* 1>&2";
       }
       else {
@@ -358,6 +359,9 @@ die "Error running run-parallel.sh" unless($rc eq 0);
 
 # If everything is fine merge all MERGES
 verbose(1, "Merging final outputs.");
+verbose(1, "Merging commands: ");
+if ( $verbose >= 1 ) { `cat $merge_cmd_file >&2`; }
+verbose(1, "End of merging commands.\n");
 $cmd = "$debug_cmd bash $merge_cmd_file";
 verbose(2, "cmd is: $cmd");
 $rc = system($cmd);
