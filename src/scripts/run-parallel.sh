@@ -90,7 +90,7 @@ Arguments:
 General options:
 
   -p PFX        Work dir prefix [].
-                It's the user responsability to delete <PFX> as it may contain
+                It's the user responsibility to delete <PFX> as it may contain
                 other useful file from other scripts.
   -h(elp)       Print this help message.
   -d(ebug)      Print debugging information.
@@ -255,8 +255,8 @@ while (( $# > 0 )); do
                    # Needs some extra escaping for \ and we also remove extra quoting.
                    RP_PSUB_OPTS=`echo $* | perl -ne '/RP_PSUB_OPTS=(([\x22\x27]).*?[^\\\\]\2|[^ \x22\x27\n]+)/; print "$1\n";' | sed -e 's/^[\x22\x27]//' -e 's/[\x22\x27]$//'`
 
-                   test -n "$DEBUG" && echo "  <D> RP_PSUB_OPTS: $RP_PSUB_OPTS";
-                   test -n "$DEBUG" && echo "  <D> all: $*"
+                   test -n "$DEBUG" && echo "  <D> RP_PSUB_OPTS: $RP_PSUB_OPTS" >&2;
+                   test -n "$DEBUG" && echo "  <D> all: $*" >&2
                    PSUBOPTS="$PSUBOPTS $RP_PSUB_OPTS";
                    echo "$*" >> $JOBSET_FILENAME;
                    break;;
@@ -384,7 +384,7 @@ trap '
    else
       WORKERS=""
    fi
-   if [[ `ps -p $DEAMON_PID | wc -l` > 1 ]]; then
+   if [[ $DEAMON_PID && `ps -p $DEAMON_PID | wc -l` > 1 ]]; then
       kill $DEAMON_PID
    fi
    if [[ $WORKERS ]]; then
@@ -414,7 +414,7 @@ if [[ ! -d $WORKDIR ]]; then
    error_exit "Created temp dir $WORKDIR, but somehow it doesn't exist!"
 fi
 if [[ $DEBUG ]]; then
-   echo "   Temp JOBSET_FILENAME = $JOBSET_FILENAME"
+   echo "   Temp JOBSET_FILENAME = $JOBSET_FILENAME" >&2
 fi
 test -f $JOBSET_FILENAME && mv $JOBSET_FILENAME $WORKDIR/jobs
 JOBSET_FILENAME=$WORKDIR/jobs
@@ -949,21 +949,25 @@ elif [[ $EXEC ]]; then
    # With -c, we work like the shell's -c: connect stdout and stderr from the
    # job to the this script's, and exit with the job's exit status
    cat $WORKDIR/out.worker-0
-   cat $WORKDIR/err.worker-0 |
-      perl -e '
-         while (<>) {
-            if ( /\[.*\] \((\S+)\) Executing \(1\) / ) {
-               $jobid=$1;
-               last;
+   if [[ $SILENT_WORKER ]]; then
+      cat $WORKDIR/err.worker-0 >&2
+   else
+      cat $WORKDIR/err.worker-0 |
+         perl -e '
+            while (<>) {
+               if ( /\[.*\] \((\S+)\) Executing \(1\) / ) {
+                  $jobid=$1;
+                  last;
+               }
             }
-         }
-         while (<>) {
-            if ( s/\[.*?\] \(\Q$jobid\E\) Exit status.*//s ) {
+            while (<>) {
+               if ( s/\[.*?\] \(\Q$jobid\E\) Exit status.*//s ) {
+                  print;
+                  last;
+               }
                print;
-               last;
-            }
-            print;
-         }' >&2
+            }' >&2
+   fi
    echo $RPTOTALS >&2
    GLOBAL_RETURN_CODE=`cat $WORKDIR/rc`
    exit $GLOBAL_RETURN_CODE
