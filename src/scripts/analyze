@@ -9,12 +9,40 @@
 #    analyze 13:16
 #    analyze 13,15,44
 #
+# Options:
+#    -w: display full width output, even if it doesn't fit on screen.
+#    -s: sort the output
+#
 
 export LC_ALL=C
 SORT_CMD=cat
-case "$1" in
-   -s*)         SORT_CMD=sort
-esac
+#WIDE=
+while (( $# > 0 )); do
+   case "$1" in
+   -w)       WIDE=1;;
+   -s*)      SORT_CMD=sort;;
+   -d)       DEBUG=1;;
+   *)        echo Unknown option "$1"; exit 1;;
+   esac
+   shift
+done
+
+CUT_CMD=cat
+if [[ -t 1 && ! $WIDE ]]; then
+   # Writing to terminal, chop lines to fit terminal width unless -w was specified
+   COLUMNS=`stty -a | egrep -o 'columns [0-9]+' | egrep -o '[0-9]+'`
+   if [[ $COLUMNS =~ '[0-9]+' ]]; then
+      CUT_CMD="cut -c1-$COLUMNS"
+   fi
+fi
+
+if [[ $DEBUG ]]; then
+   echo "
+WIDE=$WIDE
+SORT_CMD=$SORT_CMD
+CUT_CMD=$CUT_CMD
+"
+fi >&2
 
 cmd="pbsnodes -a | egrep 'blz|vns|state|np|que|job' | grep -v 'status'"
 #echo "$cmd"
@@ -62,5 +90,6 @@ eval $cmd |
             "$total_free_cpus free";
     }
   ' |
-  $SORT_CMD
+  $SORT_CMD |
+  $CUT_CMD
 
