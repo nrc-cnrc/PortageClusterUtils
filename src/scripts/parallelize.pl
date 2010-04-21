@@ -76,6 +76,9 @@ Options:
   -psub <O> Passes additional options to run-parallel.sh -psub.
   -rp   <O> Passes additional options to run-parallel.sh.
 
+Note:
+  -s / -m accept more a space-separated list of files i.e. -s 'a b c'.
+
 Good examples:
   Tokenize the test_en.txt using 12 nodes.
   $0 -n 12 \"utokenize.pl -noss -lang=en < test_en.txt > test_en.tok\"
@@ -135,6 +138,8 @@ GetOptions(
    "verbose+"  => \$verbose,
    quiet       => sub { $verbose = 0 },
    debug       => \my $debug,
+   # Hidden option for unit testing parsing the arguments.
+   show_args   => \my $show_args,
 
    "s=s"       => \@SPLITS,
    "m=s"       => \@MERGES,
@@ -162,6 +167,18 @@ sub verbose {
 
 $PSUB_OPTS = "-psub \"$PSUB_OPTS\"" unless ($PSUB_OPTS eq "");
 
+# Removes duplicates in an array.
+sub remove_dups {
+   my %hash;
+   $hash{$_}++ for @_;
+   # sorting is needed here for parallelize.pl's unittest.
+   return sort(keys %hash);
+}
+
+# If the user provides more than one file to an -s option, we need to make sure
+# we expand to be one entry per array index.
+@SPLITS = map { split("[ \t]+", $_) } @SPLITS;
+@MERGES = map { split("[ \t]+", $_) } @MERGES;
 
 # Grab the rest of the command line as the command to run
 my $CMD = join " ", @ARGV;
@@ -201,22 +218,27 @@ else {
 verbose(1, "Adding $merge to merge");
 push @MERGES, $merge;
 
-
-# Create a working directory to prevent polluting the environment.
-my $workdir = "parallelize.pl.$$";
-mkdir($workdir);
+@SPLITS = remove_dups @SPLITS;
+@MERGES = remove_dups @MERGES;
 
 if ( $debug ) {
    $debug_cmd = "time ";
    no warnings;
    printf STDERR "
    CMD=$CMD
-   SPLITS=@SPLITS
-   MERGES=@MERGES
+   SPLITS=%s
+   MERGES=%s
    PSUB_OPTS=$PSUB_OPTS
    RP_OPTS=$RP_OPTS
-";
+"
+   , join(" : ", @SPLITS)
+   , join(" : ", @MERGES);
+   exit if(defined($show_args));
 }
+
+# Create a working directory to prevent polluting the environment.
+my $workdir = "parallelize.pl.$$";
+mkdir($workdir);
 
 
 
