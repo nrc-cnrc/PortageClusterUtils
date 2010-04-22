@@ -27,10 +27,11 @@ Options:
 -a  Print average instead of sum.
 -m  Print max instead of sum.
 -r  Use reciprocals of numbers.
+-l  Input is a list rather than a column: add all whitespace-separated numbers.
 
 ";
 
-our ($help, $h, $n, $r, $a, $m);
+our ($help, $h, $n, $r, $a, $m, $l);
 
 if ($help || $h) {
    print $HELP;
@@ -50,20 +51,23 @@ my $count = 0;
 my $max;
 while (<IN>) {
    no warnings; # Just do the best we can with the user input; don't complain!
-   my $x = $r ? 1.0 / $_ : $_;
 
-   $sum += $x;
-   if ($n) {push @vals, ($x);}
-   if ($m) { if (!defined $max || $x > $max) { $max = $x; } }
+   foreach ($l ? split : $_) {
+      my $x = $r ? 1.0 / $_ : $_;
 
-   ++$count;
+      $sum += $x;
+      if ($n) {push @vals, ($x);}
+      if ($m) { if (!defined $max || $x > $max) { $max = $x; } }
+
+      ++$count;
+   }
 }
 
 if ($n) {
    while (my $x = shift @vals) {print OUT $x/$sum, "\n";}
 } elsif ($m) {
    if ( defined $max ) {
-      print OUT "$max";
+      print OUT "$max\n";
    } else {
       print OUT "0\n";
    }
