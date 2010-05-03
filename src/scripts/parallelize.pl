@@ -340,7 +340,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    # By deleting the input chunks we say this block was properly process in
    # case of a resume is needed.
    #printf(CMD_FILE "$SUB_CMD && rm -rf %s\n", join(" ", @delete));
-   print(CMD_FILE "test ! -f $delete[0] || (($debug_cmd $SUB_CMD) && mv $delete[0] $delete[0].done)\n");
+   print(CMD_FILE "test ! -f $delete[0] || { { $debug_cmd $SUB_CMD; } && mv $delete[0] $delete[0].done; }\n");
 }
 close(CMD_FILE);
 
@@ -366,7 +366,7 @@ foreach my $m (@MERGES) {
          $sub_cmd = "$MERGE_PGM $dir/* > $m";
       }
    }
-   print MERGE_CMD_FILE "test ! -d $dir || ($debug_cmd $sub_cmd && mv $dir $dir.done)\n";
+   print MERGE_CMD_FILE "test ! -d $dir || { $debug_cmd $sub_cmd && mv $dir $dir.done; }\n";
 }
 close(MERGE_CMD_FILE);
 
