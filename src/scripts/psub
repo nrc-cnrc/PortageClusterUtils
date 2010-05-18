@@ -437,12 +437,16 @@ cat <<==EOF== >> $TMPSCRIPT
 # $PSUB_CMD
 ==EOF==
 
+# On some clusters, the script has to be executable
+chmod +x $TMPSCRIPT
+
 if [ $VERBOSE ]; then
    cat $TMPSCRIPT
    echo ""
 fi
 
 if [ $NOT_REALLY ]; then
+   ls -l $TMPSCRIPT
    cat $TMPSCRIPT
    echo ""
    exit
