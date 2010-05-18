@@ -446,7 +446,7 @@ if [ $VERBOSE ]; then
 fi
 
 if [ $NOT_REALLY ]; then
-   ls -l $TMPSCRIPT
+   ls -l $TMPSCRIPT >&2
    cat $TMPSCRIPT
    echo ""
    exit
