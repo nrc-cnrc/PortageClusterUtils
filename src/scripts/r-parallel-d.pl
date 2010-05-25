@@ -53,13 +53,13 @@ sub exit_with_error(@) {
 # Function for a thread that monitors the presence of PPID and exits if that
 # PPID disappears.
 sub look_for_process {
-   my $PPID = shift || die "You need to provide a PPID!";
+   my $process_id = shift || die "You need to provide a PPID!";
    my $sleep_time = shift || 60;
-   print STDERR "Starting monitoring thread for ppid: $PPID sleep=$sleep_time\n" if(defined($R_PARALLEL_D_PL_DEBUG));
+   print STDERR "Starting monitoring thread for ppid: $process_id sleep=$sleep_time\n" if(defined($R_PARALLEL_D_PL_DEBUG));
    while (1) {
-      print STDERR "Checking for PPID: $PPID\n" if(defined($R_PARALLEL_D_PL_DEBUG));
-      unless(kill 0, $PPID) {
-         print STDERR "PPID: $PPID is no longer available, quitting...";
+      print STDERR "Checking for PPID: $process_id\n" if(defined($R_PARALLEL_D_PL_DEBUG));
+      unless(kill 0, $process_id) {
+         print STDERR "PPID: $process_id is no longer available, quitting...";
          exit 55;
       }
       sleep($sleep_time);
@@ -69,7 +69,7 @@ sub look_for_process {
 GetOptions (
    "help"               => sub { PrintHelp() },
    "on-error=s"         => \my $on_error,
-   "bind=i"             => \my $PPID,
+   "bind=i"             => \my $process_id,
 ) or exit_with_error "Type -help for help.\n";
 
 my $stop_on_error = defined $on_error && $on_error eq "stop";
@@ -122,7 +122,7 @@ select RCFILE; $| = 1; select STDOUT;
 # If required, monitor the existence of PPID.
 # We don't need any result from the thread thus we will detach from it and
 # ignore it.
-threads->create('look_for_process', $PPID, $R_PARALLEL_D_PL_SLEEP_TIME)->detach if (defined($PPID));
+threads->create('look_for_process', $process_id, $R_PARALLEL_D_PL_SLEEP_TIME)->detach if (defined($process_id));
 
 # This while(1) loop tries to open the listening socket until it succeeds
 while ( 1 ) {
