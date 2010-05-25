@@ -694,14 +694,14 @@ if [[ $UNIT_TEST ]]; then
 fi
 
 if (( $VERBOSE > 1 )); then
-   r-parallel-d.pl -on-error $ON_ERROR $NUM $WORKDIR &
+   r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR &
    DEAMON_PID=$!
 elif (( $VERBOSE > 0 )); then
-   r-parallel-d.pl -on-error $ON_ERROR $NUM $WORKDIR 2>&1 | 
+   r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR 2>&1 | 
       egrep --line-buffered 'FATAL ERROR|\] ([0-9/]* (DONE|SIGNALED)|starting|Non-zero)' 1>&2 &
    DEAMON_PID=$!
 else
-   r-parallel-d.pl -on-error $ON_ERROR $NUM $WORKDIR 2>&1 | 
+   r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR 2>&1 | 
       egrep --line-buffered 'FATAL ERROR' 1>&2 &
    DEAMON_PID=$!
 fi

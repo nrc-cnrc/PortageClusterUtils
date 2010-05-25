@@ -27,9 +27,13 @@
 # Copyright 2005-2007, Her Majesty in Right of Canada
 
 use strict;
+use threads;  # We need threads to monitor a pid;
 use Getopt::Long;
 use Socket;
 use IO::Handle;
+# Extract the debugging flag from the environment.
+use Env qw(R_PARALLEL_D_PL_DEBUG);  # For easier debugging
+use Env qw(R_PARALLEL_D_PL_SLEEP_TIME);  # Allows to change the sleep time from 60 to whatever the user wants.
 STDERR->autoflush(1);
 
 #FILE_PREFIX=$1;
@@ -46,9 +50,26 @@ sub exit_with_error(@) {
    exit(1);
 }
 
+# Function for a thread that monitors the presence of PPID and exits if that
+# PPID disappears.
+sub look_for_process {
+   my $PPID = shift || die "You need to provide a PPID!";
+   my $sleep_time = shift || 60;
+   print STDERR "Starting monitoring thread for ppid: $PPID sleep=$sleep_time\n" if(defined($R_PARALLEL_D_PL_DEBUG));
+   while (1) {
+      print STDERR "Checking for PPID: $PPID\n" if(defined($R_PARALLEL_D_PL_DEBUG));
+      unless(kill 0, $PPID) {
+         print STDERR "PPID: $PPID is no longer available, quitting...";
+         exit 55;
+      }
+      sleep($sleep_time);
+   }
+}
+
 GetOptions (
    "help"               => sub { PrintHelp() },
    "on-error=s"         => \my $on_error,
+   "bind=i"             => \my $PPID,
 ) or exit_with_error "Type -help for help.\n";
 
 my $stop_on_error = defined $on_error && $on_error eq "stop";
@@ -97,6 +118,11 @@ my @return_codes;       # return codes from all the jobs
 open (RCFILE, "> $file_prefix/rc")
    or exit_with_error("can't open $file_prefix/rc: $!");
 select RCFILE; $| = 1; select STDOUT;
+
+# If required, monitor the existence of PPID.
+# We don't need any result from the thread thus we will detach from it and
+# ignore it.
+threads->create('look_for_process', $PPID, $R_PARALLEL_D_PL_SLEEP_TIME)->detach if (defined($PPID));
 
 # This while(1) loop tries to open the listening socket until it succeeds
 while ( 1 ) {
@@ -281,7 +307,8 @@ sub LaunchOneMoreWorker {
 
 sub PrintHelp {
    print <<'EOF';
-Usage: r-parallel-d.pl [-on-error <action>] InitNumWorkers FilePrefix
+Usage: r-parallel-d.pl [-bind <PPID>] [-on-error <action>]
+           InitNumWorkers FilePrefix
 
   This deamon accepts connections on a randomly selected port and hands
   out the jobs in FilePrefix.jobs one at a time when GET requests are
@@ -314,7 +341,16 @@ Argument:
 
 Option:
 
+  -bind <PPID>       - monitors the presence of PPID and exits if PPID is no
+                       longer present.
+
   -on-error <action> - see run-parallel.sh for valid actions and their meaning.
+
+Notes:
+  You can define some environment variables to change r-parallel-d.pl's behavior.
+  - Define R_PARALLEL_D_PL_SLEEP_TIME=<seconds> to change the default 60
+    seconds for the watchdog thread;
+  - Define R_PARALLEL_D_PL_DEBUG to add some debugging statement.
 
 Return status:
 
