@@ -56,14 +56,43 @@ while (1) {
    last if eof();
    my $file;
    while (<>) {
-      /^Working file: (.*)/ and do { $file = $1; last; };
+      if ( /^Working file: (.*)/ ) { $file = $1; last; }
    }
    last if eof();
+
+   # Read tags
+   my %tags;
+   while (<>) {
+      if ( /^symbolic names:/ ) {
+         while (<>) {
+            if ( /^\s+(.*?):\s+([0-9.]+)$/ ) {
+               if ( exists $tags{$2} ) {
+                  $tags{$2} .= ",$1";
+               } else {
+                  $tags{$2} = $1;
+               }
+            } else {
+               last;
+            }
+         }
+         last;
+      }
+      if ( /^(keyword sub|total revisions|description|------------)/ ) {
+         last;
+      }
+      if ( /^revision / ) {
+         warn "revision section in an unexpected location at line $.";
+         last;
+      }
+   }
+   last if eof();
+
+   # Read revisions
    my $rev_count = 0;
    while (1){
       my $revision;
       while (<>) {
-         /^revision (.*)/ and do { $revision = $1; last; };
+         if ( /^revision (.*)/ ) { $revision = $1; last; }
       }
       last if eof();
       my $date_line = <>;
@@ -97,7 +126,7 @@ while (1) {
       my $got_file_end_marker = 0;
       while (<>) {
          last if /^-{20,}$/;
-         /^={70,}$/ and do { $got_file_end_marker = 1; last; };
+         if ( /^={70,}$/ ) { $got_file_end_marker = 1; last; }
          $log_text .= $_;
       }
 
@@ -107,6 +136,7 @@ while (1) {
                           pad(((defined $lines) ? $lines : ""), 11) .
                           "$file " .
                           ($state eq "Exp" ? "" : "($state) ") .
+                          (exists $tags{$revision} ? "($tags{$revision}) " : "") .
                           "\n";
       if ( exists $log_items{$key} ) {
          push @{$log_items{$key}}, $file_rev_info;
