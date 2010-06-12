@@ -170,7 +170,9 @@ fi
 if which qsub >& /dev/null; then
    true # qsub found - we're running on a cluster
 else
-   error_exit "Can't find qsub, we don't seem to be running on a cluster."
+   if [[ ! $NOT_REALLY ]]; then
+      error_exit "Can't find qsub, we don't seem to be running on a cluster."
+   fi
 fi
 
 # In interactive mode we need to reserve an entire node
