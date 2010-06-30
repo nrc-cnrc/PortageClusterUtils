@@ -20,6 +20,7 @@ use strict;
 use Getopt::Long;
 require 5.002;
 use Socket;
+use File::Temp qw(tempfile);
 
 # validate parameters
 my $host = '';
@@ -83,7 +84,10 @@ sub send_recv($) {
    my $message = shift;
    socket(SOCK, PF_INET, SOCK_STREAM, $proto)
       or exit_with_error("Can't create socket: $!");
-   connect(SOCK, $paddr) or exit_with_error("Can't connect to socket: $!");
+   connect(SOCK, $paddr) or do {
+      if ( $message =~ /^GET/ ) { return ""; }
+      exit_with_error("Can't connect to socket (deamon probably exited): $!");
+   };
    select SOCK; $| = 1; select STDOUT; # set autoflush on SOCK
    print SOCK $message, "\n";
    local $/; undef $/;
@@ -134,8 +138,32 @@ sub report_signal($) {
 
 my $mon_pid;
 if ( $mon ) {
-   $mon_pid = `set -m; process-memory-usage.pl -s 1 60 $$ > $mon & echo -n \$!`;
-   log_msg "Monitor PID $mon_pid";
+   # EJJ June 2010: not so elegant to write the child PID to a temp file, but
+   # this solution is reliable even when /bin/sh is not bash.
+   my ($fh, $filename) = tempfile();
+   system("/bin/bash", "-c", "set -m; process-memory-usage.pl -s 1 60 $$ > $mon & echo -n \$! > $filename");
+   $mon_pid = `cat $filename`;
+   close($fh);
+   unlink($filename);
+
+   # EJJ June 2010: this solution is more elegant at first glance, but then we
+   # have to worry about reaping the child process and various other problems.
+   # It's simplest to have bash handle these things, since it does it so well
+   # already.
+   #my $parent_pid = $$;
+   #my $child_pid = fork();
+   #if ( $child_pid != 0 ) {
+   #   # In parent process
+   #   $mon_pid = $child_pid;
+   #} else {
+   #   # In child process
+   #   exec("/bin/bash", "-c", "process-memory-usage.pl -s 1 60 $parent_pid > $mon");
+   #}
+
+   # EJJ June 2010: this solution works find when /bin/sh is bash, but not when
+   # it's dash, such as with Debian and Ubuntu.
+   #$mon_pid = `set -m; process-memory-usage.pl -s 1 60 $$ > $mon & echo -n \$!`;
+   #log_msg "Monitor PID $mon_pid";
 }
 
 while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
@@ -154,7 +182,10 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
          $job_command =~ s/\Q$subst_match\E/\Q$subst_replacement\E/go;
          log_msg "Substitued command: $job_command";
       }
-      my $rc = system($job_command);
+      # EJJ June 2010: explicitly use /bin/bash, in case sh!=bash (e.g., on
+      # Ubuntu and Debian)
+      my $rc = system("/bin/bash", "-c", $job_command);
+      #my $rc = system($job_command);
       $SIG{INT} = $SIG{QUIT} = $SIG{TERM} = 'ignore_signal';
       if ( $rc == -1 ) {
          log_msg "System return code = $rc, means couldn't start job: $!";
@@ -182,8 +213,8 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
 }
 
 if ( $mon_pid ) {
-   system("kill $mon_pid");
-   log_msg("Killed monitor process $mon_pid");
+   kill(10, $mon_pid);
+   #log_msg("Killed monitor process $mon_pid");
 }
 
 log_msg "Done.";
