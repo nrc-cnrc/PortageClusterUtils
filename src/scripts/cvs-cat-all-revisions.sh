@@ -61,6 +61,8 @@ if [[ $DIFF ]]; then
    next_rev=""
    for rev in $REVISIONS; do
       if [[ $next_rev ]]; then
+         echo "=============================================================================";
+         cvs log -N -r$next_rev $CVS_FILE 2>&1 | perl -e 'while (<>) { last if /^-----------------*$/ } while (<>) { print }'
          echo "cvs diff -r$rev -r$next_rev $CVS_FILE 2>&1 | sed \"s/^/-$rev+$next_rev: /\""
          cvs diff -r$rev -r$next_rev $CVS_FILE 2>&1 | sed "s/^/-$rev+$next_rev: /"
       fi
@@ -68,6 +70,8 @@ if [[ $DIFF ]]; then
    done
 else
    for rev in $REVISIONS; do
+      echo "=============================================================================";
+      cvs log -N -r$rev $CVS_FILE 2>&1 | perl -e 'while (<>) { last if /^-----------------*$/ } while (<>) { print }'
       cvs up -p -r$rev $CVS_FILE 2>&1 | sed "s/^/$rev: /"
    done
 fi
