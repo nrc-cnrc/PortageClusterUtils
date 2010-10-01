@@ -94,7 +94,7 @@ General options:
                 other useful file from other scripts.
   -h(elp)       Print this help message.
   -d(ebug)      Print debugging information.
-  -q(uiet)      Quiet mode only prints commands executed.
+  -q(uiet)      Quiet mode only prints error messages and the resource summary.
   -cleanup      Remove run-parallel-logs-* files  upon completion.
   -v(erbose)    Increase verbosity level.  If specified once, show the deamon's
                 logs, each worker's logs, etc.  Yet more output is produced if
