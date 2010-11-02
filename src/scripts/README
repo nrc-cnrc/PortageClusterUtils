@@ -10,7 +10,7 @@ If you want a custom installation path:
 In this case, make sure /install/path is on your path.
 
 
-Catalog of files in this directory
+Catalog of files in this directory (run each script with -h for full documentation)
 ----------------------------------
 
 File name             Programmer  Description
@@ -23,7 +23,7 @@ cvs-log-sort.pl               EJ  Sort "cvs log" output by date rather than by f
 cvs-status-summary.pl         EJ  Compact summary of cvs status making stuff stand out.
 parallelize.pl                SL  Generic parallelization tool for non-parallel commands.
 process-memory-usage.pl       SL  Tally the memory usage of a process tree.
-psub                          EJ  Replacement for bsub: simple qsub wrapper.
+psub                          EJ  Simple but powerful qsub wrapper.
 qstatdir                      EJ  Qstat showing where commands were run
 qstatn                        EJ  Qstat -n with a more compact output
 run-parallel.sh               EJ  Run a job suite using the deamon/worker system.
