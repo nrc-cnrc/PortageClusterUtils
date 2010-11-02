@@ -1,3 +1,15 @@
+Installation instructions
+-------------------------
+
+If you checked out IITSharedUtils on its own, run the following commands to
+install all the utilities in your $HOME/bin directory:
+   make install
+
+If you want a custom installation path:
+   make install INSTALL_DIR=/install/path
+In this case, make sure /install/path is on your path.
+
+
 Catalog of files in this directory
 ----------------------------------
 
