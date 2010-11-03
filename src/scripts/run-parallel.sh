@@ -26,8 +26,10 @@
 # - sum.pl
 # - which-test.sh
 
-# Include NRC's bash library.
-source `dirname $0`/sh_utils.sh
+# Portage is developed with bash 3, and uses the bash 3.1 RE syntax, which
+# changed from version 3.2.  Set "compat31" if we're using bash 3.2, 4 or more
+# recent, to preserve the expected syntax.
+shopt -s compat31 >& /dev/null || true
 
 usage() {
    for msg in "$@"; do
@@ -169,6 +171,18 @@ error_exit() {
    echo "Use -h for help." >&2
    GLOBAL_RETURN_CODE=1
    exit 1
+}
+
+arg_check() {
+   if (( $2 <= $1 )); then
+      error_exit "Missing argument to $3 option."
+   fi
+}
+
+# Print a warning message
+warn()
+{
+   echo "WARNING: $*" >&2
 }
 
 MY_HOST=`hostname`
