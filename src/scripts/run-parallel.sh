@@ -531,7 +531,7 @@ elif [[ $NUM = 0 ]]; then
 fi
 
 if [[ $CLUSTER ]]; then
-   if [[ $PSUBOPTS =~ '(^| )-([0-9]+)($| )' ]]; then
+   if [[ $PSUBOPTS =~ '.*(^| )-([0-9]+)($| )' ]]; then
       NCPUS=${BASH_REMATCH[2]}
       test -n $DEBUG && echo Requested $NCPUS CPUs per worker >&2
    elif [[ $HIGHMEM ]]; then
