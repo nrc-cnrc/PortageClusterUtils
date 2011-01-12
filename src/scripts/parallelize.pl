@@ -175,6 +175,13 @@ sub remove_dups {
    return sort(keys %hash);
 }
 
+# We need to strip any arguments of the MERGE_PGM command before we can check
+# if the merge program is available in PATH.
+$MERGE_PGM =~ /([^ ]+)/;
+my $CHECK_MERGE_PGM = $1;
+my $rc = system("which $CHECK_MERGE_PGM &> /dev/null");
+die "$CHECK_MERGE_PGM is not in your PATH.\n" unless($rc eq 0);
+
 # If the user provides more than one file to an -s option, we need to make sure
 # we expand to be one entry per array index.
 @SPLITS = map { split("[ \t]+", $_) } @SPLITS;
@@ -299,7 +306,7 @@ foreach my $s (@SPLITS) {
 
    # Calculates the total number of jobs to create which can be different from
    # -n N if the user specified -w W.
-   $NUMBER_OF_CHUNK_GENERATED = `ls $dir/* | \\wc -l`;
+   $NUMBER_OF_CHUNK_GENERATED = `find $dir -type f | \\wc -l`;
 
    warn "You requested $N jobs but only $NUMBER_OF_CHUNK_GENERATED were created (due to -w $W)." if (2*$NUMBER_OF_CHUNK_GENERATED < $N);
 }
@@ -375,7 +382,7 @@ close(MERGE_CMD_FILE);
 verbose(1, "Processing all chunks.");
 my $cmd = "$debug_cmd run-parallel.sh $RP_OPTS $PSUB_OPTS $NOLOCAL $cmd_file $NP";
 verbose(2, "cmd is: $cmd");
-my $rc = system($cmd);
+$rc = system($cmd);
 die "Error running run-parallel.sh" unless($rc eq 0);
 
 
