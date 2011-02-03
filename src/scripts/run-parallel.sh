@@ -400,7 +400,7 @@ trap '
          sleep 1
       done
    fi
-   for x in $WORKDIR/log.worker-* $WORKDIR/mon.worker-*; do
+   for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/mon.worker-*; do
       if [[ -s $x ]]; then
          echo $x
          echo ""
@@ -408,7 +408,8 @@ trap '
          echo ""
       fi
    done > run-parallel-logs-${PBS_JOBID-local}
-   test -n "$DEBUG" || rm -rf $WORKDIR $CLEANLOG
+   test -n "$DEBUG" || rm -rf ${LOGFILEPREFIX}log.worker* $WORKDIR $CLEANLOG
+   [[ -f $LOGFILEPREFIX ]] && rm -f $LOGFILEPREFIX
    trap "" 0
    exit $GLOBAL_RETURN_CODE
 ' 0 1 2 3 13 14 15
@@ -423,6 +424,7 @@ if [[ $DEBUG ]]; then
 fi
 test -f $JOBSET_FILENAME && mv $JOBSET_FILENAME $WORKDIR/jobs
 JOBSET_FILENAME=$WORKDIR/jobs
+LOGFILEPREFIX=$WORKDIR/
 
 if [[ $NOCLUSTER ]]; then
    CLUSTER=
@@ -644,8 +646,22 @@ if [[ $CLUSTER ]]; then
    #    and STDERR to $OUT and $ERR, respectively
    #  - >&2 (not escaped) sends psub's output to STDERR of this script.
 
+   # Put psub-dummy-output files in a folder that won't go away if the master
+   # is done before some of the workers; avoids getting nasty emails from PBS.
+   if [[ ! -d $HOME/.run-parallel-logs ]]; then
+      mkdir $HOME/.run-parallel-logs ||
+         error_exit "Can't create $HOME/.run-parallel-logs directory"
+   fi
+   # Remove old psub-dummy-output files from previous runs
+   # We use -exec rather than piping into xargs because it's much faster this
+   # way when there are no files to delete, which will most often be the case.
+   find $HOME/.run-parallel-logs/ -type f -mtime +7 -exec rm -f '{}' \;
+   TMPLOGFILEPREFIX=`mktemp $HOME/.run-parallel-logs/run-p.$$.XXXXXX`
+   [[ $? == 0 ]] || error_exit "Can't create temporary file for worker log files."
+   LOGFILEPREFIX=$TMPLOGFILEPREFIX
+
    SUBMIT_CMD=(psub
-               -o $WORKDIR/psub-dummy-output
+               -o $HOME/.run-parallel-logs/psub-dummy-output
                -noscript
                $PSUBOPTS)
 
@@ -779,7 +795,7 @@ if [[ $CLUSTER ]]; then
       fi
    done
    echo -n "" -N $WORKER_NAME-__WORKER__ID__ >> $PSUB_CMD_FILE
-   echo -n "" -e $WORKDIR/log.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
+   echo -n "" -e ${LOGFILEPREFIX}log.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
    echo -n "" $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $WORKDIR/mon.worker-__WORKER__ID__ \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
 else
    echo $WORKER_COMMAND $SUBST_OPT -mon $WORKDIR/mon.worker-__WORKER__ID__ \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
@@ -814,7 +830,7 @@ if (( $NUM > $FIRST_PSUB )); then
       # submit all workers in a single request
       OUT=$WORKDIR/out.worker-
       ERR=$WORKDIR/err.worker-
-      LOG=$WORKDIR/log.worker
+      LOG=${LOGFILEPREFIX}log.worker
       MON=$WORKDIR/mon.worker-
       ID='$PBS_ARRAYID'
       if [[ $WORKER_SUBST ]]; then
@@ -841,7 +857,7 @@ if (( $NUM > $FIRST_PSUB )); then
          # worker scripts themselves
          OUT=$WORKDIR/out.worker-$i
          ERR=$WORKDIR/err.worker-$i
-         LOG=$WORKDIR/log.worker-$i
+         LOG=${LOGFILEPREFIX}log.worker-$i
          MON=$WORKDIR/mon.worker-$i
          if [[ $WORKER_SUBST ]]; then
             SUBST_OPT="-subst $WORKER_SUBST/$i"
