@@ -113,6 +113,7 @@ General options:
                 before running it.
   -unordered-cat Outputs to stdout, in an unordered fashion, stdouts from all
                  the workers.
+  -period P     Sleep for P seconds between monitoring samples. [60]
 
 Cluster mode options:
 
@@ -226,6 +227,7 @@ JOB_NAME=
 JOBSET_FILENAME=`mktemp -u run-p.tmpjobs.$SHORT_JOB_ID.XXX` || error_exit "Can't create temporary jobs file."
 ON_ERROR=continue
 SUBST=
+MON_PERIOD=60
 #TODO: run-parallel.sh -c RP_ARGS -... -... {-exec | -c} cmd args
 # This would allow a job in a Makefile, which uses SHELL = run-parallel.sh, to
 # specify some parameters other than the default.
@@ -235,6 +237,7 @@ while (( $# > 0 )); do
    -e)             arg_check 1 $# $1; CMD_LIST=1
                    echo "$2" >> $JOBSET_FILENAME; shift;;
    -unordered-cat|-unordered_cat) VERBOSE=0; UNORDERED_CAT=1;;
+   -p|-period)     arg_check 1 $# $1; MON_PERIOD=$2; shift;;
    -exec|-c)       arg_check 1 $# $1; shift; NOLOCAL=1; EXEC=1
                    VERBOSE=$(( $VERBOSE - 1 ))
                    # Special case for make's sake - make invokes uname -s twice
@@ -796,9 +799,9 @@ if [[ $CLUSTER ]]; then
    done
    echo -n "" -N $WORKER_NAME-__WORKER__ID__ >> $PSUB_CMD_FILE
    echo -n "" -e ${LOGFILEPREFIX}log.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
-   echo -n "" $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $WORKDIR/mon.worker-__WORKER__ID__ \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
+   echo -n "" $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $WORKDIR/mon.worker-__WORKER__ID__ -period $MON_PERIOD \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
 else
-   echo $WORKER_COMMAND $SUBST_OPT -mon $WORKDIR/mon.worker-__WORKER__ID__ \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
+   echo $WORKER_COMMAND $SUBST_OPT -mon $WORKDIR/mon.worker-__WORKER__ID__ -period $MON_PERIOD \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
 fi
 echo $NUM > $WORKDIR/next_worker_id
 
@@ -813,9 +816,9 @@ if [[ ! $NOLOCAL ]]; then
          SUBST_OPT="-subst $WORKER_SUBST/$i"
       fi
       if (( $VERBOSE > 2 )); then
-         echo $WORKER_COMMAND $SUBST_OPT -primary -mon $MON \> $OUT 2\> $ERR \& >&2
+         echo $WORKER_COMMAND $SUBST_OPT -primary -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR \& >&2
       fi
-      eval $WORKER_COMMAND $SUBST_OPT -primary -mon $MON > $OUT 2> $ERR &
+      eval $WORKER_COMMAND $SUBST_OPT -primary -mon $MON -period $MON_PERIOD > $OUT 2> $ERR &
    done
 fi
 
@@ -837,9 +840,9 @@ if (( $NUM > $FIRST_PSUB )); then
          SUBST_OPT="-subst $WORKER_SUBST/$ID"
       fi
       if (( $VERBOSE > 2 )); then
-         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID \> $OUT$ID 2\> $ERR$ID >&2
+         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD \> $OUT$ID 2\> $ERR$ID >&2
       fi
-      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS
+      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS
       # qstat needs individual job ids, and fails when given the array id, so we
       # need to expand them by hand into the $WORKER_JOBIDS file.
       WORKER_BASE_JOBID=`cat $WORKER_JOBIDS`
@@ -864,9 +867,9 @@ if (( $NUM > $FIRST_PSUB )); then
          fi
 
          if (( $VERBOSE > 2 )); then
-            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON \> $OUT 2\> $ERR >&2
+            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR >&2
          fi
-         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON \> $OUT 2\> $ERR >> $WORKER_JOBIDS
+         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR >> $WORKER_JOBIDS
          # PBS doesn't like having too many qsubs at once, let's give it a
          # chance to breathe between each worker submission
          sleep 1
@@ -945,10 +948,10 @@ if (( $VERBOSE > 0 )); then
    echo "" >&2
 fi
 
-TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null | 
-   egrep -o "[0-9.]+" | sum.pl`
 END_TIME=`date +%s`
 WALL_TIME=$((END_TIME - START_TIME))
+TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null | 
+   egrep -o "[0-9.]+" | sum.pl`
 MAX_VSZ=`egrep -ho 'vsz: [0-9.]+G' $WORKDIR/mon.worker-* 2> /dev/null |
    egrep -o "[0-9.]+" | sum.pl -m`
 MAX_RSS=`egrep -ho 'rss: [0-9.]+G' $WORKDIR/mon.worker-* 2> /dev/null |

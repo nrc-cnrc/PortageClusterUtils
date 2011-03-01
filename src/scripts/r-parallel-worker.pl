@@ -32,6 +32,7 @@ my $netcat_mode = 0;
 my $silent = 0;
 my $subst;
 my $mon;
+my $mon_period;
 
 GetOptions ("host=s"   => \$host,
             "port=i"   => \$port,
@@ -43,6 +44,7 @@ GetOptions ("host=s"   => \$host,
             netcat     => \$netcat_mode,
             "subst=s"  => \$subst,
             "mon=s"    => \$mon,
+            "period=i" => \$mon_period,
             );
 
 $primary and $quota = 0;
@@ -141,7 +143,7 @@ if ( $mon ) {
    # EJJ June 2010: not so elegant to write the child PID to a temp file, but
    # this solution is reliable even when /bin/sh is not bash.
    my ($fh, $filename) = tempfile();
-   system("/bin/bash", "-c", "set -m; process-memory-usage.pl -s 1 60 $$ > $mon & echo -n \$! > $filename");
+   system("/bin/bash", "-c", "set -m; process-memory-usage.pl -s 1 $mon_period $$ > $mon & echo -n \$! > $filename");
    $mon_pid = `cat $filename`;
    close($fh);
    unlink($filename);
@@ -267,6 +269,7 @@ print <<'EOF';
     -subst MATCH/REPLACEMENT replaces MATCH by REPLACEMENT in every command
               received before executing it.
     -mon FILE Run process-memory-usage.pl on self, saving output into FILE
+    -period P Sleep for P seconds between monitoring samples. [60]
 
 EOF
 }
