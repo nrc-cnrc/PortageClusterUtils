@@ -28,10 +28,11 @@ Options:
 -m  Print max instead of sum.
 -r  Use reciprocals of numbers.
 -l  Input is a list rather than a column: add all whitespace-separated numbers.
+-v  Show some verbose info.
 
 ";
 
-our ($help, $h, $n, $r, $a, $m, $l);
+our ($help, $h, $n, $r, $a, $m, $l, $v);
 
 if ($help || $h) {
    print $HELP;
@@ -72,6 +73,7 @@ if ($n) {
       print OUT "0\n";
    }
 } else {
+   if ($v) {print OUT "N=$count  "}
    if ($a && $count) {$sum /= $count}
    print OUT "$sum\n";
 }
