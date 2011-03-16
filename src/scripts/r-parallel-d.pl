@@ -2,15 +2,15 @@
 # $Id$
 #
 # @file r-parallel-d.pl 
-# @brief This script is used in conjuction with netpipes' netcat program, used
-# in r-parallel-worker.pl, and run-parallel.sh.  It accepts connections on a
-# specific port and returns commands to executed when asked.
+# @brief This script is used in conjuction with r-parallel-worker.pl, and
+# run-parallel.sh.  It accepts connections on a specific port and returns
+# commands to executed when asked.
 #
 # This script replaces our former faucet/faucet.pl: r-parallel-d.pl is the
-# full deamon, receiving requests via a socket and handling them directly,
+# full daemon, receiving requests via a socket and handling them directly,
 # without forking (an exclusive lock would be required around the whole fork,
 # so there is no gain in speed and only a cost in complication) and without
-# launching a new process.  Another big advantage of this deamon is that its
+# launching a new process.  Another big advantage of this daemon is that its
 # variables will be in memory rather than on disk, as had to be the case with
 # faucet.pl.  Turn around time for workers requesting jobs should now be
 # measures in milliseconds rather than in seconds.
@@ -45,8 +45,14 @@ sub log_msg(@) {
    print STDERR "[" . localtime() . "] @_\n";
 }
 
+my $port_file;
 sub exit_with_error(@) {
    log_msg "$0 FATAL ERROR:", @_;
+   if ( $port_file ) {
+      open PORT_FILE, ">$port_file" and
+      print PORT_FILE "FAIL\n";
+      close PORT_FILE;
+   }
    exit(1);
 }
 
@@ -86,6 +92,7 @@ if ( @ARGV < 1 ) {
 
 my $num_workers = shift;
 my $file_prefix = shift;
+$port_file = "$file_prefix/port";
 
 # validation: num_workers must be a number > 0
 if ( ($num_workers + 0) ne $num_workers or $num_workers <= 0 ) {
@@ -141,7 +148,11 @@ while ( 1 ) {
    listen(Server, SOMAXCONN) or exit_with_error "$0 listen: $!";
 
    log_msg "started listening on port $port";
-   system("echo $port > $file_prefix/port");
+
+   open PORT_OUT, ">$port_file"
+      or exit_with_error "$0 can't open port file $port_file: $!";
+   print PORT_OUT "$port\n";
+   close PORT_OUT or exit_with_error "$0 can't close port file $port_file: $!";
    last;
 }
 
@@ -248,7 +259,7 @@ for ( ; $paddr = accept(Client, Server); close Client) {
          }
          if ( $done_count >= $num ) {
             # If all done, exit
-            log_msg "ALL_DONE ($done_count/$num): Killing deamon";
+            log_msg "ALL_DONE ($done_count/$num): Killing daemon";
             if ( $num_workers > 0 ) {
                log_msg "$num_workers remaining workers will be killed.";
             }
@@ -310,7 +321,7 @@ sub PrintHelp {
 Usage: r-parallel-d.pl [-bind <PPID>] [-on-error <action>]
            InitNumWorkers FilePrefix
 
-  This deamon accepts connections on a randomly selected port and hands
+  This daemon accepts connections on a randomly selected port and hands
   out the jobs in FilePrefix.jobs one at a time when GET requests are
   received.
 
@@ -319,7 +330,7 @@ Argument:
   InitNumWorkers - numbers of workers to be launched by run-parallel.sh
 
      Used to manage errors - if at some point there are still jobs to execute,
-     but all workers have died or have been killed, the deamon will exit.
+     but all workers have died or have been killed, the daemon will exit.
 
   FilePrefix - prefix of various argument files:
 
@@ -330,7 +341,7 @@ Argument:
      __WORKER__ID__ as a placeholder for the worker number.
      FilePrefix.worker - next worker number
      These two files may be created after this script has started, but must
-     exist before requests involving new workers are made to this deamon.
+     exist before requests involving new workers are made to this daemon.
 
      FilePrefix.port - will be created by this script and contain the port
      it listens on, as soon as this port is open for connections.
@@ -377,7 +388,7 @@ Valid messages -- response:
   QUENCH <N> -- Request to quench workers, results in the next <N> workers
           requesting jobs being told there are none left.
 
-  KILL -- Request to stop the deamon, makes it exit now, letting
+  KILL -- Request to stop the daemon, makes it exit now, letting
           run-parallel.sh clean up.
 
   PING -- PONG

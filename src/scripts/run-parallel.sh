@@ -101,7 +101,7 @@ General options:
   -d(ebug)      Print debugging information.
   -q(uiet)      Quiet mode only prints error messages and the resource summary.
   -cleanup      Remove run-parallel-logs-* files  upon completion.
-  -v(erbose)    Increase verbosity level.  If specified once, show the deamon's
+  -v(erbose)    Increase verbosity level.  If specified once, show the daemon's
                 logs, each worker's logs, etc.  Yet more output is produced if
                 specified twice.
   -on-error ACTION  Specifies how to proceed when a command is reported to
@@ -345,26 +345,26 @@ if [[ "$1" = add || "$1" = quench || "$1" = kill ]]; then
    if [[ $REQUEST_TYPE = add ]]; then
       RESPONSE=`echo ADD $NUM | $NETCAT_COMMAND`
       if [[ "$RESPONSE" != ADDED ]]; then
-         error_exit "Deamon error (response=$RESPONSE), add request failed."
+         error_exit "Daemon error (response=$RESPONSE), add request failed."
       fi
-      # Ping the deamon to make it launch the first extra worker requested;
+      # Ping the daemon to make it launch the first extra worker requested;
       # the rest will get added as the extra workers request their jobs.
       if [[ "`echo PING | $NETCAT_COMMAND`" != PONG ]]; then
-         echo "Deamon does not appear to be running; request completed" \
+         echo "Daemon does not appear to be running; request completed" \
               "but likely won't do anything."
          exit 1
       fi
    elif [[ $REQUEST_TYPE = quench ]]; then
       RESPONSE=`echo QUENCH $NUM | $NETCAT_COMMAND`
       if [[ "$RESPONSE" != QUENCHED ]]; then
-         error_exit "Deamon error (response=$RESPONSE), quench request failed."
+         error_exit "Daemon error (response=$RESPONSE), quench request failed."
       fi
    elif [[ $REQUEST_TYPE = kill ]]; then
       RESPONSE=`echo KILL | $NETCAT_COMMAND`
       if [[ "$RESPONSE" != KILLED ]]; then
-         error_exit "Deamon error (response=$RESPONSE), kill request failed."
+         error_exit "Daemon error (response=$RESPONSE), kill request failed."
       fi
-      echo "Killing deamon and all workers (will take several seconds)."
+      echo "Killing daemon and all workers (will take several seconds)."
       exit 0
    else
       error_exit "Internal script error - invalid request type: $REQUEST_TYPE."
@@ -392,8 +392,8 @@ trap '
    else
       WORKERS=""
    fi
-   if [[ $DEAMON_PID && `ps -p $DEAMON_PID | wc -l` > 1 ]]; then
-      kill $DEAMON_PID
+   if [[ $DAEMON_PID && `ps -p $DAEMON_PID | wc -l` > 1 ]]; then
+      kill $DAEMON_PID
    fi
    if [[ $WORKERS ]]; then
       CLEAN_UP_MAX_DELAY=20
@@ -717,62 +717,39 @@ if [[ $UNIT_TEST ]]; then
    exit
 fi
 
+# We use a named pipe instead of a file - faster, and more reliable.
+mkfifo $WORKDIR/port || error_exit "Can't create named pipe $WORKDIR/port"
+DAEMON_CMD="r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR"
 if (( $VERBOSE > 1 )); then
-   r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR &
-   DEAMON_PID=$!
+   $DAEMON_CMD &
+   DAEMON_PID=$!
 elif (( $VERBOSE > 0 )); then
-   r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR 2>&1 | 
+   $DAEMON_CMD 2>&1 | 
       egrep --line-buffered 'FATAL ERROR|\] ([0-9/]* (DONE|SIGNALED)|starting|Non-zero)' 1>&2 &
-   DEAMON_PID=$!
+   DAEMON_PID=$!
 else
-   r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR 2>&1 | 
+   $DAEMON_CMD 2>&1 | 
       egrep --line-buffered 'FATAL ERROR' 1>&2 &
-   DEAMON_PID=$!
+   DAEMON_PID=$!
 fi
 
-# make sure we have a server listening, by sending a ping
-connect_delay=0
-while true; do
-   sleep 1
-   if [[ -f $WORKDIR/port ]]; then
-      MY_PORT=`cat $WORKDIR/port 2> /dev/null`
-   else
-      MY_PORT=
+MY_PORT=`cat $WORKDIR/port`
+[[ $DEBUG ]] && echo "MY_PORT=$MY_PORT" >&2
+if [[ $MY_PORT = FAIL ]]; then
+   error_exit "Daemon had a fatal error"
+elif [[ -z $MY_PORT ]]; then
+   error_exit "Failed to launch daemon"
+else
+   if (( $VERBOSE > 1 )); then
+      echo Pinging $MY_HOST:$MY_PORT >&2
    fi
-   connect_delay=$((connect_delay + 1))
-   if [[ -z "$MY_PORT" ]]; then
-      if [[ $connect_delay -ge 10 ]]; then
-         echo No deamon yet after $connect_delay seconds - still trying >&2
-      fi
-      if [[ $connect_delay -ge 15 ]]; then
-         # after 15 seconds, slow down to trying every 5 seconds
-         sleep 4;
-         connect_delay=$((connect_delay + 4))
-      fi
-      if [[ $connect_delay -ge 60 ]]; then
-         # after 60 seconds, slow down to trying every 15 seconds
-         sleep 10; 
-         connect_delay=$((connect_delay + 10))
-      fi
-      if [[ $connect_delay -ge 1200 ]]; then
-         error_exit "Can't get a deamon, giving up"
-      fi
-   else
-      if (( $VERBOSE > 1 )); then
-         echo Pinging $MY_HOST:$MY_PORT >&2
-      fi
-      if [[ "`echo PING | r-parallel-worker.pl -netcat -host $MY_HOST -port $MY_PORT`" = PONG ]]; then
-         if (( $connect_delay > 10 )); then
-            echo Finally got a deamon after $connect_delay seconds >&2
-         fi
-         # deamon responded correctly, we're good to go now.
-         break
-      fi
+   if [[ "`echo PING | r-parallel-worker.pl -netcat -host $MY_HOST -port $MY_PORT`" != PONG ]]; then
+      error_exit "Daemon did not respond correctly to PING request"
    fi
-done
+fi
 
 if (( $VERBOSE > 1 )); then
-   echo Deamon launched successfully on $MY_HOST:$MY_PORT >&2
+   echo Daemon launched successfully on $MY_HOST:$MY_PORT >&2
 fi
 
 # Command for launching more workers when some send a STOPPING-DONE message.
@@ -878,9 +855,9 @@ if (( $NUM > $FIRST_PSUB )); then
 fi
 
 if [[ $CLUSTER ]]; then
-   # wait on deamon pid (r-parallel-d.pl, the deamon, will exit when the last
+   # wait on daemon pid (r-parallel-d.pl, the daemon, will exit when the last
    # worker reports the last task is done)
-   wait $DEAMON_PID
+   wait $DAEMON_PID
 
    # Give PBS up to 20 seconds to finish cleaning up worker jobs that have just
    # finished
@@ -920,7 +897,7 @@ if (( $VERBOSE > 0 )); then
       if [[ -s $x ]]; then
          if [[ $VERBOSE = 1 && `grep -v "Can't connect to socket: Connection refused" < $x | wc -c` = 0 ]]; then
             # STDERR only containing workers that can't connect to a dead
-            # deamon - ignore in default verbosity mode
+            # daemon - ignore in default verbosity mode
             true
             #echo skipping $x
          else

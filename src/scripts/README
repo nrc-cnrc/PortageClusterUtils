@@ -26,8 +26,8 @@ process-memory-usage.pl       SL  Tally the memory usage of a process tree.
 psub                          EJ  Simple but powerful qsub wrapper.
 qstatdir                      EJ  Qstat showing where commands were run
 qstatn                        EJ  Qstat -n with a more compact output
-run-parallel.sh               EJ  Run a job suite using the deamon/worker system.
-r-parallel-d.pl            PP/EJ  Deamon for run-parallel.sh.
+run-parallel.sh               EJ  Run a job suite using the daemon/worker system.
+r-parallel-d.pl            PP/EJ  Daemon for run-parallel.sh.
 r-parallel-worker.pl       PP/EJ  Execute tasks obtained from r-parallel-d.pl
 sum.pl                        GF  Sum a column of numbers.
 which-test.sh                 EJ  Which-like program with reliable exit status.
