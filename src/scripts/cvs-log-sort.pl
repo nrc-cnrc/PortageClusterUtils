@@ -124,9 +124,15 @@ while (1) {
 
       my $log_text = "";
       my $got_file_end_marker = 0;
+      my $branches = "";
       while (<>) {
          last if /^-{20,}$/;
          if ( /^={70,}$/ ) { $got_file_end_marker = 1; last; }
+         if ( /^branches:((?: +[0-9.]+;)+)$/ ) {
+            $branches .= $1;
+            $branches =~ s/ //g;
+            next;
+         }
          $log_text .= $_;
       }
 
@@ -136,7 +142,8 @@ while (1) {
                           pad(((defined $lines) ? $lines : ""), 11) .
                           "$file " .
                           ($state eq "Exp" ? "" : "($state) ") .
-                          (exists $tags{$revision} ? "($tags{$revision}) " : "") .
+                          (exists $tags{$revision} ? "(tags:$tags{$revision}) " : "") .
+                          ($branches ? "(branches:$branches)" : "") .
                           "\n";
       if ( exists $log_items{$key} ) {
          push @{$log_items{$key}}, $file_rev_info;
