@@ -67,7 +67,7 @@ Options:
   -d(ebug):     print debugging information
 
   -n N    split the work in N jobs/chunks (at most N with -w) [3].
-  -np M   number of simultanious workers used to process the N chunks [N].
+  -np M   number of simultaneous workers used to process the N chunks [N].
   -w W    Specifies the minimum number of lines in each block.
   -s <X>  split additional input file X in N chunks where X in cmd_args.
   -m <Z>  merge additional output file Z where Z in cmd_args.
