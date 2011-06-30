@@ -658,7 +658,7 @@ if [[ $CLUSTER ]]; then
    # Remove old psub-dummy-output files from previous runs
    # We use -exec rather than piping into xargs because it's much faster this
    # way when there are no files to delete, which will most often be the case.
-   find $HOME/.run-parallel-logs/ -type f -mtime +7 -exec rm -f '{}' \;
+   find $HOME/.run-parallel-logs/ -type f -mtime +7 -exec rm -f '{}' \; 2>&1 | grep -v 'No such file or directory'
    TMPLOGFILEPREFIX=`mktemp $HOME/.run-parallel-logs/run-p.$$.XXXXXX`
    [[ $? == 0 ]] || error_exit "Can't create temporary file for worker log files."
    LOGFILEPREFIX=$TMPLOGFILEPREFIX
