@@ -20,6 +20,7 @@ BINSCRIPTS = \
         psub \
         qstatdir \
         qstatn \
+	qstattree \
         r-parallel-d.pl \
         r-parallel-worker.pl \
         run-parallel.sh \
