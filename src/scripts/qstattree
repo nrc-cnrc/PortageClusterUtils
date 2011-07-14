@@ -30,10 +30,12 @@ sub usage {
    print STDERR @_, "";
    $0 =~ s#.*/##;
    print STDERR "
-Usage: $0 [options] [IN]
+Usage: $0 [options] [filter]
 
   Transforms qstat's output into a colorful tree of processes.
   Helps to find processes relationships.
+
+  filter is any valid string that qstatn accepts.
 
 NOTE:
   To change the color of the tree, you can set the environment variable
@@ -63,9 +65,11 @@ GetOptions(
    debug       => \my $debug,
 ) or usage;
 
-my $in = shift || "-";
+my $filter = "";
+if ( @ARGV > 0 ) {
+   $filter = "@ARGV";
+}
 
-0 == @ARGV or usage "Superfluous parameter(s): @ARGV";
 
 
 ########################################
@@ -79,7 +83,8 @@ my $tree = Tree::Simple->new("0", Tree::Simple->ROOT);
 my %jobs;
 # We need to capture qstat's footer.
 my $footer;
-while (my $line = <>) {
+open IN, "qstatn '$filter' |" or die "Can't call qstatn: $!";
+while (my $line = <IN>) {
    # Skip the header
    if ($line =~ /^[0-9]+/) {
       chomp($line);
@@ -114,6 +119,7 @@ while (my $line = <>) {
       $footer .= $line;
    }
 }
+close(IN) or die "Problem with the input stream.";
 
 # clean up circular references
 $tree->DESTROY();
