@@ -16,6 +16,14 @@
 use strict;
 use warnings;
 
+BEGIN{
+   unshift @INC, "/home/portage/g4.2/lib/perl5/5.8.8";
+   unshift @INC, "/home/portage/g4.2/lib/perl5/5.8.8/x86_64-linux-thread-multi";
+   unshift @INC, "/home/portage/g4.2/lib/perl5/site_perl/5.8.8";
+   unshift @INC, "/home/portage/g4.2/lib/perl5/site_perl/5.8.8/x86_64-linux-thread-multi";
+   #print "@INC\n";
+};
+
 
 sub usage {
    local $, = "\n";
@@ -82,7 +90,7 @@ while (my $line = <>) {
       $jobs{$id} = $sub_tree;
 
       # Does this job a sub job of another master job.
-      if ($jobname =~ /J(\d+(-\d+)?)/) {
+      if ($jobname =~ /^J(\d+(-\d+)?)-/) {
          my $parent = $1;
          if (exists($jobs{$parent})) {
             $jobs{$parent}->addChild($sub_tree);
@@ -91,6 +99,8 @@ while (my $line = <>) {
             # Humm! looks like we should have found a parent for this job.  May
             # be it's a orphan job or our regex is missing some cases.
             warn "Unknown parent job: $line\n";
+            # Though we haven't found a parent let's add it as a root, so we don't lose it...
+            $tree->addChild($sub_tree);
          }
       }
       else {
