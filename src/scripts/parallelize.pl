@@ -301,7 +301,7 @@ foreach my $s (@SPLITS) {
    }
 
    verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
-   my $rc = system("$debug_cmd gzip -cqfd $s | split -a 3 -d -l $NUM_LINE - $dir/");
+   my $rc = system("$debug_cmd gzip -cqfd $s | split -a 4 -d -l $NUM_LINE - $dir/");
    die "Error spliting $s\n" unless($rc eq 0);
 
    # Calculates the total number of jobs to create which can be different from
@@ -325,7 +325,7 @@ my $cmd_file = "$workdir/commands";
 open(CMD_FILE, ">$cmd_file") or die "Unable to open command file";
 for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    my $SUB_CMD = $CMD;
-   my $index = sprintf("%3.3d", $i);
+   my $index = sprintf("%4.4d", $i);
    my @delete = ();
    # For each occurence of a file to split, replace it by a chunk.
    foreach my $s (@SPLITS) {
@@ -358,22 +358,23 @@ open(MERGE_CMD_FILE, ">$merge_cmd_file") or die "Unable to open merge command fi
 foreach my $m (@MERGES) {
    my $dir = "$workdir/" . $basename{$m};
    my $sub_cmd;
+   my $find_files = "set -o pipefail; find $dir -maxdepth 1 -type f | sort | xargs";
    if ($m =~ /.gz$/) {
-      $sub_cmd = "set -o pipefail; $MERGE_PGM $dir/* | gzip > $m";
+      $sub_cmd = "$MERGE_PGM | gzip > $m";
    }
    else {   
       if ($m =~ m#/dev/stdout#) {
-         $sub_cmd = "$MERGE_PGM $dir/*";
+         $sub_cmd = "$MERGE_PGM";
       }
       elsif ($m =~ m#/dev/stderr#) {
          # MERGE_PGM never applies to stderr
-         $sub_cmd = "cat $dir/* 1>&2";
+         $sub_cmd = "cat 1>&2";
       }
       else {
-         $sub_cmd = "$MERGE_PGM $dir/* > $m";
+         $sub_cmd = "$MERGE_PGM > $m";
       }
    }
-   print MERGE_CMD_FILE "test ! -d $dir || { $debug_cmd $sub_cmd && mv $dir $dir.done; }\n";
+   print MERGE_CMD_FILE "test ! -d $dir || { $debug_cmd $find_files $sub_cmd && mv $dir $dir.done; }\n";
 }
 close(MERGE_CMD_FILE);
 
