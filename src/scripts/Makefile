@@ -20,10 +20,11 @@ BINSCRIPTS = \
         psub \
         qstatdir \
         qstatn \
-	qstattree \
+        qstattree \
         r-parallel-d.pl \
         r-parallel-worker.pl \
         run-parallel.sh \
+        split.py \
         sum.pl \
         which-test.sh
 
