@@ -141,6 +141,8 @@ GetOptions(
    # Hidden option for unit testing parsing the arguments.
    show_args   => \my $show_args,
 
+   strip      => \my $use_strip_splitting,
+
    "s=s"       => \@SPLITS,
    "m=s"       => \@MERGES,
 
@@ -166,6 +168,10 @@ sub verbose {
 }
 
 $PSUB_OPTS = "-psub \"$PSUB_OPTS\"" unless ($PSUB_OPTS eq "");
+
+# Make sure we have access to split.py.
+$use_strip_splitting = ($use_strip_splitting and system("which split.py &> /dev/null") == 0);
+
 
 # Removes duplicates in an array.
 sub remove_dups {
@@ -278,37 +284,38 @@ if ($debug) {
 }
 
 
-# Create MERGES dir
-foreach my $m (@MERGES) {
-   my $dir = "$workdir/" . $basename{$m};
+# Create MERGES & SPLITS dir
+foreach my $d (@MERGES, @SPLITS) {
+   my $dir = "$workdir/" . $basename{$d};
    mkdir($dir) unless -e $dir;
 }
 
 
 my $NUMBER_OF_CHUNK_GENERATED = $N;
 
-# Split all SPLITS
-foreach my $s (@SPLITS) {
-   my $dir = "$workdir/" . $basename{$s};
-   mkdir($dir) unless -e $dir;
+if (!$use_strip_splitting) {
+   # Split all SPLITS
+   foreach my $s (@SPLITS) {
+      my $dir = "$workdir/" . $basename{$s};
 
-   my $NUM_LINE = $W;
-   # Did the user specified a number of line to split into?
-   if (defined($N)) {
-      $NUM_LINE = `gzip -cqfd $s | wc -l`;
-      $NUM_LINE = ceil($NUM_LINE / $N);
-      $NUM_LINE = $W if (defined($W) and $W > $NUM_LINE);
+      my $NUM_LINE = $W;
+      # Did the user specified a number of line to split into?
+      if (defined($N)) {
+         $NUM_LINE = `gzip -cqfd $s | wc -l`;
+         $NUM_LINE = ceil($NUM_LINE / $N);
+         $NUM_LINE = $W if (defined($W) and $W > $NUM_LINE);
+      }
+
+      verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
+      my $rc = system("$debug_cmd gzip -cqfd $s | split -a 4 -d -l $NUM_LINE - $dir/");
+      die "Error spliting $s\n" unless($rc eq 0);
+
+      # Calculates the total number of jobs to create which can be different from
+      # -n N if the user specified -w W.
+      $NUMBER_OF_CHUNK_GENERATED = `find $dir -type f | \\wc -l`;
+
+      warn "You requested $N jobs but only $NUMBER_OF_CHUNK_GENERATED were created (due to -w $W)." if (2*$NUMBER_OF_CHUNK_GENERATED < $N);
    }
-
-   verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
-   my $rc = system("$debug_cmd gzip -cqfd $s | split -a 4 -d -l $NUM_LINE - $dir/");
-   die "Error spliting $s\n" unless($rc eq 0);
-
-   # Calculates the total number of jobs to create which can be different from
-   # -n N if the user specified -w W.
-   $NUMBER_OF_CHUNK_GENERATED = `find $dir -type f | \\wc -l`;
-
-   warn "You requested $N jobs but only $NUMBER_OF_CHUNK_GENERATED were created (due to -w $W)." if (2*$NUMBER_OF_CHUNK_GENERATED < $N);
 }
 
 sub min{
@@ -326,15 +333,7 @@ open(CMD_FILE, ">$cmd_file") or die "Unable to open command file";
 for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    my $SUB_CMD = $CMD;
    my $index = sprintf("%4.4d", $i);
-   my @delete = ();
-   # For each occurence of a file to split, replace it by a chunk.
-   foreach my $s (@SPLITS) {
-      my $file = "$workdir/" . $basename{$s} . "/$index";
-      push(@delete, $file);
-      unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1$file$2/) {
-         die "Unable to match $s and $file";
-      }
-   }
+
    # For each occurence of a file to merge, replace it by a chunk.
    foreach my $m (@MERGES) {
       my $file = "$workdir/" . $basename{$m} . "/$index";
@@ -343,13 +342,35 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       }
    }
 
-   verbose(1, "\tAdding to the command list: $SUB_CMD");
-   # By deleting the input chunks we say this block was properly process in
-   # case of a resume is needed.
-   #printf(CMD_FILE "$SUB_CMD && rm -rf %s\n", join(" ", @delete));
-   print(CMD_FILE "test ! -f $delete[0] || { { $debug_cmd $SUB_CMD; } && mv $delete[0] $delete[0].done; }\n");
+   if ($use_strip_splitting) {
+      my $done = "$workdir/" . $basename{$SPLITS[0]} . "/$index.done";
+      foreach my $s (@SPLITS) {
+         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1<(split.py -i $i -m $N $s)$2/) {
+            die "Unable to match $s";
+         }
+      }
+
+      verbose(1, "\tStrip mode: Adding to the command list: $SUB_CMD");
+      print(CMD_FILE "test -f $done || { { $debug_cmd $SUB_CMD; } && touch $done; }\n");
+   }
+   else {
+      my @delete = ();
+      # For each occurence of a file to split, replace it by a chunk.
+      foreach my $s (@SPLITS) {
+         my $file = "$workdir/" . $basename{$s} . "/$index";
+         push(@delete, $file);
+         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1$file$2/) {
+            die "Unable to match $s and $file";
+         }
+      }
+
+      verbose(1, "\tAdding to the command list: $SUB_CMD");
+      # By deleting the input chunks we say this block was properly process in
+      # case of a resume is needed.
+      print(CMD_FILE "test ! -f $delete[0] || { { $debug_cmd $SUB_CMD; } && mv $delete[0] $delete[0].done; }\n");
+   }
 }
-close(CMD_FILE);
+close(CMD_FILE) or die "Unable to close command file!";
 
 
 verbose(1, "Building merge command file.");
@@ -376,7 +397,7 @@ foreach my $m (@MERGES) {
    }
    print MERGE_CMD_FILE "test ! -d $dir || { $debug_cmd $find_files $sub_cmd && mv $dir $dir.done; }\n";
 }
-close(MERGE_CMD_FILE);
+close(MERGE_CMD_FILE) or die "Unable to close merge command file!";
 
 
 # Run all the sub commands
