@@ -46,9 +46,9 @@ if opts.index >= opts.modulo:
 
 def myopen(filename, mode):
    "This function will try to open transparently compress files or not."
-   if args[0] == "-":
+   if filename == "-":
       theFile = sys.stdin
-   elif args[0][-3:] == ".gz":
+   elif filename[-3:] == ".gz":
       theFile = gzip.open(filename, mode+'b')
    else:
       theFile = open(filename, mode)
