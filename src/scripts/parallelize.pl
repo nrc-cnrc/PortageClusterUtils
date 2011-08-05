@@ -71,6 +71,8 @@ Options:
   -w W    Specifies the minimum number of lines in each block.
   -s <X>  split additional input file X in N chunks where X in cmd_args.
   -m <Z>  merge additional output file Z where Z in cmd_args.
+  -stipe  Each job get lines l%N==i and also prevents creating temporary chunk
+          files.
   -merge  merge command [cat]
   -nolocal  Run run-parallel.sh -nolocal
   -psub <O> Passes additional options to run-parallel.sh -psub.
@@ -141,7 +143,7 @@ GetOptions(
    # Hidden option for unit testing parsing the arguments.
    show_args   => \my $show_args,
 
-   strip      => \my $use_strip_splitting,
+   stripe      => \my $use_stripe_splitting,
 
    "s=s"       => \@SPLITS,
    "m=s"       => \@MERGES,
@@ -170,7 +172,7 @@ sub verbose {
 $PSUB_OPTS = "-psub \"$PSUB_OPTS\"" unless ($PSUB_OPTS eq "");
 
 # Make sure we have access to split.py.
-$use_strip_splitting = ($use_strip_splitting and system("which split.py &> /dev/null") == 0);
+$use_stripe_splitting = ($use_stripe_splitting and system("which split.py &> /dev/null") == 0);
 
 
 # Removes duplicates in an array.
@@ -293,7 +295,7 @@ foreach my $d (@MERGES, @SPLITS) {
 
 my $NUMBER_OF_CHUNK_GENERATED = $N;
 
-if (!$use_strip_splitting) {
+if (!$use_stripe_splitting) {
    # Split all SPLITS
    foreach my $s (@SPLITS) {
       my $dir = "$workdir/" . $basename{$s};
@@ -342,7 +344,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       }
    }
 
-   if ($use_strip_splitting) {
+   if ($use_stripe_splitting) {
       my $done = "$workdir/" . $basename{$SPLITS[0]} . "/$index.done";
       foreach my $s (@SPLITS) {
          unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1<(split.py -i $i -m $N $s)$2/) {
