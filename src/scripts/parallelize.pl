@@ -125,7 +125,7 @@ my $debug_cmd = "";
 use Getopt::Long;
 # Note to programmer: Getopt::Long automatically accepts unambiguous
 # abbreviations for all options.
-my $MERGE_PGM = "cat";
+my $MERGE_PGM = undef;
 my $verbose = 0;
 my @SPLITS = ();
 my @MERGES = ();
@@ -140,8 +140,10 @@ GetOptions(
    "verbose+"  => \$verbose,
    quiet       => sub { $verbose = 0 },
    debug       => \my $debug,
+
    # Hidden option for unit testing parsing the arguments.
    show_args   => \my $show_args,
+   "workdir=s" => \my $workdir,
 
    stripe      => \my $use_stripe_splitting,
 
@@ -173,6 +175,15 @@ $PSUB_OPTS = "-psub \"$PSUB_OPTS\"" unless ($PSUB_OPTS eq "");
 
 # Make sure we have access to split.py.
 $use_stripe_splitting = ($use_stripe_splitting and system("which split.py &> /dev/null") == 0);
+if ($use_stripe_splitting) {
+   # If we are using stipe mode and the user DIDN'T specify is one merge
+   # command tool, we will use split.py in rebuild mode.
+   $MERGE_PGM = "split.py -r" unless(defined($MERGE_PGM));
+}
+
+
+# Make sure the merge command tool is set.
+$MERGE_PGM = "cat" unless(defined($MERGE_PGM));
 
 
 # Removes duplicates in an array.
@@ -252,7 +263,7 @@ if ( $debug ) {
 }
 
 # Create a working directory to prevent polluting the environment.
-my $workdir = "parallelize.pl.$$";
+$workdir = "parallelize.pl.$$" unless(defined($workdir));
 mkdir($workdir);
 
 
@@ -295,7 +306,7 @@ foreach my $d (@MERGES, @SPLITS) {
 
 my $NUMBER_OF_CHUNK_GENERATED = $N;
 
-if (!$use_stripe_splitting) {
+unless ($use_stripe_splitting) {
    # Split all SPLITS
    foreach my $s (@SPLITS) {
       my $dir = "$workdir/" . $basename{$s};
@@ -397,7 +408,7 @@ foreach my $m (@MERGES) {
          $sub_cmd = "$MERGE_PGM > $m";
       }
    }
-   print MERGE_CMD_FILE "test ! -d $dir || { $debug_cmd $find_files $sub_cmd && mv $dir $dir.done; }\n";
+   print MERGE_CMD_FILE "test ! -d $dir || { { $debug_cmd $find_files $sub_cmd; } && mv $dir $dir.done; }\n";
 }
 close(MERGE_CMD_FILE) or die "Unable to close merge command file!";
 
