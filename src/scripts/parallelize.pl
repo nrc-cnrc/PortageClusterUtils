@@ -79,7 +79,7 @@ Options:
   -rp   <O> Passes additional options to run-parallel.sh.
 
 Note:
-  -s / -m accept more a space-separated list of files i.e. -s 'a b c'.
+  -s / -m accept a space-separated list of files i.e. -s 'a b c'.
 
 Good examples:
   Tokenize the test_en.txt using 12 nodes.
