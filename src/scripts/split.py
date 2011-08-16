@@ -19,9 +19,9 @@ from optparse import OptionParser
 
 usage="slit.py [options] [infile [outfile]]"
 help="""
-  Perform a strip split on the input.
-  Allows to split without creating temporary files.
-  split.py -r [infiles] will rebuild the output to stdout from stipe pieces.
+  Perform a striped split, assigning lines in a round-robin fashion to each
+  chunk.  Intended for splitting files without creating temporary copies.
+  split.py -r [infiles] will rebuild the whole file from striped pieces.
 """
 
 parser = OptionParser(usage=usage, description=help)
@@ -29,12 +29,10 @@ parser.add_option("-i", dest="index", type="int", default=1,
                   help="what index to display [%default] valid value [0, m)")
 parser.add_option("-m", dest="modulo", type="int", default=3,
                   help="How many chunks aka modulo [%default]")
-parser.add_option("-l", dest="line", type="int", default=0,
-                  help="put NUMBER lines per output file [%default]")
 parser.add_option("-n", dest="numbered", action="store_true", default=False,
-                  help="Prefix each line with their line value [%default]")
+                  help="Prefix each line with its line number [%default]")
 parser.add_option("-r", dest="rebuild", action="store_true", default=False,
-                  help="rebuild striped process files [%default]")
+                  help="rebuild whole file from stripes [%default]")
 parser.add_option("-v", dest="verbose", action="store_true", default=False,
                   help="write verbose output to stderr [%default]")
 parser.add_option("-d", dest="debug", action="store_true", default=False,
