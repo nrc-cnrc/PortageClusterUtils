@@ -72,7 +72,8 @@ Options:
   -s <X>  split additional input file X in N chunks where X in cmd_args.
   -m <Z>  merge additional output file Z where Z in cmd_args.
   -stripe Each job get lines l%N==i and also prevents creating temporary chunk
-          files.
+          files.  Only works correctly for jobs where each line of input
+          creates one line of output.
   -merge  merge command [cat]
   -nolocal  Run run-parallel.sh -nolocal
   -psub <O> Passes additional options to run-parallel.sh -psub.
