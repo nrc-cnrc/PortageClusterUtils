@@ -71,7 +71,7 @@ Options:
   -w W    Specifies the minimum number of lines in each block.
   -s <X>  split additional input file X in N chunks where X in cmd_args.
   -m <Z>  merge additional output file Z where Z in cmd_args.
-  -stipe  Each job get lines l%N==i and also prevents creating temporary chunk
+  -stripe Each job get lines l%N==i and also prevents creating temporary chunk
           files.
   -merge  merge command [cat]
   -nolocal  Run run-parallel.sh -nolocal
@@ -176,7 +176,7 @@ $PSUB_OPTS = "-psub \"$PSUB_OPTS\"" unless ($PSUB_OPTS eq "");
 # Make sure we have access to split.py.
 $use_stripe_splitting = ($use_stripe_splitting and system("which split.py &> /dev/null") == 0);
 if ($use_stripe_splitting) {
-   # If we are using stipe mode and the user DIDN'T specify is one merge
+   # If we are using stripe mode and the user DIDN'T specify is one merge
    # command tool, we will use split.py in rebuild mode.
    $MERGE_PGM = "split.py -r" unless(defined($MERGE_PGM));
 }
