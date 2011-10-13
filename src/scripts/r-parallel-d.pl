@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 # $Id$
 #
 # @file r-parallel-d.pl 
@@ -27,6 +27,7 @@
 # Copyright 2005-2007, Her Majesty in Right of Canada
 
 use strict;
+use warnings;
 use threads;  # We need threads to monitor a pid;
 use Getopt::Long;
 use Socket;

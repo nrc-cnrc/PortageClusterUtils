@@ -200,7 +200,7 @@ sub remove_dups {
 $MERGE_PGM =~ /([^ ]+)/;
 my $CHECK_MERGE_PGM = $1;
 my $rc = system("which $CHECK_MERGE_PGM &> /dev/null");
-die "$CHECK_MERGE_PGM is not in your PATH.\n" unless($rc eq 0);
+die "Merge program $CHECK_MERGE_PGM is not in your PATH.\n" unless($rc eq 0);
 
 # If the user provides more than one file to an -s option, we need to make sure
 # we expand to be one entry per array index.
