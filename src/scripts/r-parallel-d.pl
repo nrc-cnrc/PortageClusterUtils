@@ -1,4 +1,5 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
+# TODO - switch back to /usr/bin/env perl when Leclerc has new perl installed.
 # $Id$
 #
 # @file r-parallel-d.pl 
