@@ -25,8 +25,9 @@ help="""
 """
 
 parser = OptionParser(usage=usage, description=help)
-parser.add_option("-i", dest="index", type="int", default=1,
-                  help="what index to display [%default] valid value [0, m)")
+parser.add_option("-i", dest="indices", type="string", default="0",
+                  help="what indices to display [%default] valid value [0, m)"
+                  + "-i [i:j) where 0 <= i < j <= m")
 parser.add_option("-m", dest="modulo", type="int", default=3,
                   help="How many chunks aka modulo [%default]")
 parser.add_option("-n", dest="numbered", action="store_true", default=False,
@@ -47,14 +48,26 @@ else:
    if len(args) > 2:
        parser.error("too many arguments")
 
+# Check if the user provided a rane of indices or a single index.
+all_indices = opts.indices.split(":")
+index = int(all_indices[0])
+jndex = index + 1
+if len(all_indices) == 2:
+   jndex = int(all_indices[1])
+elif len(all_indices) > 2:
+   print >> sys.stderr, "Indices format is -i i:j where [i,j) where 0 <= i < j <= m."
+   sys.exit(1)
+# validate the index range.
+if not (0 <= index < jndex <= opts.modulo):
+   print >> sys.stderr, "Indices format is -i i:j where [i,j) where 0 <= i < j <= m."
+   sys.exit(1)
+
+if opts.debug:
+   print >> sys.stderr, "index %d, jndex %d" % (index, jndex)
+
 if opts.verbose:
    print "options are:", opts
    print "positional args are:", args
-
-# The index must be smaller than the modulo.
-if opts.index >= opts.modulo:
-   print >> sys.stderr, "Error the index is %d but must be in the range [0, %d)" % ( opts.index, opts.modulo )
-   sys.exit(1)
 
 
 def myopen(filename, mode='r'):
@@ -113,6 +126,9 @@ def rebuild():
 
 
 if opts.rebuild:
+   if index + 1 != jndex:
+      print >> sys.stderr, "Not implemented yet!  You can only merge if you used -i without a range."
+      sys.exit(1)
    rebuild()
 else:
    # Performing a split
@@ -122,7 +138,8 @@ else:
 
    cpt = 0
    for line in infile:
-      if ((cpt % opts.modulo) == opts.index):
+      step = cpt % opts.modulo
+      if (index <= step < jndex):
          if (opts.numbered):
             print >> outfile, repr(cpt) + "\t",
          print >> outfile, line,
