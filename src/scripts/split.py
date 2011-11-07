@@ -15,7 +15,17 @@
 import sys
 import gzip
 import glob
+import re 
 from optparse import OptionParser
+
+
+def sort_nicely( l ): 
+   """ Sort the given list in the way that humans expect. 
+   """ 
+   convert = lambda text: int(text) if text.isdigit() else text 
+   alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+   l.sort( key=alphanum_key ) 
+
 
 usage="slit.py [options] [infile [outfile]]"
 help="""
@@ -94,7 +104,7 @@ def rebuild():
    # Let see if the user provided us with a pattern.
    if len(args) == 1:
       inputfilenames = glob.glob(args[0] + "*")
-      inputfilenames.sort()
+      sort_nicely(inputfilenames)  # Safer sort if filename are not properly sorted when using alpha sorting.
       if len(inputfilenames) == 0:
          # Looks like it wasn't a pattern, let's assume he provided us a list
          # of files instead.
