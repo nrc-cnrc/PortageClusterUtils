@@ -100,7 +100,6 @@ General options:
   -h(elp)       Print this help message.
   -d(ebug)      Print debugging information.
   -q(uiet)      Quiet mode only prints error messages and the resource summary.
-  -cleanup      Remove run-parallel-logs-* files  upon completion.
   -v(erbose)    Increase verbosity level.  If specified once, show the daemon's
                 logs, each worker's logs, etc.  Yet more output is produced if
                 specified twice.
@@ -214,7 +213,6 @@ NOLOCAL=
 if on_head_node; then NOLOCAL=1; fi
 NOCLUSTER=
 VERBOSE=1
-CLEANUP=
 DEBUG=
 SAVE_ARGS="$@"
 CMD_FILE=
@@ -282,7 +280,7 @@ while (( $# > 0 )); do
    -subst)         arg_check 1 $# $1; WORKER_SUBST=$2; shift;;
    -v|-verbose)    VERBOSE=$(( $VERBOSE + 1 ));;
    -q|-quiet)      VERBOSE=0;;
-   -cleanup)       CLEANUP=1;;
+   -cleanup)       CLEANUP=1;; # kept here so scripts using it don't have to be patched.
    -d|-debug)      DEBUG=1;;
    -h|-help)       usage;;
    -unit-test)     UNIT_TEST=1;; # hidden option for unit testing
@@ -375,11 +373,6 @@ if [[ "$1" = add || "$1" = quench || "$1" = kill ]]; then
    exit 0
 fi
 
-CLEANLOG=
-if [[ $CLEANUP ]]; then
-   CLEANLOG="run-parallel-logs-${PBS_JOBID-local}"
-fi
-
 # Assume there's a problem until we know things finished cleanly.
 GLOBAL_RETURN_CODE=2
 
@@ -403,15 +396,17 @@ trap '
          sleep 1
       done
    fi
-   for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/mon.worker-*; do
-      if [[ -s $x ]]; then
-         echo $x
-         echo ""
-         cat $x
-         echo ""
-      fi
-   done > run-parallel-logs-${PBS_JOBID-local}
-   test -n "$DEBUG" || rm -rf ${LOGFILEPREFIX}log.worker* $WORKDIR $CLEANLOG
+   if [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]]; then
+      for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/mon.worker-*; do
+         if [[ -s $x ]]; then
+            echo $x
+            echo ""
+            cat $x
+            echo ""
+         fi
+      done > run-parallel-logs-${PBS_JOBID-local}
+   fi
+   test -n "$DEBUG" || rm -rf ${LOGFILEPREFIX}log.worker* $WORKDIR
    [[ -f $LOGFILEPREFIX ]] && rm -f $LOGFILEPREFIX
    trap "" 0
    exit $GLOBAL_RETURN_CODE
