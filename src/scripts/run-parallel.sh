@@ -396,15 +396,16 @@ trap '
          sleep 1
       done
    fi
-   if [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]]; then
+   if [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 && $VERBOSE -gt 0 ]]; then
       for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/mon.worker-*; do
          if [[ -s $x ]]; then
-            echo $x
+            echo ""
+            echo ========== $x ========== 
             echo ""
             cat $x
             echo ""
          fi
-      done > run-parallel-logs-${PBS_JOBID-local}
+      done >&2
    fi
    test -n "$DEBUG" || rm -rf ${LOGFILEPREFIX}log.worker* $WORKDIR
    [[ -f $LOGFILEPREFIX ]] && rm -f $LOGFILEPREFIX
