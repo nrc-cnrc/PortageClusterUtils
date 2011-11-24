@@ -359,7 +359,10 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    if ($use_stripe_splitting) {
       my $done = "$workdir/" . $basename{$SPLITS[0]} . "/$index.done";
       foreach my $s (@SPLITS) {
-         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1<(split.py -i $i -m $N $s)$2/) {
+         # NOTE: doing zcat file.gz | split.py is much much faster than
+         # split.py file.gz.  Seems like the python's implementation of gzip is
+         # quite slow.
+         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1<(zcat -f $s | split.py -i $i -m $N)$2/) {
             die "Unable to match $s";
          }
       }
