@@ -84,7 +84,13 @@ def myopen(filename, mode='r'):
    "This function will try to open transparently compress files or not."
    if opts.debug: print >> sys.stderr, "myopen: " + filename + " in " + mode + " mode"
    if filename == "-":
-      theFile = sys.stdin
+      if mode == 'r':
+         theFile = sys.stdin
+      elif mode == 'w':
+         theFile = sys.stdout
+      else:
+         print >> sys.stderr, "Unsupported mode."
+         sys.exit(1)
    elif filename[-3:] == ".gz":
       theFile = gzip.open(filename, mode+'b')
    else:
