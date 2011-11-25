@@ -122,7 +122,11 @@ def rebuild():
 
    if opts.verbose: print >> sys.stderr, "Rebuilding output from " + repr(inputfilenames)
 
-   inputfiles = map(myOpenRead, inputfilenames)
+   try:
+      inputfiles = map(myOpenRead, inputfilenames)
+   except IOError:
+      print >> sys.stderr, "You provided %d files to merge but the os doesn't allow that many file to be opened at once." % len(inputfilenames)
+      sys.exit(1);
    if opts.debug: print >> sys.stderr, inputfiles
 
    cpt = 0
