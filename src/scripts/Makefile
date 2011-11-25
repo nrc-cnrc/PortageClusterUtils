@@ -24,7 +24,7 @@ BINSCRIPTS = \
         r-parallel-d.pl \
         r-parallel-worker.pl \
         run-parallel.sh \
-        split.py \
+        stripe.py \
         sum.pl \
         which-test.sh
 
