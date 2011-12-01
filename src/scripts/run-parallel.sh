@@ -1,4 +1,4 @@
-#!/bin/bash -k
+#!/bin/bash
 # $Id$
 
 # @file run-parallel.sh
@@ -400,7 +400,7 @@ trap '
       for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/mon.worker-*; do
          if [[ -s $x ]]; then
             echo ""
-            echo ========== $x ========== 
+            echo ========== $x ==========
             echo ""
             cat $x
             echo ""
