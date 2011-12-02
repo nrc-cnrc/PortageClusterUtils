@@ -194,5 +194,15 @@ print DumpTree($tree,
       return(Data::TreeDumper::DefaultNodesToDisplay($tree)) ;
    });
 print Term::ANSIColor::color('reset');
-print "$footer";
+
+# Highlight user stats.
+use Env qw(LOGNAME);
+# Highlight user stats.
+my $noColor = Term::ANSIColor::color('reset');
+$footer =~ s/($LOGNAME [0-9]+)/$colors[0]$1$noColor/;
+$footer =~ s/([0-9]+ free)/$colors[0]$1$noColor/;
+print $footer;
+
+# For safety, let's make sure the color scheme is reseted before we exit.
+print Term::ANSIColor::color('reset');
 
