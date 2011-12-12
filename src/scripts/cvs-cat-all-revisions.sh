@@ -25,6 +25,7 @@ Usage: cvs-cat-all-revisions.sh [-h(elp)] [-diff] cvs_file
 
 Options:
 
+   -rBRANCHNAME Show only revisions for branch BRANCHNAME
    -h|-help     Show this help message
    -diff        Show differences between consecutive versions intead
 
@@ -33,8 +34,10 @@ Options:
     exit 1
 }
 
+BRANCHTAG=-b # default is main branch only = trunk
 while [[ $# -gt 0 ]]; do
    case "$1" in
+   -r*)                 BRANCHTAG=$1;;
    -h|-help)            usage;;
    -d|-debug)           DEBUG=1;;
    -diff)               DIFF=1;;
@@ -48,12 +51,20 @@ CVS_FILE=$1
 shift
 [[ $# -gt 0 ]]  && usage "Superfluous argument(s) $*"
 
-REVISIONS=`cvs log -b -N $CVS_FILE | grep '^revision ' | cut -d' ' -f 2`
+REVISIONS=`cvs log $BRANCHTAG -N $CVS_FILE | grep '^revision ' | cut -d' ' -f 2`
 [[ $DEBUG ]] && echo REVISIONS: $REVISIONS
 
 [[ ! "$REVISIONS" ]] && usage "No revisions found for $CVS_FILE"
 
-[[ $DIFF ]] && REVISIONS="$REVISIONS 0.0"
+if [[ $DIFF ]]; then
+   if [[ $BRANCHTAG != -b ]]; then
+      BASEREV=`echo $REVISIONS | perl -nle 's/\.\d+\.\d+$//; @a = split; print pop @a;'`
+   else
+      BASEREV=0.0
+   fi
+   [[ $DEBUG ]] && echo BASEREV: $BASEREV
+   REVISIONS="$REVISIONS $BASEREV"
+fi
 
 trap "echo cvs-cat-all-revisions.sh caught a signal\; aborting. >&2; exit 1" 1 2 3 11 13 14 15 
 

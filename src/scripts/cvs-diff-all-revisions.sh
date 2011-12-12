@@ -25,6 +25,7 @@ Usage: cvs-diff-all-revisions.sh [-h(elp)] cvs_file
 
 Options:
 
+   -rBRANCHNAME Show only revisions for branch BRANCHNAME
    -h|-help     Show this help message
 
 ==EOF==
@@ -34,6 +35,7 @@ Options:
 
 while [ $# -gt 0 ]; do
    case "$1" in
+   -r*)                 BRANCHTAG=$1;;
    -h|-help)            usage;;
    -d|-debug)           DEBUG=$1;;
    -diff)               ;; # parsed just so calling syntax is same as cvs-cat-all-revisions.
@@ -47,4 +49,4 @@ CVS_FILE=$1
 shift
 test $# -gt 0   && usage "Superfluous argument(s) $*"
 
-exec cvs-cat-all-revisions.sh -diff $DEBUG $CVS_FILE
+exec cvs-cat-all-revisions.sh $BRANCHTAG -diff $DEBUG $CVS_FILE
