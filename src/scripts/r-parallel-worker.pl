@@ -74,6 +74,14 @@ sub log_msg(@) {
    }
 }
 
+# Return a random integer in the range [$min, $max).
+#srand(0); # predictable for testing
+srand(time() ^ ($$ + ($$ << 15))); # less predictable, for normal use
+sub rand_in_range($$) {
+   my ($min, $max) = @_;
+   return int(rand ($max-$min)) + $min;
+}
+
 exit_with_error("Missing mandatory argument 'host' see --help") unless $host ne '';
 exit_with_error("Missing mandatory argument 'port' see --help") unless $port ne '';
 
@@ -213,6 +221,13 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
       send_recv "DONE ($me) (rc=$exit_status) $reply_rcvd";
       $reply_rcvd = send_recv "GET ($me)";
    }
+}
+
+if (!$primary and (time - $start_time) < 30) {
+   # Super short jobs are not cluster friendly, especially not arrays of them
+   my $seconds = rand_in_range 1, 10;
+   log_msg "Job too short - sleeping $seconds seconds before exiting.";
+   sleep $seconds;
 }
 
 if ( $mon_pid ) {
