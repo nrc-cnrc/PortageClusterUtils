@@ -1,5 +1,4 @@
-#!/usr/bin/perl
-# TODO - switch back to /usr/bin/env perl when Leclerc has new perl installed.
+#!/usr/bin/env perl
 # $Id$
 #
 # @file r-parallel-d.pl 
@@ -26,6 +25,9 @@
 # Conseil national de recherches Canada / National Research Council Canada
 # Copyright 2005-2007, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2005-2007, Her Majesty in Right of Canada
+
+# We don't bother printing a Copyright here because this script is inherently
+# internal -- it is never called on its own.
 
 use strict;
 use warnings;
@@ -145,7 +147,7 @@ while ( 1 ) {
          log_msg "port $port already in use,", "trying another one";
          next;
       }
-      die "$0 bind: $!";
+      exit_with_error "$0 bind: $!";
    };
    listen(Server, SOMAXCONN) or exit_with_error "$0 listen: $!";
 

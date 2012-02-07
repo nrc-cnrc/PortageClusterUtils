@@ -15,6 +15,9 @@
 # Copyright 2005, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2005, Her Majesty in Right of Canada
 
+# We don't bother printing a Copyright here because this script is inherently
+# internal -- it is never called on its own.
+
 use strict;
 use warnings;
 
