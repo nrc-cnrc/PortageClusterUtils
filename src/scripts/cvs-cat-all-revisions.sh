@@ -68,6 +68,12 @@ fi
 
 trap "echo cvs-cat-all-revisions.sh caught a signal\; aborting. >&2; exit 1" 1 2 3 11 13 14 15 
 
+if [[ -t 1 ]]; then
+   MYPAGER=less
+else
+   MYPAGER=cat
+fi
+
 if [[ $DIFF ]]; then
    next_rev=""
    for rev in $REVISIONS; do
@@ -85,4 +91,4 @@ else
       cvs log -N -r$rev $CVS_FILE 2>&1 | perl -e 'while (<>) { last if /^-----------------*$/ } while (<>) { print }'
       cvs up -p -r$rev $CVS_FILE 2>&1 | sed "s/^/$rev: /"
    done
-fi
+fi | $MYPAGER
