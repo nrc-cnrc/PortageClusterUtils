@@ -100,10 +100,11 @@ while (1) {
       my ($date, $zone, $author, $state, $lines, $commitid) =
          $date_line =~ /
                         date:\s*(.*?):\d\d(?:\s*([-+]\d{4}))?;\s*
-                        author:\s*(.*?);\s*
-                        state:\s*(.*?);\s*
-                        (?:lines:\s*(.*?);\s*)?
-                        (?:commitid:\s*(.*?);\s*)?
+                        author:\s*([^;]*);\s*
+                        state:\s*([^;]*);\s*
+                        (?:lines:\s*(.*?);?\s*)?
+                        (?:commitid:\s*(.*?);?\s*)?
+                        $
                        /x
             or do { warn "invalid date line $date_line"; next; };
 
