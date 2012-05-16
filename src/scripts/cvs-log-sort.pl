@@ -60,6 +60,8 @@ while (1) {
    }
    last if eof();
 
+   next if $file =~ /\.log\.klocwork\.tag/; # ignore automatic file.
+
    # Read tags
    my %tags;
    while (<>) {
