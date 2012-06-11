@@ -21,9 +21,18 @@ sub usage {
    print STDERR @_, "";
    $0 =~ s#.*/##;
    print STDERR "
-Usage: cvs status | cvs-status-summary.pl [options]
-Options: -n(ew)  skip up-to-date files.
-         -h(elp) print this help message
+Usage: cvs status | cvs-status-summary.pl [options] [FILE_LIST]
+
+  When called in a pipe or with a list of files, summarizes the cvs status
+  information found in stdin or FILE_LIST.
+
+  When called without a list of files and with a tty as stdin, displays status
+  information about modified files in the current sandbox, including new files
+  in the repository in need of checkout.
+
+Options: -n(ew)     skip up-to-date files.
+         -v(erbose) display verbose information
+         -h(elp)    print this help message
 ";
    exit 1;
 }
@@ -31,8 +40,17 @@ Options: -n(ew)  skip up-to-date files.
 use Getopt::Long;
 GetOptions(
    "new"       => \my $newonly,
+   "verbose"   => \my $verbose,
    help        => sub { usage },
 );
+
+if (-t STDIN && @ARGV == 0) {
+   $verbose and 
+      print STDERR "cvs -n up 2>&1 | grep '^[A-Z] ' | sed 's/. //' | xargs -r cvs status | cvs-status-summary.pl\n";
+   close STDIN;
+   open(STDIN, "cvs -n up 2>&1 | grep '^[A-Z] ' | sed 's/. //' | xargs -r cvs status |")
+      or die "Can't open cvs pipe: $!";
+}
 
 my @conflicts;
 my %status_lists;
@@ -97,9 +115,13 @@ while (<>) {
    }
 }
 
-print "\nFiles by status:\n";
-foreach my $key (sort keys %status_lists) {
-   print " - $key:\n      @{$status_lists{$key}}\n";
+if (!%status_lists) {
+   print "\nAll files are up to date.\n";
+} else {
+   print "\nFiles by status:\n";
+   foreach my $key (sort keys %status_lists) {
+      print " - $key:\n      @{$status_lists{$key}}\n";
+   }
 }
 
 if ( @conflicts ) {
@@ -108,3 +130,4 @@ if ( @conflicts ) {
       print "	$_\n";
    }
 }
+
