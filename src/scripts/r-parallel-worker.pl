@@ -146,7 +146,7 @@ chomp $reply_rcvd;
 
 sub report_signal($) {
    log_msg "Caught signal $_[0], Aborting job";
-   send_recv "SIGNALED ($me) (rc=$_[0]) $reply_rcvd";
+   send_recv "SIGNALED ($me) ***(rc=$_[0])*** $reply_rcvd";
    exit;
 }
 
@@ -216,12 +216,13 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
          log_msg "Exit status $exit_status";
       }
    }
+   my $error_string = $exit_status ? "***" : "";
    if ( $quota > 0 and (time - $start_time) > $quota*60 ) {
       # Done my share of work, request a relaunch
-      send_recv "DONE-STOPPING ($me) (rc=$exit_status) $reply_rcvd";
+      send_recv "DONE-STOPPING ($me) $error_string(rc=$exit_status)$error_string $reply_rcvd";
       last;
    } else {
-      send_recv "DONE ($me) (rc=$exit_status) $reply_rcvd";
+      send_recv "DONE ($me) $error_string(rc=$exit_status)$error_string $reply_rcvd";
       $reply_rcvd = send_recv "GET ($me)";
    }
 }
