@@ -368,7 +368,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       }
 
       verbose(1, "\tStrip mode: Adding to the command list: $SUB_CMD");
-      print(CMD_FILE "test -f $done || { { $debug_cmd $SUB_CMD; } && touch $done; }\n");
+      print(CMD_FILE "set -o pipefail; test -f $done || { { $debug_cmd $SUB_CMD; } && touch $done; }\n");
    }
    else {
       my @delete = ();
@@ -384,7 +384,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       verbose(1, "\tAdding to the command list: $SUB_CMD");
       # By deleting the input chunks we say this block was properly process in
       # case of a resume is needed.
-      print(CMD_FILE "test ! -f $delete[0] || { { $debug_cmd $SUB_CMD; } && mv $delete[0] $delete[0].done; }\n");
+      print(CMD_FILE "set -o pipefail; test ! -f $delete[0] || { { $debug_cmd $SUB_CMD; } && mv $delete[0] $delete[0].done; }\n");
    }
 }
 close(CMD_FILE) or die "Unable to close command file!";
