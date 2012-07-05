@@ -48,7 +48,7 @@ if (-t STDIN && @ARGV == 0) {
    $verbose and 
       print STDERR "cvs -n up 2>&1 | grep '^[A-Z] ' | sed 's/. //' | xargs -r cvs status | cvs-status-summary.pl\n";
    close STDIN;
-   open(STDIN, "cvs -n up 2>&1 | grep '^[A-Z] ' | sed 's/. //' | xargs -r cvs status |")
+   open(STDIN, "cvs -n up 2>&1 | grep '^[A-Z] ' | sed 's/. //' | xargs -r cvs status 2> /dev/null |")
       or die "Can't open cvs pipe: $!";
 }
 
