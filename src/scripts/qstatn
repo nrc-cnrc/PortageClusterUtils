@@ -47,7 +47,7 @@ echo "$QSTAT_OUTPUT" |
               $pending += 1 if /  Q   --/;
               END {
                  print "|||";
-                 print "||| CPUs per user: ", join(" ", %user);
+                 print "||| CPUs per user: ", join " ", map { "$_ $user{$_}" } sort { $user{$b} <=> $user{$a} } keys %user;
                  print "||| $pending jobs pending" if $pending > 0;
               }'
 
