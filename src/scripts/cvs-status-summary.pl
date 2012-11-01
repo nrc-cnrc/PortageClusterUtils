@@ -70,6 +70,7 @@ while (<>) {
       ($filename) = /File:\s+(\S+)/;
    }
    $filename =~ s/,v$//;
+   $filename =~ s/\/Attic(\/)/$1/;
    my $filename_copy = $filename;
    while ( 1 ) {
       if ( -f $filename_copy ) {
