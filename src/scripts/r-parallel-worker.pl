@@ -140,14 +140,35 @@ if ( defined $subst ) {
 #            acknowledge completion
 #
 
+log_msg "Starting $0";
+
 my $start_time = time;
 my $reply_rcvd = send_recv "GET ($me)";
 chomp $reply_rcvd;
 
+my $sleeping = 0;
 sub report_signal($) {
-   log_msg "Caught signal $_[0], Aborting job";
-   send_recv "SIGNALED ($me) ***(rc=$_[0])*** $reply_rcvd";
-   exit;
+   log_msg "Caught signal $_[0].";
+   if ( $_[0] == 10 ) {
+      my $delay = int(rand(5));
+      log_msg "Caught signal USR1 (10); sleeping $delay seconds and aborting job";
+      $sleeping = 1;
+      sleep $delay;
+      $sleeping = 0;
+   } elsif ( $_[0] == 12 ) {
+      my $delay = int(rand(10));
+      log_msg "Caught signal USR2 (12); sleeping $delay seconds and aborting job";
+      $sleeping = 1;
+      sleep $delay;
+      $sleeping = 0;
+   }
+   log_msg "Caught signal $_[0]. Aborting job";
+   if ($sleeping) {
+      log_msg "Currently sleeping, ignoring conflicting signal";
+   } else {
+      send_recv "SIGNALED ($me) ***(rc=$_[0])*** (signal=$_[0]) $reply_rcvd";
+      exit;
+   }
 }
 
 my $mon_pid;
@@ -191,6 +212,8 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
    } else {
       $SIG{INT} = sub { report_signal(2) };
       $SIG{QUIT} = sub { report_signal(3) };
+      $SIG{USR1} = sub { report_signal(10) };
+      $SIG{USR2} = sub { report_signal(12) };
       $SIG{TERM} = sub { report_signal(15) };
       if ( defined $subst ) {
          $job_command =~ s/\Q$subst_match\E/\Q$subst_replacement\E/go;
@@ -227,9 +250,9 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
    }
 }
 
-if (!$primary and (time - $start_time) < 30) {
+if (!$primary and (time - $start_time) < 60) {
    # Super short jobs are not cluster friendly, especially not arrays of them
-   my $seconds = rand_in_range 1, 10;
+   my $seconds = rand_in_range 5, 30;
    log_msg "Job too short - sleeping $seconds seconds before exiting.";
    sleep $seconds;
 }
