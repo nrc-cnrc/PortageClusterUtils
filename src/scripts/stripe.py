@@ -40,6 +40,8 @@ parser.add_option("-i", dest="indices", type="string", default="0",
                   + "-i [i:j) where 0 <= i < j <= m")
 parser.add_option("-m", dest="modulo", type="int", default=3,
                   help="How many chunks aka modulo [%default]")
+parser.add_option("-c", dest="complement", action="store_true", default=False,
+                  help="writes lines that are NOT 0 <= i < j <=m [%default]")
 parser.add_option("-n", dest="numbered", action="store_true", default=False,
                   help="Prefix each line with its line number [%default]")
 parser.add_option("-r", dest="rebuild", action="store_true", default=False,
@@ -82,7 +84,7 @@ if opts.verbose:
 
 def myopen(filename, mode='r'):
    "This function will try to open transparently compress files or not."
-   if opts.debug: print >> sys.stderr, "myopen: " + filename + " in " + mode + " mode"
+   if opts.debug: print >> sys.stderr, "myopen: ", filename, " in ", mode, " mode"
    if filename == "-":
       if mode == 'r':
          theFile = sys.stdin
@@ -102,7 +104,7 @@ def rebuild():
    "This function will unstripe the output of a previous usage of stripe.py."
    def myOpenRead(filename):
       "Trying out a function closure."
-      if opts.debug: print >> sys.stderr, "myOpenRead: " + filename
+      if opts.debug: print >> sys.stderr, "myOpenRead: ", filename
       return myopen(filename, "r")
 
    # Open files from a pattern.
@@ -117,10 +119,10 @@ def rebuild():
          inputfilenames = args
 
    if len(inputfilenames) <= 0:
-      print >> sys.stderr, "Cannot find any file with " + inputfilenames
+      print >> sys.stderr, "Cannot find any file with ", inputfilenames
       sys.exit(1)
 
-   if opts.verbose: print >> sys.stderr, "Rebuilding output from " + repr(inputfilenames)
+   if opts.verbose: print >> sys.stderr, "Rebuilding output from ", repr(inputfilenames)
 
    # What if the user provided use we more files than the os allows us to have opened at once?
    try:
@@ -136,7 +138,7 @@ def rebuild():
    while True:
       if M == 0: break
       index = cpt % M
-      if opts.debug: print >> sys.stderr, "\t" + repr(index)
+      if opts.debug: print >> sys.stderr, "\t", repr(index)
       file = inputfiles[index]
       line = file.readline()
       if line == "":
@@ -161,9 +163,10 @@ else:
    cpt = 0
    for line in infile:
       step = cpt % opts.modulo
-      if (index <= step < jndex):
+      # NOTE this is XOR
+      if (opts.complement) ^ (index <= step < jndex):
          if (opts.numbered):
-            print >> outfile, repr(cpt) + "\t",
+            print >> outfile, repr(cpt), "\t",
          print >> outfile, line,
       cpt += 1
 
