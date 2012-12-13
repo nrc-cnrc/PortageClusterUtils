@@ -63,7 +63,7 @@ while (<>) {
    my ($working) = /Working revision:\s+(\S+)/;
    my ($date) = /Working revision:\s+\S+[ \t]+(.*)/;
    my ($repository, $filename) = 
-      /Repository revision:\s+(\S+)\s+\S+LTRC\/[^\/]+\/(.*)/;
+      /Repository revision:\s+(\S+)\s+\/home\/cvs\/(?:LTRC\/)?[^\/]+\/(.*)/;
    if ( ! defined $repository ) {
       # Probably a new file
       $repository = "Unknown";
