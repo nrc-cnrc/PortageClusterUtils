@@ -31,3 +31,4 @@ r-parallel-d.pl            PP/EJ  Daemon for run-parallel.sh.
 r-parallel-worker.pl       PP/EJ  Execute tasks obtained from r-parallel-d.pl
 sum.pl                        GF  Sum a column of numbers.
 which-test.sh                 EJ  Which-like program with reliable exit status.
+
