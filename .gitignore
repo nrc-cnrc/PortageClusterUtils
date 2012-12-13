@@ -1,0 +1,4 @@
+# CVS files and cvs2git-sandbox.sh generated files
+CVS/
+.#*
+_log.cvs*
