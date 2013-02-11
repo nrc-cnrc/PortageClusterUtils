@@ -1,5 +1,4 @@
 #!/bin/bash
-# $Id$
 
 # @file run-parallel.sh
 # @brief runs a series of jobs provided as STDIN on parallel distributed
@@ -411,7 +410,27 @@ trap '
    [[ -f $LOGFILEPREFIX ]] && rm -f $LOGFILEPREFIX
    trap "" 0
    exit $GLOBAL_RETURN_CODE
-' 0 1 2 3 13 14 15
+' 0 1 13 14
+
+# When working in cluster mode, killing many jobs at once is not friendly, so
+# we setup a trap with a more cluster-friendly behaviour for SIGTERM, SIGINT
+# and SIGQUIT.
+trap '
+   if [[ -n "$WORKER_JOBIDS" ]]; then
+      echo "Caught termination signal, killing workers slowly (please be patient)" >&2
+      WORKERS=`cat $WORKER_JOBIDS`
+      NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
+      if [[ $NUM_WORKERS -le 10 ]]; then
+         echo "Using SIGUSR1" >&2
+         qsig -s SIGUSR1 $WORKERS
+      else
+         echo "Using SIGUSR2" >&2
+         qsig -s SIGUSR2 $WORKERS
+      fi
+      WORKER_JOBIDS=""
+   fi
+   exit $GLOBAL_RETURN_CODE
+' 2 3 15
 
 # Create a temp directory for all temp files to go into.
 WORKDIR=`mktemp -d ${PREFIX}run-p.$SHORT_JOB_ID.XXX` || error_exit "Can't create temp WORKDIR."

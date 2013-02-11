@@ -149,23 +149,23 @@ chomp $reply_rcvd;
 my $sleeping = 0;
 sub report_signal($) {
    log_msg "Caught signal $_[0].";
-   if ( $_[0] == 10 ) {
-      my $delay = int(rand(5));
-      log_msg "Caught signal USR1 (10); sleeping $delay seconds and aborting job";
-      $sleeping = 1;
-      sleep $delay;
-      $sleeping = 0;
-   } elsif ( $_[0] == 12 ) {
-      my $delay = int(rand(10));
-      log_msg "Caught signal USR2 (12); sleeping $delay seconds and aborting job";
-      $sleeping = 1;
-      sleep $delay;
-      $sleeping = 0;
-   }
-   log_msg "Caught signal $_[0]. Aborting job";
    if ($sleeping) {
-      log_msg "Currently sleeping, ignoring conflicting signal";
+      log_msg "Currently sleeping, ignoring repeated signal";
    } else {
+      if ( $_[0] == 10 ) {
+         my $delay = int(rand(5));
+         log_msg "Caught signal USR1 (10); sleeping $delay seconds and aborting job";
+         $sleeping = 1;
+         sleep $delay;
+         $sleeping = 0;
+      } elsif ( $_[0] == 12 ) {
+         my $delay = int(rand(10));
+         log_msg "Caught signal USR2 (12); sleeping $delay seconds and aborting job";
+         $sleeping = 1;
+         sleep $delay;
+         $sleeping = 0;
+      }
+      log_msg "Caught signal $_[0]. Aborting job";
       send_recv "SIGNALED ($me) ***(rc=$_[0])*** (signal=$_[0]) $reply_rcvd";
       exit;
    }
