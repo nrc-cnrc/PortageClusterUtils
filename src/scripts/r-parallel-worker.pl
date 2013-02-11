@@ -201,6 +201,12 @@ if ( $mon ) {
    #log_msg "Monitor PID $mon_pid";
 }
 
+$SIG{INT} = sub { report_signal(2) };
+$SIG{QUIT} = sub { report_signal(3) };
+$SIG{USR1} = sub { report_signal(10) };
+$SIG{USR2} = sub { report_signal(12) };
+$SIG{TERM} = sub { report_signal(15) };
+
 while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
          and $reply_rcvd ne ""){
    log_msg "Executing $reply_rcvd";
@@ -210,11 +216,6 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
       log_msg "Received ill-formatted command: $reply_rcvd";
       $exit_status = -2;
    } else {
-      $SIG{INT} = sub { report_signal(2) };
-      $SIG{QUIT} = sub { report_signal(3) };
-      $SIG{USR1} = sub { report_signal(10) };
-      $SIG{USR2} = sub { report_signal(12) };
-      $SIG{TERM} = sub { report_signal(15) };
       if ( defined $subst ) {
          $job_command =~ s/\Q$subst_match\E/\Q$subst_replacement\E/go;
          log_msg "Substitued command: $job_command";
@@ -223,7 +224,6 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
       # Ubuntu and Debian)
       my $rc = system("/bin/bash", "-c", $job_command);
       #my $rc = system($job_command);
-      $SIG{INT} = $SIG{QUIT} = $SIG{TERM} = "IGNORE";
       if ( $rc == -1 ) {
          log_msg "System return code = $rc, means couldn't start job: $!";
          $exit_status = -1;

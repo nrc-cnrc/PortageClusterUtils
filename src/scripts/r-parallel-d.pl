@@ -124,6 +124,7 @@ my $job_no = 0;         # next job number to launch, as an index into @jobs
 my $done_count = 0;     # number of jobs done so far
 my $num = @jobs;        # job count in a conveniently scalar variable
 my @return_codes;       # return codes from all the jobs
+my $caught_signal = 0;  # Set if any worker was signaled
 
 # File that will contain all the return codes from the jobs
 open (RCFILE, "> $file_prefix/rc")
@@ -210,7 +211,7 @@ for ( ; $paddr = accept(Client, Server); close Client) {
             --$num_workers
          } else {
             # send the next command for execution
-            if ( $job_no < $num ) {
+            if ($job_no < $num && !$caught_signal) {
                ++$job_no;
                print "($job_no) $jobs[$job_no-1]";
                my $trimmed_job = $jobs[$job_no-1];
@@ -228,6 +229,9 @@ for ( ; $paddr = accept(Client, Server); close Client) {
             }
          }
       } elsif ($cmd_rcvd =~ /^DONE|^SIGNALED/i) {
+         if ( $cmd_rcvd =~ /^SIGNALED/i ) {
+            $caught_signal = 1;
+         }
          if ( $cmd_rcvd =~ /^DONE-STOPPING|^SIGNALED/i ) {
             --$num_workers;
          }
@@ -284,12 +288,15 @@ for ( ; $paddr = accept(Client, Server); close Client) {
       log_msg "EMPTY: received nothing";
    }
 
-   if ( $num_workers < 1 ) {
+   if ($num_workers < 1) {
       log_msg "No more workers, exiting.";
-      if ( $job_no < $num ) {
+      if ($caught_signal) {
+         log_msg "A signal was caught, some jobs might not have been run.";
+         exit 1;
+      } elsif ($job_no < $num) {
          log_msg "Some jobs were not submitted for execution.";
          exit 0;
-      } elsif ( $done_count < $num ) {
+      } elsif ($done_count < $num) {
          log_msg "Mysteriously, there are no workers left but some jobs are apparently still running.";
          exit 1;
       } else {
