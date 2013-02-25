@@ -27,7 +27,7 @@ def sort_nicely( l ):
    l.sort( key=alphanum_key ) 
 
 
-usage="slit.py [options] [infile [outfile]]"
+usage="stripe.py [options] [infile [outfile]]"
 help="""
   Perform a striped split, assigning lines in a round-robin fashion to each
   chunk.  Intended for splitting files without creating temporary copies.

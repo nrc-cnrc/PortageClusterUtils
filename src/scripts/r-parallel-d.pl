@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
-# $Id$
-#
 # @file r-parallel-d.pl 
-# @brief This script is used in conjuction with r-parallel-worker.pl, and
+# @brief Daemon script for run-parallel.sh.
+#
+# This script is used in conjuction with r-parallel-worker.pl, and
 # run-parallel.sh.  It accepts connections on a specific port and returns
 # commands to executed when asked.
 #

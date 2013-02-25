@@ -1,8 +1,7 @@
 #!/bin/bash
-# $Id$
 #
 # @file which-test.sh 
-# @brief portable wrapper for which, with reliable status code.
+# @brief Portable wrapper for which, with reliable status code.
 #
 # @author Eric Joanis
 #
@@ -12,13 +11,13 @@
 # Copyright 2005, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2005, Her Majesty in Right of Canada
 
-## Usage: which-test.sh <prog> prog
-## Exits with status code 0 if prog is on the path and executable, 1 otherwise.
+## Usage: which-test.sh PROG
+## Exits with status code 0 if PROG is on the path and executable, 1 otherwise.
 ## Example use in a bash or sh script:
-##    if which-test.sh prog; then
-##       # prog is available; you can use it
+##    if which-test.sh PROG; then
+##       # PROG is available; you can use it
 ##    else
-##       # prog doesn't exist, isn't on the path, or isn't executable;
+##       # PROG doesn't exist, isn't on the path, or isn't executable;
 ##       # work around it or give up
 ##    fi
 ##

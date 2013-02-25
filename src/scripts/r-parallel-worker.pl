@@ -1,8 +1,9 @@
 #!/usr/bin/env perl
-# $Id$
 
 # @file r-parallel-worker.pl 
-# @brief This is a generic worker program that requests a command and executes
+# @brief Worker script for run-parallel.sh.
+#
+# This is a generic worker program that requests a command and executes
 # it when done exits
 #
 # @author Patrick Paul and Eric Joanis
@@ -268,6 +269,8 @@ log_msg "Done.";
 
 sub PrintHelp{
 print <<'EOF';
+  r-parallel-worker.pl
+
   This script is a generic worker script. It is meant to be used in
   conjunction with:
     - /utils/run-parallel.sh (script invoked by user)

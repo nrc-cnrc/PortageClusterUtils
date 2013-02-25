@@ -1,9 +1,11 @@
 #!/bin/bash
-# $Id$
 
 # @file psub 
-# @brief wrapper for qsub intended to do, by default, what we usually want, and
-# to simplify options we often use.  This script is intended to contain all the
+# @brief Wrapper for qsub with simplified interface and other options to
+# support integration in Portage scripts.
+#
+# Wrapper for qsub intended to do, by default, what we usually want, and to
+# simplify options we often use.  This script is intended to contain all the
 # local peculiarities of the clusters we use.  Other sites using Portage or
 # PORTAGEshared may need to adapt this script to their own cluster environment.
 # Look for "CUSTOMIZE HERE" below for spots where we expect you might need to
