@@ -1,3 +1,4 @@
+# vim:noet:ts=3:nowrap:filetype=make
 # Makefile for IITSharedUtils
 # This makefile simply installs all script in the location of your choice.
 
@@ -42,7 +43,13 @@ ifndef INSTALL_DIR
 INSTALL_DIR=$(HOME)
 endif
 
-install:
+install:  test
 	install -d -m0750 $(INSTALL_DIR)/bin
 	install -p -m0750 $(BINSCRIPTS) $(INSTALL_DIR)/bin
+
+test: check_perl_dependencies
+
+check_perl_dependencies:
+	perldoc -l Data::TreeDumper
+	perldoc -l Tree::Simple
 
