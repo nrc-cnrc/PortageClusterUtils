@@ -16,15 +16,6 @@
 use strict;
 use warnings;
 
-BEGIN{
-   unshift @INC, "/home/portage/g4.2/lib/perl5/5.8.8";
-   unshift @INC, "/home/portage/g4.2/lib/perl5/5.8.8/x86_64-linux-thread-multi";
-   unshift @INC, "/home/portage/g4.2/lib/perl5/site_perl/5.8.8";
-   unshift @INC, "/home/portage/g4.2/lib/perl5/site_perl/5.8.8/x86_64-linux-thread-multi";
-   #print "@INC\n";
-};
-
-
 sub usage {
    local $, = "\n";
    print STDERR @_, "";
