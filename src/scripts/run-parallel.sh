@@ -158,6 +158,12 @@ Dynamic options:
 
   To kill the process and all its workers, replace "add M" by "kill".
 
+  To view how many workers are currently working, in the process of been added
+  or in the process of been quenched.
+     run-parallel.sh num_worker PBS_JOBID
+  or
+     run-parallel.sh num_worker run-p.SUFFIX/psub_cmd
+
 ==EOF==
 
    exit 1
@@ -289,12 +295,18 @@ while (( $# > 0 )); do
 done
 
 # Special commands pre-empt normal operation
-if [[ "$1" = add || "$1" = quench || "$1" = kill ]]; then
+if [[ "$1" = add || "$1" = quench || "$1" = kill || "$1" = num_worker ]]; then
    # Special command to dynamically add or remove worders to/from a job in
    # progress
    if [[ "$1" = kill ]]; then
       if [[ $# != 2 ]]; then
          error_exit "Kill requests take exactly 2 parameters."
+      fi
+      REQUEST_TYPE=$1
+      JOB_ID_OR_CMD_FILE=$2
+   elif [[ "$1" = num_worker ]]; then
+      if [[ $# != 2 ]]; then
+         error_exit "num_worker requests take exactly 2 parameters."
       fi
       REQUEST_TYPE=$1
       JOB_ID_OR_CMD_FILE=$2
@@ -351,6 +363,14 @@ if [[ "$1" = add || "$1" = quench || "$1" = kill ]]; then
               "but likely won't do anything."
          exit 1
       fi
+   elif [[ $REQUEST_TYPE = num_worker ]]; then
+      RESPONSE=`echo NUM_WORKER | $NETCAT_COMMAND`
+      if [[ "$RESPONSE" =~ "NUM_WORKER (w:[0-9]+ q:[0-9]+ a:[0-9]+)" ]]; then
+         echo ${BASH_REMATCH[1]}
+      else
+         error_exit "Daemon error (response=$RESPONSE), num_worker request failed."
+      fi
+      exit 0
    elif [[ $REQUEST_TYPE = quench ]]; then
       RESPONSE=`echo QUENCH $NUM | $NETCAT_COMMAND`
       if [[ "$RESPONSE" != QUENCHED ]]; then

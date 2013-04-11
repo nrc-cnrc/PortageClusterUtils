@@ -202,6 +202,8 @@ for ( ; $paddr = accept(Client, Server); close Client) {
          print "KILLED\n";
          close Client;
          exit 2;
+      } elsif ($cmd_rcvd =~ /^NUM_WORKER/i) {
+         print "NUM_WORKER w:$num_workers q:$quench_count a:$add_count\n";
       } elsif ($cmd_rcvd =~ /^GET/i) {
          log_msg $cmd_rcvd;
          if ( $cmd_rcvd !~ /GET \(PRIMARY/i and $quench_count > 0 ) {
@@ -403,6 +405,9 @@ Valid messages -- response:
           run-parallel.sh clean up.
 
   PING -- PONG
+
+  NUM_WORKER -- Request status of how many workers are: actively working, been
+                quenched and been added.
 
 EOF
 
