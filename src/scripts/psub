@@ -107,6 +107,7 @@ PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
 CPU_COUNT=
 MEMORY_POLLING_DELAY=6
 
+NODES=notest
 while [ $# -gt 0 ]; do
    case "$1" in
    -h|-help)        usage;;
