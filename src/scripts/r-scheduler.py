@@ -120,9 +120,9 @@ def get_args():
    parser = ArgumentParser(prog='r-scheduler.py', formatter_class=RawDescriptionHelpFormatter, usage=usage, description=help, add_help=True, epilog=epilog)
 
    parser.add_argument("-a", dest="add", nargs="*", type=str, default=[],
-                       help="schedule a cron jog to add workers [%(default)s]")
+                       help="schedule a cron job to add workers [%(default)s]")
    parser.add_argument("-q", dest="quench", nargs="*", type=str, default=[],
-                       help="schedule a cron jog to quench workers [%(default)s]")
+                       help="schedule a cron job to quench workers [%(default)s]")
 
    parser.add_argument("-b", dest="burst_interval", type=int, default=5,
                        help="monitor cluster resources at interval X in minutes [%(default)s]")
