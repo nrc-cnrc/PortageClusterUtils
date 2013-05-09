@@ -214,7 +214,7 @@ my $CMD = join " ", @ARGV;
 die "-w W must be a positive value." unless (not defined($W) or $W > 0);
 
 # By default, look for input redirection
-if ($CMD =~ /<(\s*)([^ >]+)($|\s*)/) {
+if ($CMD =~ /<(\s*)([^\( >]+)($|\s*|\))/) {
    my $split = $2;
    verbose(1, "Adding $split to splits");
    push @SPLITS, $split;
@@ -222,7 +222,7 @@ if ($CMD =~ /<(\s*)([^ >]+)($|\s*)/) {
 
 # Check if the user provided an output.
 my $merge = "";
-if ($CMD =~ /[^2]>(\s*)([^ <]+)($|\s*)/) {
+if ($CMD =~ /[^2]>(\s*)([^ <]+)($|\s*|\))/) {
    $merge = $2;
 }
 else {
@@ -275,11 +275,11 @@ die "You must provide an input file." unless(scalar(@SPLITS) gt 0);
 # Check if all SPLITS and all MERGES are arguments of the command.
 foreach my $s (@SPLITS) {
    # Escape the input since it might have some control characters.
-   die "not an argument of command: $s" unless $CMD =~ /(^|\s|<)\Q$s\E($|\s)/;
+   die "not an argument of command: $s" unless $CMD =~ /(^|\s|<)\Q$s\E($|\s|\))/;
 }
 foreach my $m (@MERGES) {
    # Escape the input since it might have some control characters.
-   die "not an argument of command: $m" unless $CMD =~ /(^|\s|>)\Q$m\E($|\s)/;
+   die "not an argument of command: $m" unless $CMD =~ /(^|\s|>)\Q$m\E($|\s|\))/;
 }
 
 
@@ -351,7 +351,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    # For each occurence of a file to merge, replace it by a chunk.
    foreach my $m (@MERGES) {
       my $file = "$workdir/" . $basename{$m} . "/$index";
-      unless ($SUB_CMD =~ s/(^|\s|>)\Q$m\E($|\s)/$1$file$2/) {
+      unless ($SUB_CMD =~ s/(^|\s|>)\Q$m\E($|\s|\))/$1$file$2/) {
          die "Unable to match $m and $file";
       }
    }
@@ -362,7 +362,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
          # NOTE: doing zcat file.gz | stripe.py is much much faster than
          # stripe.py file.gz.  Seems like the python's implementation of gzip is
          # quite slow.
-         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1<(zcat -f $s | stripe.py -i $i -m $N)$2/) {
+         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s|\))/$1<(zcat -f $s | stripe.py -i $i -m $N)$2/) {
             die "Unable to match $s";
          }
       }
@@ -376,7 +376,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       foreach my $s (@SPLITS) {
          my $file = "$workdir/" . $basename{$s} . "/$index";
          push(@delete, $file);
-         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s)/$1$file$2/) {
+         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s|\))/$1$file$2/) {
             die "Unable to match $s and $file";
          }
       }
