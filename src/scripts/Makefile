@@ -30,11 +30,13 @@ BINSCRIPTS = \
         sum.pl \
         which-test.sh
 
-# The following include statement is here to allow this Makefile to work within
-# the Portage compiling framework.  you can safely ignore these lines if you're
-# in a different project, but please leave them as is.
+# The following code is here to allow this Makefile to work within the Portage
+# compiling framework.  You can safely ignore this block if you're in a
+# different project, but please leave it as is.
 ifdef PORTAGE
 -include ../build/Makefile.incl
+lib:
+	@true
 endif
 
 # Destination for installing the scripts: specific INSTALL_DIR=/install/path
