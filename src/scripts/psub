@@ -100,8 +100,8 @@ arg_check() {
 }
 
 # Set some virtual memory constant per cpu.
-VMEM_LIMIT_GB_PER_CPU=8
-VMEM_HARD_LIMIT_GB_PER_CPU=7
+VMEM_LIMIT_GB_PER_CPU=7
+VMEM_HARD_LIMIT_GB_PER_CPU=6
 
 PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
 CPU_COUNT=
