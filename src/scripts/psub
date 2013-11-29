@@ -75,6 +75,7 @@ Further notes:
 }
 
 error_exit() {
+   echo -n "psub fatal error: " >&2
    for msg in "$@"; do
       echo $msg >&2
    done

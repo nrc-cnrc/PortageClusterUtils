@@ -170,6 +170,7 @@ Dynamic options:
 }
 
 error_exit() {
+   echo -n "run-parallel.sh fatal error: " >&2
    for msg in "$@"; do
       echo $msg >&2
    done
@@ -872,7 +873,8 @@ if (( $NUM > $FIRST_PSUB )); then
       if (( $VERBOSE > 2 )); then
          echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD \> $OUT$ID 2\> $ERR$ID >&2
       fi
-      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS
+      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS ||
+         error_exit "Error launching array of workers using psub"
       # qstat needs individual job ids, and fails when given the array id, so we
       # need to expand them by hand into the $WORKER_JOBIDS file.
       WORKER_BASE_JOBID=`cat $WORKER_JOBIDS`
@@ -899,7 +901,8 @@ if (( $NUM > $FIRST_PSUB )); then
          if (( $VERBOSE > 2 )); then
             echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR >&2
          fi
-         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR >> $WORKER_JOBIDS
+         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR >> $WORKER_JOBIDS ||
+            error_exit "Error launching worker $i using psub"
          # PBS doesn't like having too many qsubs at once, let's give it a
          # chance to breathe between each worker submission
          sleep 1
