@@ -416,7 +416,7 @@ trap '
          sleep 1
       done
    fi
-   if [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 && $VERBOSE -gt 0 ]]; then
+   if [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]]; then
       for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/mon.worker-*; do
          if [[ -s $x ]]; then
             echo ""
@@ -607,7 +607,7 @@ if [[ $CLUSTER ]]; then
             echo Parent has enough CPUs for $LOCAL_JOBS local workers. >&2
             if (( $LOCAL_JOBS > $NUM )); then
                LOCAL_JOBS=$NUM
-               echo But only requested $NUM worker"(s)".
+               echo But only requested $NUM worker"(s)". >&2
             fi
          fi
       elif [[ $PARENT_NCPUS && $PARENT_NCPUS -gt 1 && ! $NCPUS ]]; then
@@ -645,7 +645,7 @@ if [[ $CLUSTER ]]; then
       JOB_VMEM=`psub -require $PSUBOPTS`
 
       if [[ $RUNPARALLEL_WORKER_VMEM ]]; then
-         [[ $DEBUG ]] && echo "Found parent VMEM override=$RUNPARALLEL_WORKER_VMEM" >&2
+         [[ $DEBUG || $VERBOSE > 0 ]] && echo "Found parent VMEM override=$RUNPARALLEL_WORKER_VMEM" >&2
          PARENT_VMEM=$RUNPARALLEL_WORKER_VMEM
       elif [[ $PBS_JOBID ]]; then
          # How much VMEM was allocated to the parent?
@@ -949,7 +949,7 @@ fi
 
 if (( $VERBOSE > 0 )); then
    # Send all worker STDOUT and STDERR to STDERR for logging purposes.
-   for x in $WORKDIR/{out,err}.worker-*; do
+   for x in $WORKDIR/{out,err,mon}.worker-*; do
       if [[ -s $x ]]; then
          if [[ $VERBOSE = 1 && `grep -v "Can't connect to socket: Connection refused" < $x | wc -c` = 0 ]]; then
             # STDERR only containing workers that can't connect to a dead
@@ -958,7 +958,7 @@ if (( $VERBOSE > 0 )); then
             #echo skipping $x
          else
             echo >&2
-            echo ========== $x ========== | sed "s|$WORKDIR/||" >&2
+            echo ========== $(basename $x) ========== >&2
             cat $x >&2
          fi
       fi
@@ -985,11 +985,7 @@ END_TIME=`date +%s`
 WALL_TIME=$((END_TIME - START_TIME))
 TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null |
    egrep -o "[0-9.]+" | sum.pl`
-MAX_VSZ=`egrep -ho 'vsz: [0-9.]+G' $WORKDIR/mon.worker-* 2> /dev/null |
-   egrep -o "[0-9.]+" | sum.pl -m`
-MAX_RSS=`egrep -ho 'rss: [0-9.]+G' $WORKDIR/mon.worker-* 2> /dev/null |
-   egrep -o "[0-9.]+" | sum.pl -m`
-RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s Max VMEM ${MAX_VSZ}G Max RAM ${MAX_RSS}G"
+RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s `rp-mon-totals.pl $WORKDIR/mon.worker-*`"
 if [[ ! $EXEC ]]; then
    echo $RPTOTALS >&2
 fi

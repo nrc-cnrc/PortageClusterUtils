@@ -25,6 +25,7 @@ BINSCRIPTS = \
         r-scheduler.py \
         r-parallel-d.pl \
         r-parallel-worker.pl \
+        rp-mon-totals.pl \
         run-parallel.sh \
         stripe.py \
         sum.pl \
