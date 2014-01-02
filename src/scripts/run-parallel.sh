@@ -109,9 +109,12 @@ General options:
        killall  Kill all workers immediately and exit
   -subst MATCH  Have workers substite MATCH in each command by their worker-id
                 before running it.
-  -unordered-cat Outputs to stdout, in an unordered fashion, stdouts from all
-                 the workers.
   -period P     Sleep for P seconds between monitoring samples. [60]
+  -unordered-cat   Outputs to stdout, in an unordered fashion, stdouts from all
+                   the workers.
+  -worker-cmd CMD  Use CMD instead of r-parallel-worker.pl to run workers.
+                   CMD must include the strings __HOST__ and __PORT__, which
+                   will be replaced by the daemon's host and port.
 
 Cluster mode options:
 
@@ -284,6 +287,7 @@ while (( $# > 0 )); do
    -qsub|-qsub-opts|-qsub-options)
                    arg_check 1 $# $1; QSUBOPTS="$QSUBOPTS $2"; shift;;
    -subst)         arg_check 1 $# $1; WORKER_SUBST=$2; shift;;
+   -worker-cmd)    arg_check 1 $# $1; USER_WORKER_CMD=$2; shift;;
    -v|-verbose)    VERBOSE=$(( $VERBOSE + 1 ));;
    -q|-quiet)      VERBOSE=0;;
    -cleanup)       CLEANUP=1;; # kept here so scripts using it don't have to be patched.
@@ -808,17 +812,27 @@ fi
 
 # Command for launching more workers when some send a STOPPING-DONE message.
 PSUB_CMD_FILE=$WORKDIR/psub_cmd
-SILENT_WORKER=
-if [[ $VERBOSE < 2 ]]; then
-   SILENT_WORKER=-silent
-fi
-WORKER_COMMAND="/usr/bin/time -f $WORKER_CPU_STRING=user%Us+sys%Ss r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT"
-if [[ $WORKER_SUBST ]]; then
-   SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
+if [[ $USER_WORKER_CMD ]]; then
+   WORKER_COMMAND="time-mem $USER_WORKER_CMD"
+   WORKER_COMMAND=${WORKER_COMMAND//__HOST__/$MY_HOST}
+   WORKER_COMMAND=${WORKER_COMMAND//__PORT__/$MY_PORT}
 else
-   SUBST_OPT=""
+   SILENT_WORKER=
+   if [[ $VERBOSE < 2 ]]; then
+      SILENT_WORKER=-silent
+   fi
+   WORKER_COMMAND="/usr/bin/time -f $WORKER_CPU_STRING=user%Us+sys%Ss r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT"
+   if [[ $WORKER_SUBST ]]; then
+      SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
+   else
+      SUBST_OPT=""
+   fi
 fi
 
+if [[ ! $USER_WORKER_CMD ]]; then
+   WORKER_OPTIONS="$SUBST_OPT -mon $WORKDIR/mon.worker-__WORKER__ID__ -period $MON_PERIOD"
+   [[ $CLUSTER ]] && WORKER_OPTIONS="$WORKER_OPTIONS $QUOTA"
+fi
 if [[ $CLUSTER ]]; then
    cat /dev/null > $PSUB_CMD_FILE
    for word in "${SUBMIT_CMD[@]}"; do
@@ -830,9 +844,9 @@ if [[ $CLUSTER ]]; then
    done
    echo -n "" -N $WORKER_NAME-__WORKER__ID__ >> $PSUB_CMD_FILE
    echo -n "" -e ${LOGFILEPREFIX}log.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
-   echo -n "" $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $WORKDIR/mon.worker-__WORKER__ID__ -period $MON_PERIOD \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
+   echo -n "" $WORKER_COMMAND $WORKER_OPTIONS \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
 else
-   echo $WORKER_COMMAND $SUBST_OPT -mon $WORKDIR/mon.worker-__WORKER__ID__ -period $MON_PERIOD \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
+   echo $WORKER_COMMAND $WORKER_OPTIONS \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
 fi
 echo $NUM > $WORKDIR/next_worker_id
 
@@ -843,13 +857,12 @@ if [[ ! $NOLOCAL ]]; then
       OUT=$WORKDIR/out.worker-$i
       ERR=$WORKDIR/err.worker-$i
       MON=$WORKDIR/mon.worker-$i
-      if [[ $WORKER_SUBST ]]; then
-         SUBST_OPT="-subst $WORKER_SUBST/$i"
-      fi
+      [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i"
+      [[ ! $USER_WORKER_CMD ]] && WORKER_OPTIONS="$SUBST_OPT -primary -mon $MON -period $MON_PERIOD"
       if (( $VERBOSE > 2 )); then
-         echo $WORKER_COMMAND $SUBST_OPT -primary -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR \& >&2
+         echo $WORKER_COMMAND $WORKER_OPTIONS \> $OUT 2\> $ERR \& >&2
       fi
-      eval $WORKER_COMMAND $SUBST_OPT -primary -mon $MON -period $MON_PERIOD > $OUT 2> $ERR &
+      eval $WORKER_COMMAND $WORKER_OPTIONS > $OUT 2> $ERR &
    done
 fi
 
@@ -867,13 +880,12 @@ if (( $NUM > $FIRST_PSUB )); then
       LOG=${LOGFILEPREFIX}log.worker
       MON=$WORKDIR/mon.worker-
       ID='$PBS_ARRAYID'
-      if [[ $WORKER_SUBST ]]; then
-         SUBST_OPT="-subst $WORKER_SUBST/$ID"
-      fi
+      [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$ID"
+      [[ ! $USER_WORKER_CMD ]] && WORKER_OPTIONS="$SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD"
       if (( $VERBOSE > 2 )); then
-         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD \> $OUT$ID 2\> $ERR$ID >&2
+         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT$ID 2\> $ERR$ID >&2
       fi
-      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS ||
+      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS ||
          error_exit "Error launching array of workers using psub"
       # qstat needs individual job ids, and fails when given the array id, so we
       # need to expand them by hand into the $WORKER_JOBIDS file.
@@ -894,14 +906,13 @@ if (( $NUM > $FIRST_PSUB )); then
          ERR=$WORKDIR/err.worker-$i
          LOG=${LOGFILEPREFIX}log.worker-$i
          MON=$WORKDIR/mon.worker-$i
-         if [[ $WORKER_SUBST ]]; then
-            SUBST_OPT="-subst $WORKER_SUBST/$i"
-         fi
+         [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i"
+         [[ ! $USER_WORKER_CMD ]] && WORKER_OPTIONS="$SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD"
 
          if (( $VERBOSE > 2 )); then
-            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR >&2
+            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT 2\> $ERR >&2
          fi
-         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD \> $OUT 2\> $ERR >> $WORKER_JOBIDS ||
+         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT 2\> $ERR >> $WORKER_JOBIDS ||
             error_exit "Error launching worker $i using psub"
          # PBS doesn't like having too many qsubs at once, let's give it a
          # chance to breathe between each worker submission
@@ -985,7 +996,8 @@ END_TIME=`date +%s`
 WALL_TIME=$((END_TIME - START_TIME))
 TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null |
    egrep -o "[0-9.]+" | sum.pl`
-RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s `rp-mon-totals.pl $WORKDIR/mon.worker-*`"
+[[ ! $USER_WORKER_CMD ]] && 
+   RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s `rp-mon-totals.pl $WORKDIR/mon.worker-*`"
 if [[ ! $EXEC ]]; then
    echo $RPTOTALS >&2
 fi
@@ -994,10 +1006,6 @@ if [[ `wc -l < $WORKDIR/rc` -ne "$NUM_OF_INSTR" ]]; then
    echo 'Wrong number of job return statuses: got' `wc -l < $WORKDIR/rc` "expected $NUM_OF_INSTR." >&2
    GLOBAL_RETURN_CODE=-1
    exit -1
-elif [[ $UNORDERED_CAT ]]; then
-   find $WORKDIR | grep -F 'out.worker' | xargs cat
-   find $WORKDIR | grep -F 'err.worker' | xargs cat >&2
-   echo $RPTOTALS >&2
 elif [[ $EXEC ]]; then
    # With -c, we work like the shell's -c: connect stdout and stderr from the
    # job to the this script's, and exit with the job's exit status
@@ -1024,7 +1032,13 @@ elif [[ $EXEC ]]; then
    echo $RPTOTALS >&2
    GLOBAL_RETURN_CODE=`cat $WORKDIR/rc`
    exit $GLOBAL_RETURN_CODE
-elif grep -q -v '^0$' $WORKDIR/rc >& /dev/null; then
+elif [[ $UNORDERED_CAT ]]; then
+   find $WORKDIR -name 'out.worker*' | xargs cat
+   (( $VERBOSE == 0 )) && find $WORKDIR -name 'err.worker*' | xargs cat >&2
+   echo $RPTOTALS >&2
+fi
+
+if grep -q -v '^0$' $WORKDIR/rc >& /dev/null; then
    # At least one job got a non-zero return code
    GLOBAL_RETURN_CODE=2
    exit 2
