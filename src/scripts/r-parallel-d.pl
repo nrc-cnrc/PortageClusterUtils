@@ -227,7 +227,7 @@ for ( ; $paddr = accept(Client, Server); close Client) {
             } else {
                print "***EMPTY***\n";
                log_msg "returning: ***EMPTY***";
-               --$num_workers
+               --$num_workers;
             }
          }
       } elsif ($cmd_rcvd =~ /^DONE|^SIGNALED/i) {
@@ -235,6 +235,9 @@ for ( ; $paddr = accept(Client, Server); close Client) {
             $caught_signal = 1;
          }
          if ( $cmd_rcvd =~ /^DONE-STOPPING|^SIGNALED/i ) {
+            --$num_workers;
+         } elsif ($job_no >= $num || $caught_signal) {
+            print "ALLSTARTED\n";
             --$num_workers;
          }
          ++$done_count;

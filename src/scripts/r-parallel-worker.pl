@@ -246,7 +246,11 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
       send_recv "DONE-STOPPING ($me) $error_string(rc=$exit_status)$error_string $reply_rcvd";
       last;
    } else {
-      send_recv "DONE ($me) $error_string(rc=$exit_status)$error_string $reply_rcvd";
+      my $response = send_recv "DONE ($me) $error_string(rc=$exit_status)$error_string $reply_rcvd";
+      if ($response =~ /^ALLSTARTED/) {
+         log_msg "Server said ALLSTARTED; stopping.";
+         last;
+      }
       $reply_rcvd = send_recv "GET ($me)";
    }
 }
