@@ -124,6 +124,7 @@ Cluster mode options:
                 number of CPUs of master job]
   -nohighmem    Use only 1 CPU per worker, even if master job had more.
   -nolocal      psub all workers [run one worker locally, unless on head node]
+  -local L      run L jobs locally [calculated automatically]
   -nocluster    force non-cluster mode [auto-detect if we're on a cluster]
   -quota T      When workers have done T minutes of work, re-psub them [30]
   -psub         Provide custom psub options.
@@ -218,6 +219,7 @@ HIGHMEM=
 NOHIGHMEM=
 NOLOCAL=
 if on_head_node; then NOLOCAL=1; fi
+USER_LOCAL=
 NOCLUSTER=
 VERBOSE=1
 DEBUG=
@@ -275,7 +277,8 @@ while (( $# > 0 )); do
                    break;;
    -highmem)       HIGHMEM=1;;
    -nohighmem)     NOHIGHMEM=1;;
-   -nolocal)       NOLOCAL=1;;
+   -nolocal)       NOLOCAL=1; USER_LOCAL=;;
+   -local)         arg_check 1 $# $1; USER_LOCAL="$2"; NOLOCAL=; shift;;
    -nocluster)     NOCLUSTER=1;;
    -on-error)      arg_check 1 $# $1; ON_ERROR="$2"; shift;;
    -N)             arg_check 1 $# $1; JOB_NAME="$2-"; shift;;
@@ -538,6 +541,7 @@ if [[ $DEBUG ]]; then
    HIGHMEM   = $HIGHMEM
    NOHIGHMEM = $NOHIGHMEM
    NOLOCAL   = $NOLOCAL
+   USER_LOCAL= $USER_LOCAL
    NOCLUSTER = $NOCLUSTER
    SAVE_ARGS = $SAVE_ARGS
    PSUBOPTS  = $PSUBOPTS
@@ -587,7 +591,9 @@ if [[ $CLUSTER ]]; then
       NCPUS=1
    fi
 
-   if [[ ! $NOLOCAL ]]; then
+   if [[ $USER_LOCAL ]]; then
+      LOCAL_JOBS=$USER_LOCAL
+   elif [[ ! $NOLOCAL ]]; then
       # We assume by default that we can run one local job.
       LOCAL_JOBS=1
 
@@ -643,7 +649,7 @@ if [[ $CLUSTER ]]; then
    PSUBOPTS="-p $WORKER_PRIORITY $PSUBOPTS"
    #echo PSUBOPTS $PSUBOPTS
 
-   if [[ ! $NOLOCAL ]]; then
+   if [[ ! $NOLOCAL && ! $USER_LOCAL ]]; then
       # Now that the PSUBOPTS variable has settled down, let's see how much
       # vmem the job requires.
       JOB_VMEM=`psub -require $PSUBOPTS`
@@ -752,6 +758,7 @@ if [[ $CLUSTER ]]; then
    if [[ $DEBUG ]]; then
       echo "
    NOLOCAL = $NOLOCAL
+   USER_LOCAL= $USER_LOCAL
    PBS_JOBID = $PBS_JOBID
    JOB_VMEM = $JOB_VMEM
    PARENT_VMEM = $PARENT_VMEM
