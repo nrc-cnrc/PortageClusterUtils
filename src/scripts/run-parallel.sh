@@ -99,6 +99,7 @@ General options:
   -h(elp)       Print this help message.
   -d(ebug)      Print debugging information.
   -q(uiet)      Quiet mode only prints error messages and the resource summary.
+  -quiet-daemon Make the daemon quiet, but not all of run-parallel.sh
   -v(erbose)    Increase verbosity level.  If specified once, show the daemon's
                 logs, each worker's logs, etc.  Yet more output is produced if
                 specified twice.
@@ -243,7 +244,7 @@ while (( $# > 0 )); do
    -p)             arg_check 1 $# $1; PREFIX="$2"; shift;;
    -e)             arg_check 1 $# $1; CMD_LIST=1
                    echo "$2" >> $JOBSET_FILENAME; shift;;
-   -unordered-cat|-unordered_cat) VERBOSE=0; UNORDERED_CAT=1;;
+   -unordered-cat|-unordered_cat) UNORDERED_CAT=1;;
    -p|-period)     arg_check 1 $# $1; MON_PERIOD=$2; shift;;
    -exec|-c)       arg_check 1 $# $1; shift; NOLOCAL=1; EXEC=1
                    VERBOSE=$(( $VERBOSE - 1 ))
@@ -291,6 +292,7 @@ while (( $# > 0 )); do
    -worker-cmd)    arg_check 1 $# $1; USER_WORKER_CMD=$2; shift;;
    -v|-verbose)    VERBOSE=$(( $VERBOSE + 1 ));;
    -q|-quiet)      VERBOSE=0;;
+   -quiet-daemon)  QUIET_DAEMON=1;;
    -cleanup)       CLEANUP=1;; # kept here so scripts using it don't have to be patched.
    -d|-debug)      DEBUG=1;;
    -h|-help)       usage;;
@@ -786,18 +788,16 @@ fi
 # We use a named pipe instead of a file - faster, and more reliable.
 mkfifo $WORKDIR/port || error_exit "Can't create named pipe $WORKDIR/port"
 DAEMON_CMD="r-parallel-d.pl -bind $$ -on-error $ON_ERROR $NUM $WORKDIR"
-if (( $VERBOSE > 1 )); then
-   $DAEMON_CMD &
-   DAEMON_PID=$!
-elif (( $VERBOSE > 0 )); then
+if [[ $QUIET_DAEMON || $VERBOSE == 0 ]]; then
+   $DAEMON_CMD 2>&1 |
+      egrep --line-buffered 'FATAL ERROR|SIGNALED|Non-zero' 1>&2 &
+elif [[ $VERBOSE == 1 ]]; then
    $DAEMON_CMD 2>&1 |
       egrep --line-buffered 'FATAL ERROR|\] ([0-9/]* (DONE|SIGNALED)|starting|Non-zero)' 1>&2 &
-   DAEMON_PID=$!
 else
-   $DAEMON_CMD 2>&1 |
-      egrep --line-buffered 'FATAL ERROR' 1>&2 &
-   DAEMON_PID=$!
+   $DAEMON_CMD &
 fi
+DAEMON_PID=$!
 
 MY_PORT=`cat $WORKDIR/port`
 [[ $DEBUG ]] && echo "MY_PORT=$MY_PORT" >&2
@@ -820,27 +820,30 @@ fi
 
 # Command for launching more workers when some send a STOPPING-DONE message.
 PSUB_CMD_FILE=$WORKDIR/psub_cmd
+MONOPT="-mon $WORKDIR/mon.worker-__WORKER__ID__"
 if [[ $USER_WORKER_CMD ]]; then
-   WORKER_COMMAND="time-mem $USER_WORKER_CMD"
-   WORKER_COMMAND=${WORKER_COMMAND//__HOST__/$MY_HOST}
-   WORKER_COMMAND=${WORKER_COMMAND//__PORT__/$MY_PORT}
+   WORKER_CMD_PRE="time-mem -period $MON_PERIOD -timefmt $WORKER_CPU_STRING=real%Rs:user%Us+sys%Ss:PCPU%P%%"
+   WORKER_CMD_POST="$USER_WORKER_CMD"
+   WORKER_CMD_POST=${WORKER_CMD_POST//__HOST__/$MY_HOST}
+   WORKER_CMD_POST=${WORKER_CMD_POST//__PORT__/$MY_PORT}
+   WORKER_OTHER_OPT=""
 else
    SILENT_WORKER=
    if [[ $VERBOSE < 2 ]]; then
       SILENT_WORKER=-silent
    fi
-   WORKER_COMMAND="/usr/bin/time -f $WORKER_CPU_STRING=user%Us+sys%Ss r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT"
+   WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=real%Rs:user%Us+sys%Ss:PCPU%P%% r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
+   WORKER_CMD_POST=""
    if [[ $WORKER_SUBST ]]; then
       SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
    else
       SUBST_OPT=""
    fi
+   WORKER_OTHER_OPT="$SUBST_OPT"
+   [[ $CLUSTER ]] && WORKER_OTHER_OPT="$WORKER_OTHER_OPT $QUOTA"
 fi
 
-if [[ ! $USER_WORKER_CMD ]]; then
-   WORKER_OPTIONS="$SUBST_OPT -mon $WORKDIR/mon.worker-__WORKER__ID__ -period $MON_PERIOD"
-   [[ $CLUSTER ]] && WORKER_OPTIONS="$WORKER_OPTIONS $QUOTA"
-fi
+
 if [[ $CLUSTER ]]; then
    cat /dev/null > $PSUB_CMD_FILE
    for word in "${SUBMIT_CMD[@]}"; do
@@ -852,9 +855,9 @@ if [[ $CLUSTER ]]; then
    done
    echo -n "" -N $WORKER_NAME-__WORKER__ID__ >> $PSUB_CMD_FILE
    echo -n "" -e ${LOGFILEPREFIX}log.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
-   echo -n "" $WORKER_COMMAND $WORKER_OPTIONS \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
+   echo -n "" $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
 else
-   echo $WORKER_COMMAND $WORKER_OPTIONS \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
+   echo $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
 fi
 echo $NUM > $WORKDIR/next_worker_id
 
@@ -864,13 +867,13 @@ if [[ ! $NOLOCAL ]]; then
    for (( i = 0; i < $FIRST_PSUB; ++i )); do
       OUT=$WORKDIR/out.worker-$i
       ERR=$WORKDIR/err.worker-$i
-      MON=$WORKDIR/mon.worker-$i
+      MONOPT="-mon $WORKDIR/mon.worker-$i"
       [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i"
-      [[ ! $USER_WORKER_CMD ]] && WORKER_OPTIONS="$SUBST_OPT -primary -mon $MON -period $MON_PERIOD"
+      [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT -primary"
       if (( $VERBOSE > 2 )); then
-         echo $WORKER_COMMAND $WORKER_OPTIONS \> $OUT 2\> $ERR \& >&2
+         echo $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR \& >&2
       fi
-      eval $WORKER_COMMAND $WORKER_OPTIONS > $OUT 2> $ERR &
+      eval $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT > $OUT 2> $ERR &
    done
 fi
 
@@ -886,14 +889,14 @@ if (( $NUM > $FIRST_PSUB )); then
       OUT=$WORKDIR/out.worker-
       ERR=$WORKDIR/err.worker-
       LOG=${LOGFILEPREFIX}log.worker
-      MON=$WORKDIR/mon.worker-
       ID='$PBS_ARRAYID'
+      MONOPT="-mon $WORKDIR/mon.worker-$ID"
       [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$ID"
-      [[ ! $USER_WORKER_CMD ]] && WORKER_OPTIONS="$SUBST_OPT $QUOTA -mon $MON$ID -period $MON_PERIOD"
+      [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA"
       if (( $VERBOSE > 2 )); then
-         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT$ID 2\> $ERR$ID >&2
+         echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT$ID 2\> $ERR$ID >&2
       fi
-      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS ||
+      "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT$ID 2\> $ERR$ID >> $WORKER_JOBIDS ||
          error_exit "Error launching array of workers using psub"
       # qstat needs individual job ids, and fails when given the array id, so we
       # need to expand them by hand into the $WORKER_JOBIDS file.
@@ -913,14 +916,14 @@ if (( $NUM > $FIRST_PSUB )); then
          OUT=$WORKDIR/out.worker-$i
          ERR=$WORKDIR/err.worker-$i
          LOG=${LOGFILEPREFIX}log.worker-$i
-         MON=$WORKDIR/mon.worker-$i
+         MONOPT="-mon $WORKDIR/mon.worker-$i"
          [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i"
-         [[ ! $USER_WORKER_CMD ]] && WORKER_OPTIONS="$SUBST_OPT $QUOTA -mon $MON -period $MON_PERIOD"
+         [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA"
 
          if (( $VERBOSE > 2 )); then
-            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT 2\> $ERR >&2
+            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR >&2
          fi
-         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_COMMAND $WORKER_OPTIONS \> $OUT 2\> $ERR >> $WORKER_JOBIDS ||
+         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR >> $WORKER_JOBIDS ||
             error_exit "Error launching worker $i using psub"
          # PBS doesn't like having too many qsubs at once, let's give it a
          # chance to breathe between each worker submission
@@ -969,7 +972,11 @@ fi
 if (( $VERBOSE > 0 )); then
    # Send all worker STDOUT and STDERR to STDERR for logging purposes.
    for x in $WORKDIR/{out,err,mon}.worker-*; do
-      if [[ -s $x ]]; then
+      if [[ $UNORDERED_CAT && $VERBOSE == 1 && $x =~ 'out.worker' ]]; then
+         # unordered cat mode already cats out.worker-*, don't duplicate in
+         # defautl verbosity
+         :
+      elif [[ -s $x ]]; then
          if [[ $VERBOSE = 1 && `grep -v "Can't connect to socket: Connection refused" < $x | wc -c` = 0 ]]; then
             # STDERR only containing workers that can't connect to a dead
             # daemon - ignore in default verbosity mode
@@ -1004,14 +1011,11 @@ END_TIME=`date +%s`
 WALL_TIME=$((END_TIME - START_TIME))
 TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null |
    egrep -o "[0-9.]+" | sum.pl`
-[[ ! $USER_WORKER_CMD ]] && 
-   RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s `rp-mon-totals.pl $WORKDIR/mon.worker-*`"
-if [[ ! $EXEC ]]; then
-   echo $RPTOTALS >&2
-fi
+RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s `rp-mon-totals.pl $WORKDIR/mon.worker-*`"
 
 if [[ `wc -l < $WORKDIR/rc` -ne "$NUM_OF_INSTR" ]]; then
    echo 'Wrong number of job return statuses: got' `wc -l < $WORKDIR/rc` "expected $NUM_OF_INSTR." >&2
+   echo $RPTOTALS >&2
    GLOBAL_RETURN_CODE=-1
    exit -1
 elif [[ $EXEC ]]; then
@@ -1042,9 +1046,10 @@ elif [[ $EXEC ]]; then
    exit $GLOBAL_RETURN_CODE
 elif [[ $UNORDERED_CAT ]]; then
    find $WORKDIR -name 'out.worker*' | xargs cat
-   (( $VERBOSE == 0 )) && find $WORKDIR -name 'err.worker*' | xargs cat >&2
-   echo $RPTOTALS >&2
+   (( $VERBOSE == 0 )) && find $WORKDIR -name 'err.worker*' | xargs more >&2
 fi
+
+echo $RPTOTALS >&2
 
 if grep -q -v '^0$' $WORKDIR/rc >& /dev/null; then
    # At least one job got a non-zero return code

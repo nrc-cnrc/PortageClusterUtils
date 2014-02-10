@@ -93,7 +93,7 @@ exit_with_error("Missing mandatory argument 'port' see --help") unless $port ne 
 my $iaddr = inet_aton($host) or exit_with_error("No such host: $host");
 my $paddr = sockaddr_in($port, $iaddr);
 my $proto = getprotobyname('tcp');
-# send_recv($message) send $message to the deamon.  deamon's reply is returned
+# send_recv($message) send $message to the daemon.  daemon's reply is returned
 # by send_recv.
 sub send_recv($) {
    my $message = shift;
@@ -101,7 +101,7 @@ sub send_recv($) {
       or exit_with_error("Can't create socket: $!");
    connect(SOCK, $paddr) or do {
       if ( $message =~ /^(GET|SIGNALED)/ ) { return ""; }
-      exit_with_error("Can't send message \"$message\" to deamon (deamon probably exited): $!");
+      exit_with_error("Can't send message \"$message\" to daemon (daemon probably exited): $!");
    };
    select SOCK; $| = 1; select STDOUT; # set autoflush on SOCK
    print SOCK $message, "\n";
@@ -278,7 +278,7 @@ print <<'EOF';
   This script is a generic worker script. It is meant to be used in
   conjunction with:
     - /utils/run-parallel.sh (script invoked by user)
-    - /utils/r-parallel-d.sh (deamon invoked by run-parallel.sh)
+    - /utils/r-parallel-d.sh (daemon invoked by run-parallel.sh)
 
   The motivation for this trio of scripts is to allow exclusive access to a
   file to guarantee consistent lock of a file while using NFS as the underlying
@@ -310,7 +310,7 @@ print <<'EOF';
     -help     print this help message
     -silent   don't print log messages
     -quota T  The number of minutes this worker should work before
-              requesting a relaunch from the deamon [30] (0 means never
+              requesting a relaunch from the daemon [30] (0 means never
               relaunch, i.e., work until there is no more work.)
     -primary  Indicates this worker is the primary one and should not be
               stopped on a quench request (implies -quota 0)

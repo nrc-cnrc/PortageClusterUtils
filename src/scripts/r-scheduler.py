@@ -152,7 +152,7 @@ def get_args():
    return cmd_args
 
 
-class IsDeamonAlive:
+class IsDaemonAlive:
    """
    This class will monitor a PBS_JOBID and indicate if it is still present on
    the cluster.
@@ -349,7 +349,7 @@ def main():
 
 
    # Add the thread that checks if master is still alive.
-   d = IsDeamonAlive(jobID)
+   d = IsDaemonAlive(jobID)
    sched.add_interval_job(d, seconds=60)
 
    # Start the scheduler
