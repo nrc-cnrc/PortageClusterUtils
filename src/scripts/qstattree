@@ -94,7 +94,7 @@ while (my $line = <IN>) {
          else {
             # Humm! looks like we should have found a parent for this job.  May
             # be it's a orphan job or our regex is missing some cases.
-            warn "Unknown parent job: $line\n";
+            #warn "Unknown parent job: $line\n";
             # Though we haven't found a parent let's add it as a root, so we don't lose it...
             $tree->addChild($sub_tree);
          }
