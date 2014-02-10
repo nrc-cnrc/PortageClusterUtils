@@ -100,8 +100,8 @@ sub send_recv($) {
    socket(SOCK, PF_INET, SOCK_STREAM, $proto)
       or exit_with_error("Can't create socket: $!");
    connect(SOCK, $paddr) or do {
-      if ( $message =~ /^GET/ ) { return ""; }
-      exit_with_error("Can't connect to socket (deamon probably exited): $!");
+      if ( $message =~ /^(GET|SIGNALED)/ ) { return ""; }
+      exit_with_error("Can't send message \"$message\" to deamon (deamon probably exited): $!");
    };
    select SOCK; $| = 1; select STDOUT; # set autoflush on SOCK
    print SOCK $message, "\n";
