@@ -822,7 +822,7 @@ fi
 PSUB_CMD_FILE=$WORKDIR/psub_cmd
 MONOPT="-mon $WORKDIR/mon.worker-__WORKER__ID__"
 if [[ $USER_WORKER_CMD ]]; then
-   WORKER_CMD_PRE="time-mem -period $MON_PERIOD -timefmt $WORKER_CPU_STRING=real%Rs:user%Us+sys%Ss:PCPU%P%%"
+   WORKER_CMD_PRE="time-mem -period $MON_PERIOD -timefmt $WORKER_CPU_STRING=user%Us+sys%Ss"
    WORKER_CMD_POST="$USER_WORKER_CMD"
    WORKER_CMD_POST=${WORKER_CMD_POST//__HOST__/$MY_HOST}
    WORKER_CMD_POST=${WORKER_CMD_POST//__PORT__/$MY_PORT}
@@ -832,7 +832,7 @@ else
    if [[ $VERBOSE < 2 ]]; then
       SILENT_WORKER=-silent
    fi
-   WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=real%Rs:user%Us+sys%Ss:PCPU%P%% r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
+   WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=user%Us+sys%Ss r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
    WORKER_CMD_POST=""
    if [[ $WORKER_SUBST ]]; then
       SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
