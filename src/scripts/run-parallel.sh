@@ -424,7 +424,7 @@ trap '
       done
    fi
    if [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]]; then
-      for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/mon.worker-*; do
+      for x in ${LOGFILEPREFIX}log.worker* $WORKDIR/err.worker-* $WORKDIR/mon.worker-*; do
          if [[ -s $x ]]; then
             echo ""
             echo ========== $x ==========
@@ -974,7 +974,7 @@ if (( $VERBOSE > 0 )); then
    for x in $WORKDIR/{out,err,mon}.worker-*; do
       if [[ $UNORDERED_CAT && $VERBOSE == 1 && $x =~ 'out.worker' ]]; then
          # unordered cat mode already cats out.worker-*, don't duplicate in
-         # defautl verbosity
+         # default verbosity
          :
       elif [[ -s $x ]]; then
          if [[ $VERBOSE = 1 && `grep -v "Can't connect to socket: Connection refused" < $x | wc -c` = 0 ]]; then
