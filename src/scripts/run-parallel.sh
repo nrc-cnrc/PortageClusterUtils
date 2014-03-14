@@ -233,7 +233,7 @@ QUOTA=
 PREFIX=""
 JOB_NAME=
 JOBSET_FILENAME=`mktemp -u run-p.tmpjobs.$SHORT_JOB_ID.XXX` || error_exit "Can't create temporary jobs file."
-ON_ERROR=continue
+ON_ERROR=stop
 SUBST=
 MON_PERIOD=60
 #TODO: run-parallel.sh -c RP_ARGS -... -... {-exec | -c} cmd args
