@@ -462,6 +462,8 @@ trap '
 
 # Create a temp directory for all temp files to go into.
 WORKDIR=`mktemp -d ${PREFIX}run-p.$SHORT_JOB_ID.XXX` || error_exit "Can't create temp WORKDIR."
+# Open the work dir as much as the user's umask allows.
+chmod +rx $WORKDIR
 if [[ ! -d $WORKDIR ]]; then
    error_exit "Created temp dir $WORKDIR, but somehow it doesn't exist!"
 fi
