@@ -778,7 +778,7 @@ else
    # Not running on a cluster
    NOLOCAL=
    FIRST_PSUB=$NUM
-   MY_HOST=localhost
+   MY_HOST=127.0.0.1
 fi
 
 if [[ $UNIT_TEST ]]; then
