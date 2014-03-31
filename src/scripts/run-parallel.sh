@@ -105,9 +105,10 @@ General options:
                 specified twice.
   -on-error ACTION  Specifies how to proceed when a command is reported to
                 have failed (i.e., its exit code is not 0); ACTION may be:
-       continue Ignore return codes and execute all commands anyway [default]
+       continue Ignore return codes and execute all commands anyway
        stop     Let commands that have started end, but don't launch any more
-       killall  Kill all workers immediately and exit
+       killall  Kill all workers immediately and exit                    [stop]
+  -k(eep-going) Short-hand for -on-error continue.
   -subst MATCH  Have workers substite MATCH in each command by their worker-id
                 before running it.
   -period P     Sleep for P seconds between monitoring samples. [60]
@@ -282,6 +283,7 @@ while (( $# > 0 )); do
    -local)         arg_check 1 $# $1; USER_LOCAL="$2"; NOLOCAL=; shift;;
    -nocluster)     NOCLUSTER=1;;
    -on-error)      arg_check 1 $# $1; ON_ERROR="$2"; shift;;
+   -k|-keep-going) ON_ERROR=continue;;
    -N)             arg_check 1 $# $1; JOB_NAME="$2-"; shift;;
    -quota)         arg_check 1 $# $1; QUOTA="$2"; shift;;
    -psub|-psub-opts|-psub-options)
