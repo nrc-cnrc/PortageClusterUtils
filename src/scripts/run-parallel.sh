@@ -826,7 +826,7 @@ fi
 PSUB_CMD_FILE=$WORKDIR/psub_cmd
 MONOPT="-mon $WORKDIR/mon.worker-__WORKER__ID__"
 if [[ $USER_WORKER_CMD ]]; then
-   WORKER_CMD_PRE="time-mem -period $MON_PERIOD -timefmt $WORKER_CPU_STRING=user%Us+sys%Ss"
+   WORKER_CMD_PRE="time-mem -period $MON_PERIOD -timefmt $WORKER_CPU_STRING=real%Rs:user%Us+sys%Ss:pcpu%P%%"
    WORKER_CMD_POST="$USER_WORKER_CMD"
    WORKER_CMD_POST=${WORKER_CMD_POST//__HOST__/$MY_HOST}
    WORKER_CMD_POST=${WORKER_CMD_POST//__PORT__/$MY_PORT}
@@ -836,7 +836,7 @@ else
    if [[ $VERBOSE < 2 ]]; then
       SILENT_WORKER=-silent
    fi
-   WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=user%Us+sys%Ss r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
+   WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=real%es:user%Us+sys%Ss:pcpu%P%% r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
    WORKER_CMD_POST=""
    if [[ $WORKER_SUBST ]]; then
       SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
@@ -1014,8 +1014,13 @@ fi
 END_TIME=`date +%s`
 WALL_TIME=$((END_TIME - START_TIME))
 TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null |
-   egrep -o "[0-9.]+" | sum.pl`
-RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s `rp-mon-totals.pl $WORKDIR/mon.worker-*`"
+   egrep -o "user[0-9.]+s.sys[0-9.]+s" | egrep -o "[0-9.]+" | sum.pl`
+TOTAL_REAL=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null |
+   egrep -o "real[0-9.]+s" | egrep -o "[0-9.]+" | sum.pl`
+TOTAL_WAIT=$(bc <<< "scale=2; $TOTAL_REAL - $TOTAL_CPU")
+TOTAL_PCPU=$(bc <<< "scale=2; $TOTAL_CPU * 100 / $TOTAL_REAL")
+RP_MON_TOTALS=`rp-mon-totals.pl $WORKDIR/mon.worker-*`
+RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s CPU Wait time ${TOTAL_WAIT}s PCPU ${TOTAL_PCPU}% ${RP_MON_TOTALS}"
 
 if [[ `wc -l < $WORKDIR/rc` -ne "$NUM_OF_INSTR" ]]; then
    echo 'Wrong number of job return statuses: got' `wc -l < $WORKDIR/rc` "expected $NUM_OF_INSTR." >&2
