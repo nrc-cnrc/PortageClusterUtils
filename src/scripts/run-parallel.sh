@@ -1018,7 +1018,9 @@ TOTAL_CPU=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null |
 TOTAL_REAL=`grep -h $WORKER_CPU_STRING $WORKDIR/err.worker-* 2> /dev/null |
    egrep -o "real[0-9.]+s" | egrep -o "[0-9.]+" | sum.pl`
 TOTAL_WAIT=$(bc <<< "scale=2; $TOTAL_REAL - $TOTAL_CPU")
-TOTAL_PCPU=$(bc <<< "scale=2; $TOTAL_CPU * 100 / $TOTAL_REAL")
+if [[ $TOTAL_REAL == 0 ]]; then TOTAL_PCPU=100; else
+   TOTAL_PCPU=$(bc <<< "scale=2; $TOTAL_CPU * 100 / $TOTAL_REAL")
+fi
 RP_MON_TOTALS=`rp-mon-totals.pl $WORKDIR/mon.worker-*`
 RPTOTALS="RP-Totals: Wall time ${WALL_TIME}s CPU time ${TOTAL_CPU}s CPU Wait time ${TOTAL_WAIT}s PCPU ${TOTAL_PCPU}% ${RP_MON_TOTALS}"
 
