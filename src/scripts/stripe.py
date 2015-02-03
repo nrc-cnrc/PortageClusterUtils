@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# $Id$
 
 # @file stripe.py
 # @brief Performs a strip split which allows splitting without using temporary files.

@@ -164,7 +164,7 @@ Dynamic options:
 
   To kill the process and all its workers, replace "add M" by "kill".
 
-  To view how many workers are currently working, in the process of been added
+  To view how many workers are currently working, in the process of being added
   or in the process of been quenched.
      run-parallel.sh num_worker PBS_JOBID
   or
@@ -1010,6 +1010,8 @@ if (( $VERBOSE > 0 )); then
    cat $WORKDIR/rc 2> /dev/null | tr '\n' ' ' >&2
    echo "" >&2
 fi
+
+export PORTAGE_INTERNAL_CALL=1
 
 END_TIME=`date +%s`
 WALL_TIME=$((END_TIME - START_TIME))
