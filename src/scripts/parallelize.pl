@@ -1,13 +1,10 @@
 #!/usr/bin/env perl
-# $Id$
 
 # @file parallelize.pl
-# @brief Parallelizes a command into N smaller chunks, executes each chunks and
-# merges the results.
+# @brief Parallelize a command into N smaller chunks, execute each chunk and
+# merge the results.
 #
 # @author Samuel Larkin
-#
-# COMMENTS:
 #
 # Technologies langagieres interactives / Interactive Language Technologies
 # Inst. de technologie de l'information / Institute for Information Technology
@@ -160,8 +157,8 @@ GetOptions(
    "psub=s"    => \$PSUB_OPTS,
    "rp=s"      => \$RP_OPTS,
    "nolocal"   => sub {$NOLOCAL = "-nolocal"},
-   "resume"    => sub {die "not implemented yet"},
-) or usage;
+   "resume"    => sub {die "Error: Not implemented yet"},
+) or usage "Error: Invalid option(s).";
 
 sub debug {
    print STDERR "<D> @_\n" if ($debug);
@@ -200,7 +197,7 @@ sub remove_dups {
 $MERGE_PGM =~ /([^ ]+)/;
 my $CHECK_MERGE_PGM = $1;
 my $rc = system("which-test.sh $CHECK_MERGE_PGM");
-die "Merge program $CHECK_MERGE_PGM is not on your PATH.\n" unless($rc eq 0);
+die "Error: Merge program $CHECK_MERGE_PGM is not on your PATH.\n" unless($rc eq 0);
 
 # If the user provides more than one file to an -s option, we need to make sure
 # we expand to be one entry per array index.
@@ -211,7 +208,7 @@ die "Merge program $CHECK_MERGE_PGM is not on your PATH.\n" unless($rc eq 0);
 my $CMD = join " ", @ARGV;
 
 # W, if exists, must be positive;
-die "-w W must be a positive value." unless (not defined($W) or $W > 0);
+die "Error: -w W must be a positive value." unless (not defined($W) or $W > 0);
 
 # By default, look for input redirection
 if ($CMD =~ /<(\s*)([^\( >]+)($|\s*|\))/) {
@@ -270,16 +267,16 @@ mkdir($workdir);
 
 
 # Make sure there is at least one input file.
-die "You must provide an input file." unless(scalar(@SPLITS) gt 0);
+die "Error: You must provide an input file." unless(scalar(@SPLITS) gt 0);
 
 # Check if all SPLITS and all MERGES are arguments of the command.
 foreach my $s (@SPLITS) {
    # Escape the input since it might have some control characters.
-   die "not an argument of command: $s" unless $CMD =~ /(^|\s|<)\Q$s\E($|\s|\))/;
+   die "Error: Not an argument of command: $s" unless $CMD =~ /(^|\s|<)\Q$s\E($|\s|\))/;
 }
 foreach my $m (@MERGES) {
    # Escape the input since it might have some control characters.
-   die "not an argument of command: $m" unless $CMD =~ /(^|\s|>)\Q$m\E($|\s|\))/;
+   die "Error: Not an argument of command: $m" unless $CMD =~ /(^|\s|>)\Q$m\E($|\s|\))/;
 }
 
 
@@ -322,13 +319,14 @@ unless ($use_stripe_splitting) {
 
       verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
       my $rc = system("$debug_cmd gzip -cqfd $s | split -a 4 -d -l $NUM_LINE - $dir/");
-      die "Error spliting $s\n" unless($rc eq 0);
+      die "Error: Error splitting $s\n" unless($rc eq 0);
 
       # Calculates the total number of jobs to create which can be different from
       # -n N if the user specified -w W.
       $NUMBER_OF_CHUNK_GENERATED = `find $dir -type f | \\wc -l`;
 
-      warn "You requested $N jobs but only $NUMBER_OF_CHUNK_GENERATED were created (due to -w $W)." if (2*$NUMBER_OF_CHUNK_GENERATED < $N);
+      warn "Warning: You requested $N jobs but only $NUMBER_OF_CHUNK_GENERATED were created (due to -w $W)." 
+         if (2*$NUMBER_OF_CHUNK_GENERATED < $N);
    }
 }
 
@@ -343,7 +341,7 @@ $NP = min($NUMBER_OF_CHUNK_GENERATED, 50) unless (defined($NP));
 verbose(1, "Building command file.");
 verbose(2, "There is $NUMBER_OF_CHUNK_GENERATED commands to build.");
 my $cmd_file = "$workdir/commands";
-open(CMD_FILE, ">$cmd_file") or die "Unable to open command file";
+open(CMD_FILE, ">$cmd_file") or die "Error: Unable to open command file";
 for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    my $SUB_CMD = $CMD;
    my $index = sprintf("%4.4d", $i);
@@ -352,7 +350,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    foreach my $m (@MERGES) {
       my $file = "$workdir/" . $basename{$m} . "/$index";
       unless ($SUB_CMD =~ s/(^|\s|>)\Q$m\E($|\s|\))/$1$file$2/) {
-         die "Unable to match $m and $file";
+         die "Error: Unable to match $m and $file";
       }
    }
 
@@ -363,7 +361,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
          # stripe.py file.gz.  Seems like the python's implementation of gzip is
          # quite slow.
          unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s|\))/$1<(zcat -f $s | stripe.py -i $i -m $N)$2/) {
-            die "Unable to match $s";
+            die "Error: Unable to match $s";
          }
       }
 
@@ -377,7 +375,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
          my $file = "$workdir/" . $basename{$s} . "/$index";
          push(@delete, $file);
          unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s|\))/$1$file$2/) {
-            die "Unable to match $s and $file";
+            die "Error: Unable to match $s and $file";
          }
       }
 
@@ -387,12 +385,12 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       print(CMD_FILE "set -o pipefail; test ! -f $delete[0] || { { $debug_cmd $SUB_CMD; } && mv $delete[0] $delete[0].done; }\n");
    }
 }
-close(CMD_FILE) or die "Unable to close command file!";
+close(CMD_FILE) or die "Error: Unable to close command file!";
 
 
 verbose(1, "Building merge command file.");
 my $merge_cmd_file = "$workdir/commands.merge";
-open(MERGE_CMD_FILE, ">$merge_cmd_file") or die "Unable to open merge command file";
+open(MERGE_CMD_FILE, ">$merge_cmd_file") or die "Error: Unable to open merge command file";
 foreach my $m (@MERGES) {
    my $dir = "$workdir/" . $basename{$m};
    my $sub_cmd;
@@ -414,7 +412,7 @@ foreach my $m (@MERGES) {
    }
    print MERGE_CMD_FILE "test ! -d $dir || { { $debug_cmd $find_files $sub_cmd; } && mv $dir $dir.done; }\n";
 }
-close(MERGE_CMD_FILE) or die "Unable to close merge command file!";
+close(MERGE_CMD_FILE) or die "Error: Unable to close merge command file!";
 
 
 # Run all the sub commands
@@ -422,7 +420,7 @@ verbose(1, "Processing all chunks.");
 my $cmd = "$debug_cmd run-parallel.sh $RP_OPTS $PSUB_OPTS $NOLOCAL $cmd_file $NP";
 verbose(2, "cmd is: $cmd");
 $rc = system($cmd);
-die "Error running run-parallel.sh" unless($rc eq 0);
+die "Error: Error running run-parallel.sh" unless($rc eq 0);
 
 
 # If everything is fine merge all MERGES
@@ -433,7 +431,7 @@ verbose(1, "End of merging commands.\n");
 $cmd = "$debug_cmd bash $merge_cmd_file";
 verbose(2, "cmd is: $cmd");
 $rc = system($cmd);
-die "Error merging output." unless($rc eq 0);
+die "Error: Error merging output." unless($rc eq 0);
 
 # Disabling elaborated merging since /dev/stdout & /dev/stderr doesn't work
 # with run-parallel.sh.
@@ -455,7 +453,7 @@ if (0) {
    else {
       verbose(1, "$number_item_2_merge outputs to merge.");
       my $rc = system("run-parallel.sh $RP_OPTS $PSUB_OPTS $NOLOCAL $merge_cmd_file $number_item_2_merge");
-      die "Error running run-parallel.sh when merging outputs." unless($rc eq 0);
+      die "Error: Error running run-parallel.sh when merging outputs." unless($rc eq 0);
    }
 }
 

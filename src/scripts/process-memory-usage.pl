@@ -1,14 +1,10 @@
 #!/usr/bin/env perl
-# $Id$
 
 # @file process-memory-usage.pl 
-# @brief Sums the virtual memory usage and resident set size of a process tree.
+# @brief Sum the virtual memory usage and resident set size of a process tree.
 #
 # @author Samuel Larkin
 #
-# COMMENTS:
-#
-# Samuel Larkin
 # Technologies langagieres interactives / Interactive Language Technologies
 # Inst. de technologie de l'information / Institute for Information Technology
 # Conseil national de recherches Canada / National Research Council Canada
@@ -25,7 +21,7 @@ sub usage {
    print STDERR "
 Usage: $0 [-h(elp)] [-v(erbose)] [-s stop_after] SLEEP PID
 
-  Sums the virtual memory usage and resident set size of the tree rooted in PID
+  Sum the virtual memory usage and resident set size of the tree rooted in PID
   every SLEEP seconds.
 
 Options:
@@ -55,13 +51,13 @@ GetOptions(
    "help|h"        => sub { usage },
    "verbose|v"     => sub { ++$verbose },
    "debug|d"       => \my $debug,
-) or usage;
+) or usage "Invalid option(s).";
 
-my $sleep_time = shift || die "Missing SLEEP";
-my $mainpid    = shift || die "Missing PID";
+my $sleep_time = shift || die "Error: Missing SLEEP";
+my $mainpid    = shift || die "Error: Missing PID";
 #print "$sleep_time  $mainpid\n";
 
-0 == @ARGV or usage "Superfluous parameter(s): @ARGV";
+0 == @ARGV or usage "Error: Superfluous argument(s): @ARGV";
 
 
 local $| = 1; # autoflush

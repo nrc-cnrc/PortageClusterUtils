@@ -18,8 +18,6 @@
 # @author Eric Joanis, based on faucet.pl and faucet_launcher.sh, written
 # by Patrick Paul and Eric Joanis
 #
-# COMMENTS:
-#
 # Technologies langagieres interactives / Interactive Language Technologies
 # Inst. de technologie de l'information / Institute for Information Technology
 # Conseil national de recherches Canada / National Research Council Canada
@@ -63,7 +61,7 @@ sub exit_with_error(@) {
 # Function for a thread that monitors the presence of PPID and exits if that
 # PPID disappears.
 sub look_for_process {
-   my $process_id = shift || die "You need to provide a PPID!";
+   my $process_id = shift || die "Error: You need to provide a PPID!";
    my $sleep_time = shift || 60;
    print STDERR "Starting monitoring thread for ppid: $process_id sleep=$sleep_time\n" if(defined($R_PARALLEL_D_PL_DEBUG));
    while (1) {

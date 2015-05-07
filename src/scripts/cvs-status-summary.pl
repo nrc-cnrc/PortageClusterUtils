@@ -1,5 +1,4 @@
 #!/usr/bin/env perl
-# $Id$
 
 # @file cvs-status-summary.pl 
 # @brief Make the output of cvs status more compact, making the important
@@ -42,14 +41,14 @@ GetOptions(
    "new"       => \my $newonly,
    "verbose"   => \my $verbose,
    help        => sub { usage },
-);
+) or usage "Error: Invalid option(s).";
 
 if (-t STDIN && @ARGV == 0) {
    $verbose and 
       print STDERR "cvs -n up 2>&1 | grep '^[A-Z] ' | sed 's/. //' | xargs -r cvs status | cvs-status-summary.pl\n";
    close STDIN;
    open(STDIN, "cvs -n up 2>&1 | grep '^[A-Z] ' | sed 's/. //' | xargs -r cvs status 2> /dev/null |")
-      or die "Can't open cvs pipe: $!";
+      or die "Error: Can't open cvs pipe: $!";
 }
 
 my @conflicts;

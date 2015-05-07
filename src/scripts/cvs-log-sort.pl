@@ -1,5 +1,4 @@
 #!/usr/bin/perl
-# $Id$
 
 # @file cvs-log-sort.pl 
 # @brief Take the output of "cvs log" on a directory, and present it
@@ -39,7 +38,7 @@ use Getopt::Long;
 my $verbose = 1;
 GetOptions(
    help        => sub { usage },
-) or usage;
+) or usage "Error: Invalid option(s).";
 
 sub max($$) {
    $_[0] > $_[1] ? $_[0] : $_[1];
@@ -83,7 +82,7 @@ while (1) {
          last;
       }
       if ( /^revision / ) {
-         warn "revision section in an unexpected location at line $.";
+         warn "Warning: Revision section in an unexpected location at line $.";
          last;
       }
    }
@@ -98,7 +97,7 @@ while (1) {
       }
       last if eof();
       my $date_line = <>;
-      defined $date_line or do { warn "unexpected eof()"; last; };
+      defined $date_line or do { warn "Warning: Unexpected eof()"; last; };
       my ($date, $zone, $author, $state, $lines, $commitid) =
          $date_line =~ /
                         date:\s*(.*?):\d\d(?:\s*([-+]\d{4}))?;\s*
@@ -108,7 +107,7 @@ while (1) {
                         (?:commitid:\s*(.*?);?\s*)?
                         $
                        /x
-            or do { warn "invalid date line $date_line"; next; };
+            or do { warn "Warning: Invalid date line $date_line"; next; };
 
       my $local_date;
       if ( my ($year, $month, $day, $hour, $min) =
@@ -159,12 +158,12 @@ while (1) {
       #print "$key$file_rev_info---------------\n";
       last if ( $got_file_end_marker || eof() );
    }
-   warn "No revisions found for file $file\n" if ( $rev_count == 0 );
+   warn "Warning: No revisions found for file $file\n" if ( $rev_count == 0 );
 }
 
 foreach my $key (reverse sort keys %log_items) {
-   defined $key or die "key undefined";
-   exists $log_items{$key} or die "invalid key $_";
+   defined $key or die "Error: Key undefined";
+   exists $log_items{$key} or die "Error: Invalid key $_";
    print $key, @{$log_items{$key}}, ("=" x 77), "\n\n";
    #print $key;
    #print $log_items{$key};

@@ -38,7 +38,7 @@ GetOptions(
    help        => sub { usage },
    verbose     => sub { ++$verbose },
    debug       => \my $debug,
-) or usage;
+) or usage "Error: Invalid option(s).";
 
 
 my $max_vsz = 0.0;
@@ -53,7 +53,7 @@ my $shr_for_max_uss = 0.0;
 sub processlog($) {
    my $logfile = shift;
 
-   open LOG, $logfile or die "Can't open $logfile: $!\n";
+   open LOG, $logfile or die "Error: Can't open $logfile: $!\n";
 
    my $threshold = 0.20;
    my $first_line = 1;
@@ -105,7 +105,7 @@ sub processlog($) {
    }
 }
 
-die "Need at least one log file" if @ARGV < 1;
+die "Error: Need at least one log file" if @ARGV < 1;
 
 foreach my $log (@ARGV) {
    processlog($log);
