@@ -408,6 +408,7 @@ GLOBAL_RETURN_CODE=2
 # Process clean up at exit or kill - set this trap early enough that we
 # clean up no matter what happens.
 trap '
+   trap "" 0 1 13 14
    if [[ -n "$WORKER_JOBIDS" ]]; then
       WORKERS=`cat $WORKER_JOBIDS`
       qdel $WORKERS >& /dev/null
@@ -438,7 +439,6 @@ trap '
    fi
    test -n "$DEBUG" || rm -rf ${LOGFILEPREFIX}log.worker* $WORKDIR
    [[ -f $LOGFILEPREFIX ]] && rm -f $LOGFILEPREFIX
-   trap "" 0
    exit $GLOBAL_RETURN_CODE
 ' 0 1 13 14
 
