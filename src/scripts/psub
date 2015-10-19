@@ -107,32 +107,53 @@ VMEM_HARD_LIMIT_GB_PER_CPU=6
 PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
 CPU_COUNT=
 MEMORY_POLLING_DELAY=6
+PRIORITY=
+JOB_ARRAY=
 
-NODES=notest
+NODES=
 while [ $# -gt 0 ]; do
    case "$1" in
    -h|-help)        usage;;
    -v|-verbose)     VERBOSE=1;;
-   -N)              arg_check 1 $# $!; NAME=$2; shift;;
+   -N)              arg_check 1 $# $!;
+                    NAME=$2;
+                    shift;;
    -[1-9]|-[1-9][0-9]) CPU_COUNT=$((0 - $1));;
-   -I)              INTMODE=1; NOSCRIPT=1; [[ $CPU_COUNT ]] || CPU_COUNT=4;;
-   -memmap)         arg_check 1 $# $!; arg_check_pos_int $2 $1
-                    MEMMAP=$2; shift;;
-   -e)              arg_check 1 $# $!; ERR_FILE=$2; shift;;
-   -o)              arg_check 1 $# $!; OUT_FILE=$2; shift;;
-   -P)              arg_check 1 $# $!; MEMORY_POLLING_DELAY=$2; shift;;
+   -I)              INTMODE=1;
+                    NOSCRIPT=1;
+                    [[ $CPU_COUNT ]] || CPU_COUNT=4;;
+   -memmap)         arg_check 1 $# $!;
+                    arg_check_pos_int $2 $1;
+                    MEMMAP=$2;
+                    shift;;
+   -e)              arg_check 1 $# $!;
+                    ERR_FILE=$2;
+                    shift;;
+   -o)              arg_check 1 $# $!;
+                    OUT_FILE=$2;
+                    shift;;
+   -P)              arg_check 1 $# $!;
+                    MEMORY_POLLING_DELAY=$2;
+                    shift;;
    -noscript)       NOSCRIPT=1;;
-   -l)              arg_check 1 $# $!
-                    if [ -n "$RESOURCES" ]; then RESOURCES="$RESOURCES,$2"
-                                            else RESOURCES="$2"; fi
+   -l)              arg_check 1 $# $!;
+                    RESOURCES="${RESOURCES:+$RESOURCES,}$2";
                     shift;;
-   -nodes)          arg_check 1 $# $!
-                    if [[ $NODES ]]; then NODES="$NODES:$2"
-                                     else NODES=$2; fi
-                    EXPLICIT_NODES=1
+   -nodes)          arg_check 1 $# $!;
+                    NODES="${NODES:+$NODES,}$2";
+                    EXPLICIT_NODES=1;
                     shift;;
-   -qsparams)       arg_check 1 $# $!; QSPARAMS=$2; shift;;
-   -p|-t)           arg_check 1 $# $!; QSUB_OPTS="$QSUB_OPTS $1 $2"; shift;;
+   -qsparams)       arg_check 1 $# $!;
+                    QSPARAMS=$2;
+                    shift;;
+   -p)              arg_check 1 $# $!;
+                    QSUB_OPTS="$QSUB_OPTS $1 $2";
+                    PRIORITY="$1 $2";
+                    shift;;
+   -t)              arg_check 1 $# $!;
+                    QSUB_OPTS="$QSUB_OPTS $1 $2";
+                    JOB_ARRAY="$1 $2";
+                    shift;;
    -n)              NOT_REALLY=1;;
    -f)              FORCE=1;;
    -require)        REQUIREMENTS=1;;
@@ -148,29 +169,220 @@ done
 
 COMMAND="$*"
 
+
+function requirements {
+   # Must be done before any qsub dependency
+   if [ $REQUIREMENTS ]; then
+      VMEM_HARD_LIMIT_GB=0
+      if [ $BALZAC ]; then
+         VMEM_HARD_LIMIT_GB=$(($VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
+         # -memmap adds extra virtual memory
+         if [ $MEMMAP ]; then
+            VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP))
+         fi
+      fi
+      echo $VMEM_HARD_LIMIT_GB
+      exit
+   fi
+}
+
+
+function script2Command {
+   local PROG_NAME=$1
+   local FORCE=$2
+
+   # If the command is a script but doesn't have its x permission bit set,
+   # call it with its interpreter
+   if [ -f $PROG_NAME -a ! -x $PROG_NAME -a ! "$FORCE" ]; then
+      if file $PROG_NAME | grep -q "script text"; then
+         # file is a script
+         local HASH_BANG_LINE=`head -1 $PROG_NAME`
+         local INTERPRETER=${HASH_BANG_LINE/#\#\!}
+         INTERPRETER=${INTERPRETER%% *}
+         if which "$INTERPRETER" >& /dev/null; then
+            echo Calling your script with "$INTERPRETER"
+            COMMAND="$INTERPRETER $COMMAND"
+         else
+            echo "\"$PROG_NAME\" seems to be a $INTERPRETER script, but \"which\" can't find $INTERPRETER."
+            echo "Make your script executable, fix it, or use -f to submit your command as is"
+            exit 1
+         fi
+      else
+         echo "\"$PROG_NAME\" is neither executable nor a script."
+         echo "Use -f if you really mean to submit your command as is."
+         exit 1
+      fi
+   fi
+}
+
+
+function gpsc {
+   requirements
+
+   # PSUB_RES_IMAGE is set in profile.d/portage in order to have
+   # control of the image at the project-level.
+   local RES_IMAGE=${PSUB_RES_IMAGE:-nrc_all_default_centos-6.7-amd64_latest}
+   local PARALLEL_ENVIRONMENT=dev
+   # NOTE, PE_PARALLEL_PROCESSES should always be 1.
+   local PE_PARALLEL_PROCESSES=1
+
+   if [ -z "$COMMAND" -a ! -n "$INTMODE" ]; then
+      error_exit "Missing command, nothing to run!"
+   fi
+
+   local TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
+   trap "rm -f $TMPSCRIPT $TMPSCRIPT.jobid; exit" 0 2 3 13 14 15
+
+   # Guess the executable program or script name
+   local PROG_NAME=`echo "$COMMAND" | perl -e '
+      $_ = <>;
+      chomp;
+      # Use STDIN as the job name of the command seems empty
+      $_ or $_ = "STDIN";
+      @tokens = split;
+      print $tokens[0];
+   '`
+
+   # The following call modifies COMMAND.
+   script2Command $PROG_NAME $FORCE
+
+   # Determine the default job name if -N is not specified on the command line.
+   if [[ ! $NAME ]]; then
+      NAME=`basename $PROG_NAME`
+   fi
+
+   # TODO:  is there a limit on job name's length?
+   # Make sure $NAME is not longer that 15 characters, and starts with a letter
+
+   local VMEM_LIMIT_GB_PER_CPU=4
+   local VMEM_LIMIT_GB=$(($VMEM_LIMIT_GB_PER_CPU * $CPU_COUNT))
+   # -memmap adds extra virtual memory
+   if [[ $MEMMAP ]]; then
+      VMEM_LIMIT_GB=$((VMEM_LIMIT_GB + MEMMAP))
+   fi
+   VMEM_LIMIT_MB=$((VMEM_LIMIT_GB * 1024))
+
+   local RUNTIME=86400
+
+   local HERE=`pwd`
+   ERR_FILE=${ERR_FILE:-$HERE}
+   OUT_FILE=${OUT_FILE:-$HERE}
+
+cat <<==EOF== > $TMPSCRIPT
+#!/bin/bash
+#
+#$ -N $NAME
+#
+# Combines STDERR & STDOUT to STDOUT
+#####$ -j y
+
+## Simply output the jobid.
+#$ -terse
+
+## Identifies  the  ability  of a job to be rerun or not.
+#$ -r no
+
+## Run exactly one process under dev.
+#$ -pe $PARALLEL_ENVIRONMENT  $PE_PARALLEL_PROCESSES
+#$ -l res_cpus=$CPU_COUNT
+#$ -l res_mem=$VMEM_LIMIT_MB
+#$ -l h_rt=$RUNTIME
+#$ -l res_image=$RES_IMAGE
+#$ -o $OUT_FILE
+#$ -e $ERR_FILE
+
+## User provided from the command line.
+## Job Array:
+#$ $JOB_ARRAY
+## Priority:
+#$ $PRIORITY
+## Resources:
+#$ ${RESOURCES:+-l $RESOURCES}
+## Nodes:
+#$ ${NODES:+-l nodes=$NODES}
+
+# User's environment.
+`env | egrep '^(PORTAGE|LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
+
+export OMP_NUM_THREADS=$CPU_COUNT
+
+# TODO: redefine TMPDIR to use SSDs.
+
+# TODO: we shouldn't source portage's profile !!?
+#source /space/project/portage/main/profile
+
+# NOTE:
+# Unlike on balzac, we are not enforcing any memory limitation since sge will take care of it thus no ulimit here.
+
+# Preserve the calling working directory
+cd $HERE || exit
+
+#process-memory-usage.pl $(($MEMORY_POLLING_DELAY*60)) \$\$ >&2 &
+
+# Display the exact start time
+echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` >&2
+
+# Trap kill signals
+trap 'echo psub-generated script \`basename \$0\` caught SIGTERM, aborting. >&2; exit 15' 15
+
+$COMMAND
+
+# Display the exact end time
+echo ============ Finished \$JOB_ID on \`date\` >&2
+
+# Display resources used on stderr when the user command has completed
+qstat -f \$JOB_ID
+qstat -r
+qstat -t
+
+# TODO:  Is this still pertinent on the gpsc since all that
+#        informatin/parameters are available as comments in the header of the
+#        job file?
+# qsub command executed
+# qsub  -N $NAME  -terse  -r no  -pe $PARALLEL_ENVIRONMENT $PE_PARALLEL_PROCESSES  -l res_cpus=$CPU_COUNT  -l res_mem=$VMEM_LIMIT_MB  -l h_rt=$RUNTIME  -l res_image=$RES_IMAGE  -o $OUT_FILE  -e $ERR_FILE  $JOB_ARRAY  $PRIORITY  ${RESOURCES:+-l $RESOURCES}  ${NODES:+-l $NODES}  $TMPSCRIPT
+
+# original psub command given by user (with quotes and \\ removed)
+# $PSUB_CMD
+==EOF==
+
+   if [[ $VERBOSE ]]; then
+      cat $TMPSCRIPT
+      echo ""
+   fi
+   
+   if [[ $NOT_REALLY ]]; then
+      ls -l $TMPSCRIPT >&2
+      cat $TMPSCRIPT
+      echo ""
+      exit
+   fi
+
+   JOBID=`jobsub $TMPSCRIPT`
+   echo $JOBID
+
+   if [[ ! $NOSCRIPT ]]; then
+      cp $TMPSCRIPT $NAME.j${JOBID:-0}
+   fi
+}
+
+
+
+
 if uname -n | egrep -q 'balzac|blz'; then
+   NODES=notest
    BALZAC=1
 elif uname -n | egrep -q 'venus|vns'; then
    VENUS=1
+elif which jobsub >& /dev/null; then
+   GPSC=1
+   gpsc
+   exit
 else
    # CUSTOMIZE HERE if you want to tune psub to your own cluster.
    true
 fi
 
-# Must be done before any qsub dependency
-if [ $REQUIREMENTS ]; then
-   VMEM_HARD_LIMIT_GB=0
-   if [ $BALZAC ]; then
-      VMEM_HARD_LIMIT_GB=$(($VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
-      # -memmap adds extra virtual memory
-      if [ $MEMMAP ]; then
-         VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP))
-      fi
-   fi
-   echo $VMEM_HARD_LIMIT_GB
-   exit
-fi
-
+requirements
 
 if which qsub >& /dev/null; then
    true # qsub found - we're running on a cluster
@@ -226,28 +438,7 @@ else
    '`
 fi
 
-# If the command is a script but doesn't have its x permission bit set,
-# call it with its interpreter
-if [ -f $PROG_NAME -a ! -x $PROG_NAME -a ! "$FORCE" ]; then
-   if file $PROG_NAME | grep -q "script text"; then
-      # file is a script
-      HASH_BANG_LINE=`head -1 $PROG_NAME`
-      INTERPRETER=${HASH_BANG_LINE/#\#\!}
-      INTERPRETER=${INTERPRETER%% *}
-      if which "$INTERPRETER" >& /dev/null; then
-         echo Calling your script with "$INTERPRETER"
-         COMMAND="$INTERPRETER $COMMAND"
-      else
-         echo "\"$PROG_NAME\" seems to be a $INTERPRETER script, but \"which\" can't find $INTERPRETER."
-         echo "Make your script executable, fix it, or use -f to submit your command as is"
-         exit 1
-      fi
-   else
-      echo "\"$PROG_NAME\" is neither executable nor a script."
-      echo "Use -f if you really mean to submit your command as is."
-      exit 1
-   fi
-fi
+script2Command
 
 # Determine the default job name if -N is not specified on the command line.
 if [ ! $NAME ]; then
@@ -470,3 +661,6 @@ echo $JOBID
 if [ ! $NOSCRIPT ]; then
    cp $TMPSCRIPT $NAME.j${SHORTJOBID:-0}
 fi
+
+
+
