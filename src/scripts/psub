@@ -314,6 +314,18 @@ export OMP_NUM_THREADS=$CPU_COUNT
 # NOTE:
 # Unlike on balzac, we are not enforcing any memory limitation since sge will take care of it thus no ulimit here.
 
+######################
+# DEBUGGING
+echo DEBUGGING
+env
+whoami
+id
+pwd
+ls -l /space/project/portage/main
+ls -l /space/group/nrc_ict/pkgs/
+echo; echo; echo; echo
+# DEBUGGING
+
 # Preserve the calling working directory
 cd $HERE || exit
 
