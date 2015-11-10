@@ -753,9 +753,12 @@ if [[ $CLUSTER ]]; then
 
    if [[ -n "${PBS_JOBID%%.*}" ]]; then
       WORKER_NAME=${PBS_JOBID%%.*}-${JOB_NAME}w
-   elif [[ -n "${JOB_ID}" ]]; then
+   elif [[ -n "${GECOSHEP_JOB_ID}" ]]; then
       # GPSC case:
-      WORKER_NAME=j${JOB_ID}w
+      WORKER_NAME=j${GECOSHEP_JOB_ID}w
+   elif [[ $HOSTNAME =~ ^gpsc-in ]]; then
+      # GPSC case:
+      WORKER_NAME=gpsc-${GECOSHEP_JOB_ID}w
    else
       WORKER_NAME=${JOB_NAME}w
    fi
