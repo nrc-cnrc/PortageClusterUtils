@@ -411,7 +411,7 @@ trap '
    trap "" 0 1 13 14
    if [[ -n "$WORKER_JOBIDS" ]]; then
       WORKERS=`cat $WORKER_JOBIDS`
-      qdel $WORKERS >& /dev/null
+      jobdel $WORKERS >& /dev/null
    else
       WORKERS=""
    fi
@@ -420,7 +420,7 @@ trap '
    fi
    if [[ $WORKERS ]]; then
       CLEAN_UP_MAX_DELAY=20
-      while qstat $WORKERS 2> /dev/null | grep " [RQE] " >& /dev/null; do
+      while jobst -f $WORKERS 2> /dev/null | grep " [RQE] " >& /dev/null; do
          if [[ $CLEAN_UP_MAX_DELAY = 0 ]]; then break; fi
          CLEAN_UP_MAX_DELAY=$((CLEAN_UP_MAX_DELAY - 1))
          sleep 1
@@ -446,6 +446,7 @@ trap '
 # we setup a trap with a more cluster-friendly behaviour for SIGTERM, SIGINT
 # and SIGQUIT.
 trap '
+   # TODO: handle qsig equivalent on gpsc
    if [[ -n "$WORKER_JOBIDS" ]]; then
       echo "Caught termination signal, killing workers slowly (please be patient)" >&2
       WORKERS=`cat $WORKER_JOBIDS`
