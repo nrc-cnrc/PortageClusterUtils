@@ -53,7 +53,11 @@ install:  test
 
 test: check_perl_dependencies
 
+# NOTE:
+# - qstattree requires Term::ANSIColor since this is when colorvalid was added.
 check_perl_dependencies:
 	perldoc -l Data::TreeDumper
 	perldoc -l Tree::Simple
+	perldoc -l Time::Piece
+	perl -MTerm::ANSIColor -e 'print $$Term::ANSIColor::VERSION, "\n"' | grep '^3\.'
 
