@@ -59,5 +59,5 @@ check_perl_dependencies:
 	perldoc -l Data::TreeDumper
 	perldoc -l Tree::Simple
 	perldoc -l Time::Piece
-	perl -MTerm::ANSIColor -e 'print $$Term::ANSIColor::VERSION, "\n"' | grep '^3\.'
+	perl -e 'use Term::ANSIColor 2.02;'
 
