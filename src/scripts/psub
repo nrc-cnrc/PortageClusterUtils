@@ -279,7 +279,7 @@ cat <<==EOF== > $TMPSCRIPT
 ## Simply output the jobid.
 #$ -terse
 
-## Identifies  the  ability  of a job to be rerun or not.
+## Identifies the ability of a job to be rerun or not.
 #$ -r no
 
 ## Run exactly one process under dev.
@@ -320,7 +320,7 @@ cd $HERE || exit
 #process-memory-usage.pl $(($MEMORY_POLLING_DELAY*60)) \$\$ >&2 &
 
 # Display the exact start time
-echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` >&2
+echo ============ Starting job \$GECOSHEP_JOB_ID on \`date\` on node \`hostname\` >&2
 
 # Trap kill signals
 trap 'echo psub-generated script \`basename \$0\` caught SIGTERM, aborting. >&2; exit 15' 15
@@ -328,12 +328,10 @@ trap 'echo psub-generated script \`basename \$0\` caught SIGTERM, aborting. >&2;
 $COMMAND
 
 # Display the exact end time
-echo ============ Finished \$JOB_ID on \`date\` >&2
+echo ============ Finished \$GECOSHEP_JOB_ID on \`date\` >&2
 
 # Display resources used on stderr when the user command has completed
-qstat -f \$JOB_ID
-qstat -r
-qstat -t
+jobst -j \$GECOSHEP_JOB_ID
 
 # TODO:  Is this still pertinent on the gpsc since all that
 #        informatin/parameters are available as comments in the header of the
