@@ -61,7 +61,7 @@ if($help ne ''){
 
 my $me = `uname -n`;
 chomp $me;
-$me .= ":" . ($ENV{PBS_JOBID} || "");
+$me .= ":" . ($ENV{PBS_JOBID} || $ENV{GECOSHEP_JOB_ID} || "");
 $me =~ s/balzac.iit.nrc.ca/balzac/;
 
 if ( $primary ) { $me = "Primary $me"; }
