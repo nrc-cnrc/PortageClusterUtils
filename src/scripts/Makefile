@@ -26,6 +26,7 @@ BINSCRIPTS = \
         r-parallel-d.pl \
         r-parallel-worker.pl \
         rp-mon-totals.pl \
+        rsync-with-restart.sh \
         run-parallel.sh \
         stripe.py \
         sum.pl \
