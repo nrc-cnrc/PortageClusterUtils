@@ -32,7 +32,7 @@ Recommended usage:
   Warning: if the rsync commands fails due to a non-network related reason
   (path or permission errors, e.g.), it will keep trying every 30 seconds
   anyway. Inspect your job logs or the destination folder to make sure the copy
-  is really starting.  (qpeek JOBID and qpeek -e JOBID can help.)
+  is really starting.  (qpeek -e JOBID can help.)
 ==EOF==
 
    exit 1
@@ -59,5 +59,5 @@ while true; do
    fi
    echo "Problem detected. Sleeping 30 seconds before trying again."
    sleep 30
-done
+done >&2
 
