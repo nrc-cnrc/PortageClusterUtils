@@ -88,10 +88,10 @@ while (my $line = <STDIN>) {
 
       # Does this job a sub job of another master job.
       # j13343w-0
-      print STDERR $name, "\n";
+      print STDERR $name, "\n" if ($debug);
       if ($name =~ /^j(\d+)(w-\d+)?/) {
          my $parent = $1;
-	 print STDERR $parent, "\n";
+         print STDERR $parent, "\n" if ($debug);
          if (exists($jobs{$parent})) {
             $jobs{$parent}->addChild($sub_tree);
          }
