@@ -74,8 +74,8 @@ my $tree = Tree::Simple->new("0", Tree::Simple->ROOT);
 my %jobs;
 # We need to capture qstat's footer.
 my $footer;
-#open IN, "jobst" or die "Can't call jobst $!";
-while (my $line = <STDIN>) {
+open IN, "jobst |" or die "Can't call jobst $!";
+while (my $line = <IN>) {
    # Skip the header
    if ($line =~ /^\s*[0-9]+/) {
       chomp($line);
@@ -87,7 +87,7 @@ while (my $line = <STDIN>) {
       $jobs{$id} = $sub_tree;
 
       # Does this job a sub job of another master job.
-      # j13343w-0
+      # j13343w-0 dictated by run-parallel.sh's $WORKER_NAME
       print STDERR $name, "\n" if ($debug);
       if ($name =~ /^j(\d+)(w-\d+)?/) {
          my $parent = $1;
@@ -114,7 +114,7 @@ while (my $line = <STDIN>) {
       $footer .= $line;
    }
 }
-#close(IN) or die "Problem with the input stream.";
+close(IN) or die "Problem with the input stream.";
 
 # clean up circular references
 $tree->DESTROY();
