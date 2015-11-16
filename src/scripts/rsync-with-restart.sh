@@ -20,12 +20,12 @@ usage() {
 Usage: $PROG SOURCE DESTINATION
 
 Recommended usage:
-  psub $PROG 132.246.128.221:/path/on/MATS-machine /path/on/Balzac
+  psub $PROG 132.246.128.2nn:/path/on/MATS-machine /path/on/Balzac
 
   Run rsync repeatedly until the copy has completed successfully. Useful in an
   unstable network environment where rsync often aborts before completion.
 
-  The recommendation is to run this script on a compute note on Balzac, not on
+  The recommendation is to run this script on a compute node on Balzac, not on
   a MATS machine.  Reason: minimize load on the head node; all other uses of
   rsync, scp or this script will impose an undesirable load on the head node.
 
