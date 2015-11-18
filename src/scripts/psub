@@ -42,6 +42,10 @@ Options:
                  mapped IO.  Important: use a value less than or equal to the
                  total size of files you will open using memory mapped IO,
                  otherwise you risk bringing down a node.
+  -i RES_IMAGE   Change the container's image [\$ENV{PSUB_RES_IMAGE}]
+  -pe ENVIRONMENT Change the parallel environment [dev]
+  -pepp          Change parallel processes [1]
+  -rt RUN_TIME   Specify the job's run time in minutes [1440 (one day)]
   -e ERR_FILE    stderr destination
   -o OUT_FILE    stdout destination
   -noscript      don't write out the script
@@ -110,6 +114,11 @@ MEMORY_POLLING_DELAY=6
 PRIORITY=
 JOB_ARRAY=
 
+PARALLEL_ENVIRONMENT=dev
+# NOTE, PE_PARALLEL_PROCESSES should always be 1.
+PE_PARALLEL_PROCESSES=1
+RUNTIME=1440 # one day in minutes.
+
 NODES=
 while [ $# -gt 0 ]; do
    case "$1" in
@@ -125,6 +134,18 @@ while [ $# -gt 0 ]; do
    -memmap)         arg_check 1 $# $!;
                     arg_check_pos_int $2 $1;
                     MEMMAP=$2;
+                    shift;;
+   -i)              arg_check 1 $# $!;
+                    PSUB_RES_IMAGE=$2;
+                    shift;;
+   -pe)             arg_check 1 $# $!;
+                    PARALLEL_ENVIRONMENT=$2;
+                    shift;;
+   -pepp)           arg_check 1 $# $!;
+                    PE_PARALLEL_PROCESSES=$2;
+                    shift;;
+   -rt)             arg_check 1 $# $!;
+                    RUNTIME=$2;
                     shift;;
    -e)              arg_check 1 $# $!;
                     ERR_FILE=$2;
@@ -222,9 +243,6 @@ function gpsc {
    # PSUB_RES_IMAGE is set in profile.d/portage in order to have
    # control of the image at the project-level.
    local RES_IMAGE=${PSUB_RES_IMAGE:-nrc_all_default_centos-6.7-amd64_latest}
-   local PARALLEL_ENVIRONMENT=dev
-   # NOTE, PE_PARALLEL_PROCESSES should always be 1.
-   local PE_PARALLEL_PROCESSES=1
 
    if [ -z "$COMMAND" -a ! -n "$INTMODE" ]; then
       error_exit "Missing command, nothing to run!"
@@ -262,7 +280,7 @@ function gpsc {
    fi
    VMEM_LIMIT_MB=$((VMEM_LIMIT_GB * 1024))
 
-   local RUNTIME=86400
+   local RUNTIME=$((RUNTIME * 60))
 
    local HERE=`pwd`
    ERR_FILE=${ERR_FILE:-$HERE}
