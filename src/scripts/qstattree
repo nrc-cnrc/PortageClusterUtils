@@ -127,19 +127,26 @@ print STDERR "Depth: " . $tree->getDepth() . "\n" if ($debug);
 ########################################
 # Create a map of color per tree level.
 # Note: perldoc Term::ANSIColor
-#use Term::ANSIColor 3 qw(:constants colorvalid);
-use Term::ANSIColor 2 qw(:constants);
-# Creating default colors.
-my @colors = map { Term::ANSIColor::color($_); } ( 'red' , 'green' , 'yellow' , 'blue' , 'magenta' , 'cyan');
+my @colors;
+eval {
+   eval "use Term::ANSIColor 3 qw(:constants colorvalid)" or die;
+   # User defined colors.
+   if (defined($ENV{PORTAGE_QSTATTREE_COLORS})) {
+      my @user_colors = split(/\s+/, $ENV{PORTAGE_QSTATTREE_COLORS});
+      print STDERR "Using user colors: " . join(", ", @user_colors) . "\n" if ($debug);
+      # Validate user's colors.
+      map { Term::ANSIColor::colorvalid($_) or die "$_ is not a valid ANSIColor!"; } @user_colors;
+      @colors = map { Term::ANSIColor::color($_); } @user_colors;
+   }
+   1;
+}
+or do {
+   warn "WARNING: User colors not supported on this system\n" if (defined($ENV{PORTAGE_QSTATTREE_COLORS}));
+   use Term::ANSIColor 2 qw(:constants);
+   # Creating default colors.
+   @colors = map { Term::ANSIColor::color($_); } ( 'red' , 'green' , 'yellow' , 'blue' , 'magenta' , 'cyan');
+};
 
-## User defined colors.
-#if (defined($ENV{PORTAGE_QSTATTREE_COLORS})) {
-#   my @user_colors = split(/\s+/, $ENV{PORTAGE_QSTATTREE_COLORS});
-#   print STDERR "Using user colors: " . join(", ", @user_colors) . "\n" if ($debug);
-#   # Validate user's colors.
-#   map { Term::ANSIColor::colorvalid($_) or die "$_ is not a valid ANSIColor!"; } @user_colors;
-#   @colors = map { Term::ANSIColor::color($_); } @user_colors;
-#}
 
 
 ########################################
