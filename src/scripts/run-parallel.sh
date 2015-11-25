@@ -19,6 +19,9 @@
 # - parallelize.pl
 # - process-memory-usage.pl
 # - psub
+# - jobdel
+# - jobst
+# - jobsub
 # - r-parallel-d.pl
 # - r-parallel-worker.pl
 # - run-parallel.sh
@@ -480,6 +483,8 @@ LOGFILEPREFIX=$WORKDIR/
 if [[ $NOCLUSTER ]]; then
    CLUSTER=
 elif which-test.sh qsub; then
+   CLUSTER=1
+elif which-test.sh jobsub; then
    CLUSTER=1
 else
    CLUSTER=
