@@ -214,7 +214,7 @@ function script2Command {
 
    # If the command is a script but doesn't have its x permission bit set,
    # call it with its interpreter
-   if [ -f $PROG_NAME -a ! -x $PROG_NAME -a ! "$FORCE" ]; then
+   if [ -f "$PROG_NAME" -a ! -x "$PROG_NAME" -a ! "$FORCE" ]; then
       if file $PROG_NAME | grep -q "script text"; then
          # file is a script
          local HASH_BANG_LINE=`head -1 $PROG_NAME`
@@ -262,7 +262,7 @@ function gpsc {
    '`
 
    # The following call modifies COMMAND.
-   script2Command $PROG_NAME $FORCE
+   script2Command "$PROG_NAME" "$FORCE"
 
    # Determine the default job name if -N is not specified on the command line.
    if [[ ! $NAME ]]; then
