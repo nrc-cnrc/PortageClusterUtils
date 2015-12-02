@@ -308,6 +308,7 @@ cat <<==EOF== > $TMPSCRIPT
 #$ -l res_image=$RES_IMAGE
 #$ -o $OUT_FILE
 #$ -e $ERR_FILE
+#$ -S /bin/bash
 
 ## User provided from the command line.
 ## Job Array:
