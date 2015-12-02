@@ -340,7 +340,7 @@ env
 whoami
 id
 pwd
-ls -l /space/project/portage/main
+ls -l /space/project/portage
 ls -l /space/group/nrc_ict/pkgs/
 echo; echo; echo; echo
 # DEBUGGING
