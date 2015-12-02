@@ -38,6 +38,7 @@ use strict;
 use warnings;
 use POSIX qw(ceil);
 use File::Basename;
+use File::Temp qw/ tempdir /;
 
 sub usage {
    local $, = "\n";
@@ -261,9 +262,12 @@ if ( $debug ) {
 }
 
 # Create a working directory to prevent polluting the environment.
-$workdir = "parallelize.pl.$$" unless(defined($workdir));
-mkdir($workdir);
-
+if (defined $workdir) {
+   mkdir($workdir);
+} else {
+   my $workdir_template = "parallelize.pl.XXXXX";
+   $workdir = tempdir($workdir_template);
+}
 
 
 # Make sure there is at least one input file.
