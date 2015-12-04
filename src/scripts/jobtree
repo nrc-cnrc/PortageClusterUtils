@@ -36,6 +36,8 @@ NOTE:
 
 Options:
 
+  -u(ser) USER  Filter jobs for USER [None]
+
   -h(elp)       print this help message
   -v(erbose)    increment the verbosity level by 1 (may be repeated)
   -d(ebug)      print debugging information
@@ -50,6 +52,8 @@ use Getopt::Long;
 # abbreviations for all options.
 my $verbose = 1;
 GetOptions(
+   "user=s"    => \my $user,
+
    help        => sub { usage },
    verbose     => sub { ++$verbose },
    quiet       => sub { $verbose = 0 },
@@ -61,6 +65,8 @@ if ( @ARGV > 0 ) {
    $filter = "@ARGV";
 }
 
+my $jobStreamCommand = "jobst";
+$jobStreamCommand .= " -u $user" if(defined($user));
 
 
 ########################################
@@ -74,8 +80,7 @@ my $tree = Tree::Simple->new("0", Tree::Simple->ROOT);
 my %jobs;
 # We need to capture qstat's footer.
 my $footer;
-#open IN, "jobst | grep `whoami` |" or die "Can't call jobst $!";
-open IN, "jobst |" or die "Can't call jobst $!";
+open IN, "$jobStreamCommand |" or die "Can't call jobst $!";
 while (my $line = <IN>) {
    # Skip the header
    if ($line =~ /^\s*[0-9]+/) {
