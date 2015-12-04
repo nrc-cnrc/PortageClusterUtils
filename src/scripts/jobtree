@@ -74,20 +74,25 @@ my $tree = Tree::Simple->new("0", Tree::Simple->ROOT);
 my %jobs;
 # We need to capture qstat's footer.
 my $footer;
-open IN, "qstatn '$filter' |" or die "Can't call qstatn: $!";
+#open IN, "jobst | grep `whoami` |" or die "Can't call jobst $!";
+open IN, "jobst |" or die "Can't call jobst $!";
 while (my $line = <IN>) {
    # Skip the header
-   if ($line =~ /^[0-9]+/) {
+   if ($line =~ /^\s*[0-9]+/) {
       chomp($line);
-      my ($id, $name, $jobname, @a) = split(/\s+/, $line);
+      $line =~ s/^\s*//;
+      my ($id, $prior, $name, $a) = split(/\s+/, $line, 4);
 
       # Let's create a node for that job.
-      my $sub_tree = Tree::Simple->new("$line");
+      my $sub_tree = Tree::Simple->new(sprintf("%-8d %s %-10s %s", $id, $prior, $name, $a));
       $jobs{$id} = $sub_tree;
 
       # Does this job a sub job of another master job.
-      if ($jobname =~ /^J(\d+(-\d+)?)-/) {
+      # j13343w-0 dictated by run-parallel.sh's $WORKER_NAME
+      print STDERR $name, "\n" if ($debug);
+      if ($name =~ /^j(\d+)(w-\d+)?/) {
          my $parent = $1;
+         print STDERR $parent, "\n" if ($debug);
          if (exists($jobs{$parent})) {
             $jobs{$parent}->addChild($sub_tree);
          }
@@ -123,18 +128,26 @@ print STDERR "Depth: " . $tree->getDepth() . "\n" if ($debug);
 ########################################
 # Create a map of color per tree level.
 # Note: perldoc Term::ANSIColor
-use Term::ANSIColor 3 qw(:constants colorvalid);
-# Creating default colors.
-my @colors = map { Term::ANSIColor::color($_); } ( 'red' , 'green' , 'yellow' , 'blue' , 'magenta' , 'cyan');
-
-# User defined colors.
-if (defined($ENV{PORTAGE_QSTATTREE_COLORS})) {
-   my @user_colors = split(/\s+/, $ENV{PORTAGE_QSTATTREE_COLORS});
-   print STDERR "Using user colors: " . join(", ", @user_colors) . "\n" if ($debug);
-   # Validate user's colors.
-   map { Term::ANSIColor::colorvalid($_) or die "$_ is not a valid ANSIColor!"; } @user_colors;
-   @colors = map { Term::ANSIColor::color($_); } @user_colors;
+my @colors;
+eval {
+   eval "use Term::ANSIColor 3 qw(:constants colorvalid)" or die;
+   # User defined colors.
+   if (defined($ENV{PORTAGE_QSTATTREE_COLORS})) {
+      my @user_colors = split(/\s+/, $ENV{PORTAGE_QSTATTREE_COLORS});
+      print STDERR "Using user colors: " . join(", ", @user_colors) . "\n" if ($debug);
+      # Validate user's colors.
+      map { Term::ANSIColor::colorvalid($_) or die "$_ is not a valid ANSIColor!"; } @user_colors;
+      @colors = map { Term::ANSIColor::color($_); } @user_colors;
+   }
+   1;
 }
+or do {
+   warn "WARNING: User colors not supported on this system\n" if (defined($ENV{PORTAGE_QSTATTREE_COLORS}));
+   use Term::ANSIColor 2 qw(:constants);
+   # Creating default colors.
+   @colors = map { Term::ANSIColor::color($_); } ( 'red' , 'green' , 'yellow' , 'blue' , 'magenta' , 'cyan');
+};
+
 
 
 ########################################
@@ -146,10 +159,9 @@ $Data::TreeDumper::Displayobjecttype = 0;
 $Data::TreeDumper::Displayaddress    = 0;
 
 # Let's display the header
-print "   " x ($tree->getHeight() - 1) . "                                             Req'd  Req'd   Elap\n";
-print "Job ID" . "   " x ($tree->getHeight() - 1) . "    Username Jobname        SessID NDS Memory Time  S Time\n";
+print "job-ID  " . "  " x ($tree->getHeight()) . "prior   name       user         state submit/start at     queue                          slots ja-task-ID\n";
 print DumpTree($tree,
-   "---------" . "---" x ($tree->getHeight() - 1) . " -------- -------------- ------ --- ------ ----- - -----",
+   "-------" . "--" x ($tree->getHeight()) . " ------- ---------- ------ ------ ---- ------------------- ------------------------------ ----- --------",
    COLOR_LEVELS => [\@colors, ''],
    NO_WRAP => 1,
    FILTER => sub {
@@ -190,9 +202,9 @@ print Term::ANSIColor::color('reset');
 use Env qw(LOGNAME);
 # Highlight user stats.
 my $noColor = Term::ANSIColor::color('reset');
-$footer =~ s/($LOGNAME [0-9]+)/$colors[0]$1$noColor/;
-$footer =~ s/([0-9]+ free)/$colors[0]$1$noColor/;
-print $footer;
+#$footer =~ s/($LOGNAME [0-9]+)/$colors[0]$1$noColor/;
+#$footer =~ s/([0-9]+ free)/$colors[0]$1$noColor/;
+#print $footer;
 
 # For safety, let's make sure the color scheme is reseted before we exit.
 print Term::ANSIColor::color('reset');
