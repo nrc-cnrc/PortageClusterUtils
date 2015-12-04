@@ -31,12 +31,13 @@ Usage: $0 [options] [filter]
 NOTE:
   To change the color of the tree, you can set the environment variable
   PORTAGE_QSTATTREE_COLORS with a space separated list of colors.
-  Valid colors are: 
+  Valid colors are:
      black, red, green, yellow, blue, magenta, cyan or white
 
 Options:
 
   -u(ser) USER  Filter jobs for USER [None]
+  -P REGEX      Filter jobs based on a regular expression [None]
 
   -h(elp)       print this help message
   -v(erbose)    increment the verbosity level by 1 (may be repeated)
@@ -53,6 +54,7 @@ use Getopt::Long;
 my $verbose = 1;
 GetOptions(
    "user=s"    => \my $user,
+   "P=s"   => \my $regex,
 
    help        => sub { usage },
    verbose     => sub { ++$verbose },
@@ -84,6 +86,9 @@ open IN, "$jobStreamCommand |" or die "Can't call jobst $!";
 while (my $line = <IN>) {
    # Skip the header
    if ($line =~ /^\s*[0-9]+/) {
+      # filter jobs based on a regular expression.
+      next if (defined($regex) and $line !~ m/$regex/);
+
       chomp($line);
       $line =~ s/^\s*//;
       my ($id, $prior, $name, $a) = split(/\s+/, $line, 4);
