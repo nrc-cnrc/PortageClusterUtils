@@ -6,8 +6,6 @@
 #
 # @author Eric Joanis
 #
-# COMMENTS:
-#
 # Technologies langagieres interactives / Interactive Language Technologies
 # Inst. de technologie de l'information / Institute for Information Technology
 # Conseil national de recherches Canada / National Research Council Canada
@@ -26,7 +24,7 @@
 # - r-parallel-worker.pl
 # - run-parallel.sh
 # - sum.pl
-# - which-test.sh
+# - on-cluster.sh
 
 # Portage is developed with bash 3, and uses the bash 3.1 RE syntax, which
 # changed from version 3.2.  Set "compat31" if we're using bash 3.2, 4 or more
@@ -482,9 +480,7 @@ LOGFILEPREFIX=$WORKDIR/
 
 if [[ $NOCLUSTER ]]; then
    CLUSTER=
-elif which-test.sh qsub; then
-   CLUSTER=1
-elif which-test.sh jobsub; then
+elif on-cluster.sh; then
    CLUSTER=1
 else
    CLUSTER=

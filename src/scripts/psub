@@ -13,11 +13,11 @@
 #
 # @author Eric Joanis / Samuel Larkin
 #
-# Technologies langagieres interactives / Interactive Language Technologies
-# Inst. de technologie de l'information / Institute for Information Technology
+# Traitement multilingue de textes / Multilingual Text Processing
+# Tech. de l'information et des communications / Information and Communications Tech.
 # Conseil national de recherches Canada / National Research Council Canada
-# Copyright 2006 - 2008, Sa Majeste la Reine du Chef du Canada /
-# Copyright 2006 - 2008, Her Majesty in Right of Canada
+# Copyright 2006 - 2008, 2015, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2006 - 2008, 2015, Her Majesty in Right of Canada
 
 usage() {
    for msg in "$@"; do
@@ -395,14 +395,16 @@ jobst -j \$GECOSHEP_JOB_ID
 }
 
 
-
+if [[ ! on-cluster.sh && ! $NOT_REALLY ]]; then
+   error_exit "We don't seem to be running on a cluster."
+fi
 
 if uname -n | egrep -q 'balzac|blz'; then
    NODES=notest
    BALZAC=1
 elif uname -n | egrep -q 'venus|vns'; then
    VENUS=1
-elif which jobsub >& /dev/null; then
+elif which-test.sh jobsub >& /dev/null; then
    GPSC=1
    gpsc
    exit
@@ -412,14 +414,6 @@ else
 fi
 
 requirements
-
-if which qsub >& /dev/null; then
-   true # qsub found - we're running on a cluster
-else
-   if [[ ! $NOT_REALLY ]]; then
-      error_exit "Can't find qsub, we don't seem to be running on a cluster."
-   fi
-fi
 
 # In interactive mode we need to reserve an entire node
 if [ -n "$INTMODE" ]; then
