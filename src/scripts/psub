@@ -335,14 +335,17 @@ export OMP_NUM_THREADS=$CPU_COUNT
 
 ######################
 # DEBUGGING
-echo DEBUGGING
-env
-whoami
-id
-pwd
-ls -l /space/project/portage
-ls -l /space/group/nrc_ict/pkgs/
-echo; echo; echo; echo
+if true; then
+   echo DEBUGGING
+   env
+   whoami
+   id
+   pwd
+   ls -l /space/project/portage
+   ls -l /space/group/nrc_ict/pkgs/
+   echo END DEBUGGING
+   echo; echo; echo; echo
+fi >&2
 # DEBUGGING
 
 # Preserve the calling working directory
@@ -362,7 +365,7 @@ $COMMAND
 echo ============ Finished \$GECOSHEP_JOB_ID on \`date\` >&2
 
 # Display resources used on stderr when the user command has completed
-jobst -j \$GECOSHEP_JOB_ID
+jobst -j \$GECOSHEP_JOB_ID >&2
 
 # TODO:  Is this still pertinent on the gpsc since all that
 #        informatin/parameters are available as comments in the header of the
