@@ -349,7 +349,7 @@ fi >&2
 # DEBUGGING
 
 # Preserve the calling working directory
-cd $HERE || exit
+cd $HERE || { ! echo "Error: Cannot change directory to $HERE" >&2; exit; }
 
 #process-memory-usage.pl $(($MEMORY_POLLING_DELAY*60)) \$\$ >&2 &
 
