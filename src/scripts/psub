@@ -272,7 +272,8 @@ function gpsc {
    # TODO:  is there a limit on job name's length?
    # Make sure $NAME is not longer that 15 characters, and starts with a letter
 
-   local VMEM_LIMIT_GB_PER_CPU=4
+   # Note: a be node has 100000M of ram and 16 cores thus ~6GB of ram per core
+   local VMEM_LIMIT_GB_PER_CPU=6
    local VMEM_LIMIT_GB=$(($VMEM_LIMIT_GB_PER_CPU * $CPU_COUNT))
    # -memmap adds extra virtual memory
    if [[ $MEMMAP ]]; then
