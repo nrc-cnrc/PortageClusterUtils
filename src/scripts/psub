@@ -38,6 +38,10 @@ Options:
   -N JOB_NAME    specify job name
   -#             use # CPUs on a node (nodes with # CPUs must exist)
                  thus getting access to more memory.
+  -cpus C        Specify the required number of cpus [1].
+  -mem M         Specufy the required amount of memory.  By default, GB are
+                 assumed but user can specify G for GigaBytes or M for
+                 MegaBytes [6 GB].
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
                  mapped IO.  Important: use a value less than or equal to the
                  total size of files you will open using memory mapped IO,
@@ -104,12 +108,33 @@ arg_check() {
    fi
 }
 
+normalizeMemoryRequirement() {
+   local MEM_AMOUNT=$1
+   # Convert the resquested memory to MegaBytes for the scheduler.
+   if [[ $MEM_AMOUNT ]]; then
+      if [[ $MEM_AMOUNT =~ G$ ]]; then
+         MEM_AMOUNT=${MEM_AMOUNT%%G};
+         MEM_AMOUNT=$(($MEM_AMOUNT * 1024));
+      elif [[ $MEM_AMOUNT =~ M$ ]]; then
+         MEM_AMOUNT=${MEM_AMOUNT%%M};
+      else
+         MEM_AMOUNT=$(($MEM_AMOUNT * 1024));
+      fi
+   fi
+   echo $MEM_AMOUNT
+}
+
+
 # Set some virtual memory constant per cpu.
 VMEM_LIMIT_GB_PER_CPU=7
 VMEM_HARD_LIMIT_GB_PER_CPU=6
 
+# Note: a be node has 100000M of ram and 16 cores thus ~6GB of ram per core
+VMEM_LIMIT_MB_PER_CPU=6144   # 6 GB
+
 PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
 CPU_COUNT=
+VMEM_LIMIT_MB=
 MEMORY_POLLING_DELAY=6
 PRIORITY=
 JOB_ARRAY=
@@ -117,7 +142,7 @@ JOB_ARRAY=
 PARALLEL_ENVIRONMENT=dev
 # NOTE, PE_PARALLEL_PROCESSES should always be 1.
 PE_PARALLEL_PROCESSES=1
-RUNTIME=1440 # one day in minutes.
+RUNTIME=1440 # one day in minutes (24 x 60).
 
 NODES=
 while [ $# -gt 0 ]; do
@@ -127,7 +152,15 @@ while [ $# -gt 0 ]; do
    -N)              arg_check 1 $# $!;
                     NAME=$2;
                     shift;;
-   -[1-9]|-[1-9][0-9]) CPU_COUNT=$((0 - $1));;
+   -[1-9]|-[1-9][0-9]) echo "Warning: -# is deprecated on gpsc." >&2;
+                    [[ $CPU_COUNT ]] || CPU_COUNT=$((0 - $1));
+                    [[ $VMEM_LIMIT_MB ]] || VMEM_LIMIT_MB=$((VMEM_LIMIT_MB_PER_CPU * $((0 - $1))));;
+   -cpus)           arg_check 1 $# $!;
+                    CPU_COUNT=$2;
+                    shift;;
+   -mem)            arg_check 1 $# $!;
+                    VMEM_LIMIT_MB=`normalizeMemoryRequirement "$2"`;
+                    shift;;
    -I)              INTMODE=1;
                     NOSCRIPT=1;
                     [[ $CPU_COUNT ]] || CPU_COUNT=4;;
@@ -185,8 +218,8 @@ while [ $# -gt 0 ]; do
    shift
 done
 
-# If, at this point there still no CPU_COUNT defined, we'll define the default value.
 [[ $CPU_COUNT ]] || CPU_COUNT=1
+[[ $VMEM_LIMIT_MB ]] || VMEM_LIMIT_MB=$((VMEM_LIMIT_MB_PER_CPU * 1))  # 6GB
 
 COMMAND="$*"
 
@@ -272,15 +305,12 @@ function gpsc {
    # TODO:  is there a limit on job name's length?
    # Make sure $NAME is not longer that 15 characters, and starts with a letter
 
-   # Note: a be node has 100000M of ram and 16 cores thus ~6GB of ram per core
-   local VMEM_LIMIT_GB_PER_CPU=6
-   local VMEM_LIMIT_GB=$(($VMEM_LIMIT_GB_PER_CPU * $CPU_COUNT))
    # -memmap adds extra virtual memory
    if [[ $MEMMAP ]]; then
-      VMEM_LIMIT_GB=$((VMEM_LIMIT_GB + MEMMAP))
+      VMEM_LIMIT_MB=$((VMEM_LIMIT_MB + MEMMAP * 1024))
    fi
-   VMEM_LIMIT_MB=$((VMEM_LIMIT_GB * 1024))
 
+   # Runtime is in seconds.
    local RUNTIME=$((RUNTIME * 60))
 
    local HERE=`pwd`

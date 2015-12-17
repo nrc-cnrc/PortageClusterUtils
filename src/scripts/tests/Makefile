@@ -70,5 +70,91 @@ testCase.nodes:  test.sh
 .PHONY: testCase.res_mem
 testSuite:  testCase.res_mem
 testCase.res_mem:  test.sh
-	${PSUB} -n -6 $< \
-	| grep --quiet "^#$$ \-l res_mem=$$((4 * 6 * 1024))"
+	${PSUB} -n -3 $< \
+	| grep --quiet "^#$$ \-l res_mem=$$((3 * 6 * 1024))"
+
+
+.PHONY:  testCasePsubMemCpus
+testSuite:  testCasePsubMemCpus
+
+.PHONY: testCase.psubNoArgument
+testCasePsubMemCpus: testCase.psubNoArgument
+# Call psub with no argument => default values => 1cpu & 6G.
+testCase.psubNoArgument:
+	${PSUB} -n 'sleep 10'  | grep '\-l res_mem=6144'
+	${PSUB} -n 'sleep 10'  | grep '\-l res_cpus=1'
+
+
+.PHONY: testCase.dash5
+testCasePsubMemCpus: testCase.dash5
+# Verify the balzac way of calling psub with -5 => 5x6G & 5cpus.
+testCase.dash5:
+	${PSUB} -5 -n 'sleep 10'  | grep '\-l res_mem=30720'
+	${PSUB} -5 -n 'sleep 10'  | grep '\-l res_cpus=5'
+	psub -5 -n 'sleep 10' 2>&1 | grep 'Warning: -# is deprecated on gpsc.'
+
+.PHONY: testCase.cpus2
+testCasePsubMemCpus: testCase.cpus2
+# Call psub with 2 cpus and the default amount of vmem => 2cpus & 6Gb.
+testCase.cpus2:
+	${PSUB} -cpus 2 -n 'sleep 10'  | grep '\-l res_mem=6144'
+	${PSUB} -cpus 2 -n 'sleep 10'  | grep '\-l res_cpus=2'
+
+.PHONY: testCase.mem12
+testCasePsubMemCpus: testCase.mem12
+# Call psub with 12G of mem and the default number of cpus => 1cpu & 12G.
+testCase.mem12:
+	${PSUB} -mem 12 -n 'sleep 10'  | grep '\-l res_mem=12288'
+	${PSUB} -mem 12 -n 'sleep 10'  | grep '\-l res_cpus=1'
+
+.PHONY: testCase.memmap5
+testCasePsubMemCpus: testCase.memmap5
+# Call psub with default mem & cpus but adding 5G of vmem => 1cpu & (5+6)G.
+testCase.memmap5:
+	${PSUB} -memmap 5 -n 'sleep 10'  | grep '\-l res_mem=11264'
+	${PSUB} -memmap 5 -n 'sleep 10'  | grep '\-l res_cpus=1'
+
+
+.PHONY: testCase.dash5.cpus2
+testCasePsubMemCpus: testCase.dash5.cpus2
+# Call psub -5 asking for 2 cpus => 2cpus & (5x6)G.
+testCase.dash5.cpus2:
+	${PSUB} -cpus 2 -5 -n 'sleep 10'  | grep '\-l res_mem=30720'
+	${PSUB} -cpus 2 -5 -n 'sleep 10'  | grep '\-l res_cpus=2'
+
+.PHONY: testCase.dash5.mem12
+testCasePsubMemCpus: testCase.dash5.mem12
+# Call psub -5 asking for 12G mem => 5cpus & 12G.
+testCase.dash5.mem12:
+	${PSUB} -mem 12 -5 -n 'sleep 10'  | grep '\-l res_mem=12288'
+	${PSUB} -mem 12 -5 -n 'sleep 10'  | grep '\-l res_cpus=5'
+
+.PHONY: testCase.mem12.memmap5
+testCasePsubMemCpus: testCase.mem12.memmap5
+# Call psub asking for 12G plus 5G of memmap and default number of cpus => 1cpu & (12+5)G.
+testCase.mem12.memmap5:
+	${PSUB} -mem 12 -memmap 5 -n 'sleep 10'  | grep '\-l res_mem=17408'
+	${PSUB} -mem 12 -memmap 5 -n 'sleep 10'  | grep '\-l res_cpus=1'
+
+.PHONY: testCase.cpus7.mem12
+testCasePsubMemCpus: testCase.cpus7.mem12
+# Call psub asking 7 cpus and 12G of mem => 7cpus & 12G.
+testCase.cpus7.mem12:
+	${PSUB} -cpus 7 -mem 12 -n 'sleep 10'  | grep '\-l res_mem=12288'
+	${PSUB} -cpus 7 -mem 12 -n 'sleep 10'  | grep '\-l res_cpus=7'
+
+
+.PHONY: testCase.dash3.cpus7.mem12
+testCasePsubMemCpus: testCase.dash3.cpus7.mem12
+# Call psub -3 with 7 cpus and 12G mem => 7cpus & 12G.
+testCase.dash3.cpus7.mem12:
+	${PSUB} -cpus 7 -mem 12 -3 -n 'sleep 10'  | grep '\-l res_mem=12288'
+	${PSUB} -cpus 7 -mem 12 -3 -n 'sleep 10'  | grep '\-l res_cpus=7'
+
+
+.PHONY: testCase.dash3.cpus7.mem12.memmap5
+testCasePsubMemCpus: testCase.dash3.cpus7.mem12.memmap5
+# Call psub -3 with 7 cpus with 12G mem and 5G memmap => 7cpus & (12+5)G.
+testCase.dash3.cpus7.mem12.memmap5:
+	${PSUB} -cpus 7 -mem 12 -3 -n -memmap 5 'sleep 10'  | grep '\-l res_mem=17408'
+	${PSUB} -cpus 7 -mem 12 -3 -n -memmap 5 'sleep 10'  | grep '\-l res_cpus=7'
