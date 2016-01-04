@@ -16,6 +16,7 @@ BINSCRIPTS = \
         cvs-diff-all-revisions.sh \
         cvs-log-sort.pl \
         cvs-status-summary.pl \
+        jobsig.pl \
         jobtree \
         on-cluster.sh \
         parallelize.pl \
