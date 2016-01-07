@@ -350,6 +350,8 @@ cat <<==EOF== > $TMPSCRIPT
 #$ ${RESOURCES:+-l $RESOURCES}
 ## Nodes:
 #$ ${NODES:+-l nodes=$NODES}
+## Additional user-specified qsub parameters
+#$ $QSPARAMS
 
 # User's environment.
 `env | egrep '^(PORTAGE|LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
