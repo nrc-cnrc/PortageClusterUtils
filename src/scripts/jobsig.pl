@@ -62,7 +62,7 @@ sub getPIDs {
             && ! /rudial/ && ! /rustart/) {
          # We found the main job process, normally immediate child of rustart process
          # runnning the job
-         $debug and print;
+         $debug and do { print $PS_output[-2] || ""; print; };
          my ($ppid, $pid, $pgid, $sid) = ($1, $2, $3, $4);
          $job_pgid = $pgid;
          $job_main_pid = $pid;
@@ -93,6 +93,6 @@ my ($job_pgid, $job_main_pid, @job_other_pids) = getPIDs();
 print "PGID = $job_pgid\nMain PID = $job_main_pid\nOther PIDs = @job_other_pids\n";
 
 # Send the signal
-my $cmd = "sshj -j $jobid -- kill -$signal @job_other_pids";
+my $cmd = "sshj -j $jobid -- kill -$signal -$job_pgid";
 print $cmd, "\n";
 system($cmd) unless $notreally;
