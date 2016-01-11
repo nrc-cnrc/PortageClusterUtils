@@ -78,8 +78,9 @@ sub getPIDs {
       }
    }
    if (!close PS) {
-      warn "Error: problem closing sshj pipe, command probably did not work";
-      print STDERR "ps fjxaww output was:\n", @PS_output;
+      warn "Error: problem closing sshj pipe to job node, command probably did not work";
+      @PS_output && print STDERR "ps fjxaww output was:\n", @PS_output;
+      exit 1;
    }
 
    defined $job_pgid
