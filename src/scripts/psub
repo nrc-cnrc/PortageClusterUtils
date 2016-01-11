@@ -340,6 +340,7 @@ cat <<==EOF== > $TMPSCRIPT
 #$ -o $OUT_FILE
 #$ -e $ERR_FILE
 #$ -S /bin/bash
+#$ -M $USER
 
 ## User provided from the command line.
 ## Job Array:
