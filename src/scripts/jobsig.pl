@@ -26,7 +26,7 @@ Usage: $0 [-s SIGNAL] JOB_ID
 Options:
 
   -h(elp)        print this help message
-  -s SIGNAL      send signal SIGNAL [15]
+  -s SIGNAL      send signal SIGNAL [15=TERM=SIGTERM]
   -n(otreally)   Just show what we would do, but do not send the signal
 ";
    exit 1;
@@ -43,9 +43,10 @@ GetOptions(
    quiet       => sub { $verbose = 0 },
    debug       => \my $debug,
    notreally   => \my $notreally,
-   "s=i"       => \my $signal,
+   "s=s"       => \my $signal,
 ) or usage "Error: Invalid option(s).";
 defined $signal or $signal = 15;
+system("/bin/kill -l $signal > /dev/null") == 0 or die "Error: unknown signal $signal.\n";
 
 0 == @ARGV and usage "Error: missing job ID.";
 my $jobid = shift;
