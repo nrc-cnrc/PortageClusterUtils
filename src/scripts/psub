@@ -391,7 +391,11 @@ cd $HERE || { ! echo "Error: Cannot change directory to $HERE" >&2; exit; }
 echo ============ Starting job \$GECOSHEP_JOB_ID on \`date\` on node \`hostname\` >&2
 
 # Trap kill signals
-trap 'echo psub-generated script \`basename \$0\` caught SIGTERM, aborting. >&2; exit 15' 15
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGINT, aborting." >&2; exit 2' 2
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGQUIT, aborting." >&2; exit 3' 3
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR1, aborting." >&2; exit 10' 10
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR2, aborting." >&2; exit 12' 12
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGTERM, aborting." >&2; exit 15' 15
 
 $COMMAND
 
