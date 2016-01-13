@@ -406,10 +406,14 @@ fi
 # Assume there's a problem until we know things finished cleanly.
 GLOBAL_RETURN_CODE=2
 
+DEBUG_CLEANUP=
+[[ $DEBUG ]] && DEBUG_CLEANUP=1
+
 # Process clean up at exit or kill - set this trap early enough that we
 # clean up no matter what happens.
 trap '
    trap "" 0 1 13 14
+   [[ $DEBUG_CLEANUP ]] && echo "run-parallel.sh cleaning up: $WORKDIR/ $TMPLOGFILEPREFIX ${LOGFILEPREFIX}\*" >&2
    if [[ -n "$WORKER_JOBIDS" ]]; then
       WORKERS=`cat $WORKER_JOBIDS`
       jobdel $WORKERS >& /dev/null
@@ -438,8 +442,13 @@ trap '
       echo >&2
       echo ========== End ========== >&2
    fi
-   [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]] || rm -rf ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR >&2
-   [[ -f $TMPLOGFILEPREFIX ]] && rm -f $TMPLOGFILEPREFIX >&2
+   if [[ $DEBUG_CLEANUP ]]; then
+      RM_VERBOSE="-v"
+      ls -l $WORKDIR/* ${LOGFILEPREFIX}* >&2
+   fi
+   [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]] || rm $RM_VERBOSE -rf ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR >&2
+   [[ -f $TMPLOGFILEPREFIX ]] && rm $RM_VERBOSE -f $TMPLOGFILEPREFIX >&2
+   [[ $DEBUG_CLEANUP ]] && echo "run-parallel.sh exiting with status code: $GLOBAL_RETURN_CODE" >&2
    exit $GLOBAL_RETURN_CODE
 ' 0 1 13 14
 
