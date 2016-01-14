@@ -202,7 +202,7 @@ warn()
 # node, 0 (true) otherwise, in which case we assume we're on a head/login node.
 on_head_node()
 {
-   if [[ $PBS_JOBID ]]; then
+   if [[ $PBS_JOBID || $GECOSHEP_JOB_ID ]]; then
       return 1
    else
       return 0
@@ -211,12 +211,15 @@ on_head_node()
 
 if [[ $PBS_JOBID ]]; then
    SHORT_JOB_ID=${PBS_JOBID:0:13}
+elif [[ $GECOSHEP_JOB_ID ]]; then
+   SHORT_JOB_ID=$GECOSHEP_JOB_ID
 else
    SHORT_JOB_ID=$$.local
 fi
 
 WORKER_CPU_STRING="Run-parallel-worker-CPU"
 START_TIME=`date +"%s"`
+CLUSTER_TYPE=`on-cluster.sh -type`
 NUM=
 HIGHMEM=
 NOHIGHMEM=
@@ -403,6 +406,23 @@ if [[ "$1" = add || "$1" = quench || "$1" = kill || "$1" = num_worker ]]; then
    exit 0
 fi
 
+if [[ "$ON_ERROR" != continue &&
+      "$ON_ERROR" != stop &&
+      "$ON_ERROR" != killall ]]; then
+   error_exit "Invalid -on-error specification: $ON_ERROR"
+fi
+
+if [[ $NOCLUSTER ]]; then
+   CLUSTER=
+elif on-cluster.sh; then
+   CLUSTER=1
+else
+   CLUSTER=
+fi
+
+[[ $HOSTNAME =~ gpsc && $CLUSTER ]] &&
+   error_exit "run-parallel.sh must be submitted using psub on this cluster."
+
 # Assume there's a problem until we know things finished cleanly.
 GLOBAL_RETURN_CODE=2
 
@@ -416,7 +436,11 @@ trap '
    [[ $DEBUG_CLEANUP ]] && echo "run-parallel.sh cleaning up: $WORKDIR/ $TMPLOGFILEPREFIX ${LOGFILEPREFIX}\*" >&2
    if [[ -n "$WORKER_JOBIDS" ]]; then
       WORKERS=`cat $WORKER_JOBIDS`
-      jobdel $WORKERS >& /dev/null
+      if [[ $CLUSTER_TYPE == jobsub ]]; then
+         jobdel $WORKERS >& /dev/null
+      else
+         qdel $WORKERS >& /dev/null
+      fi
    else
       WORKERS=""
    fi
@@ -456,20 +480,26 @@ trap '
 # we setup a trap with a more cluster-friendly behaviour for SIGTERM, SIGINT
 # and SIGQUIT.
 trap '
-   # TODO: handle qsig equivalent on gpsc
    if [[ -n "$WORKER_JOBIDS" ]]; then
-      echo "Caught termination signal, killing workers slowly (please be patient)" >&2
+      echo "Caught termination signal, killing workers slowly (please be patient)"
       WORKERS=`cat $WORKER_JOBIDS`
       NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
       if [[ $NUM_WORKERS -le 10 ]]; then
-         echo "Using SIGUSR1" >&2
-         qsig -s SIGUSR1 $WORKERS
+         SIGNAL=SIGUSR1
       else
-         echo "Using SIGUSR2" >&2
-         qsig -s SIGUSR2 $WORKERS
+         SIGNAL=SIGUSR2
       fi
+      echo "Using $SIGNAL"
+      if [[ $CLUSTER_TYPE == jobsub ]]; then
+         for worker in $WORKERS; do
+            jobsig.pl -s $SIGNAL $worker
+         done
+      else
+         qsig -s $SIGNAL $WORKERS
+      fi
+      sleep 10
       WORKER_JOBIDS=""
-   fi
+   fi >&2
    exit $GLOBAL_RETURN_CODE
 ' 2 3 15
 
@@ -486,20 +516,6 @@ fi
 test -f $JOBSET_FILENAME && mv $JOBSET_FILENAME $WORKDIR/jobs
 JOBSET_FILENAME=$WORKDIR/jobs
 LOGFILEPREFIX=$WORKDIR/
-
-if [[ $NOCLUSTER ]]; then
-   CLUSTER=
-elif on-cluster.sh; then
-   CLUSTER=1
-else
-   CLUSTER=
-fi
-
-if [[ "$ON_ERROR" != continue &&
-      "$ON_ERROR" != stop &&
-      "$ON_ERROR" != killall ]]; then
-   error_exit "Invalid -on-error specification: $ON_ERROR"
-fi
 
 # save instructions from STDIN into instruction set
 if [[ $EXEC ]]; then
@@ -745,7 +761,7 @@ if [[ $CLUSTER ]]; then
    find $HOME/.run-parallel-logs/ -type f -mtime +7 -exec rm -f '{}' \; 2>&1 | grep -v 'No such file or directory'
 
    # Can we write into $HOME/.run-parallel-logs/?
-   TMPLOGFILEPREFIX=`mktemp $HOME/.run-parallel-logs/run-p.$$.XXXXXX`
+   TMPLOGFILEPREFIX=`mktemp $HOME/.run-parallel-logs/run-p.$SHORT_JOB_ID.XXX`
    [[ $? == 0 ]] || error_exit "Can't create temporary file for worker log files."
    LOGFILEPREFIX=$TMPLOGFILEPREFIX
 
@@ -950,7 +966,7 @@ if (( $NUM > $FIRST_PSUB )); then
          [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA"
 
          if (( $VERBOSE > 2 )); then
-            echo ${SUBMIT_CMD[@]} -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR >&2
+            echo "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR >&2
          fi
          "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR >> $WORKER_JOBIDS ||
             error_exit "Error launching worker $i using psub"
