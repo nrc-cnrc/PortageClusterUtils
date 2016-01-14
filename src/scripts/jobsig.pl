@@ -52,6 +52,18 @@ system("/bin/kill -l $signal > /dev/null") == 0 or die "Error: unknown signal $s
 my $jobid = shift;
 0 == @ARGV or usage "Error: superfluous argument(s): @ARGV";
 
+my $cluster_type = `on-cluster.sh -type`;
+chomp $cluster_type;
+if ($cluster_type eq "qsub") {
+   my $cmd = "qsig -s $signal $jobid";
+   print $cmd, "\n";
+   if ($notreally) {
+      exit;
+   } else {
+      exit(system $cmd);
+   }
+}
+
 sub getPIDs {
    open PS, "sshj -j $jobid -- ps fjxaww |"
       or die "Error: cannot open sshj pipe to get process IDs";
@@ -79,13 +91,13 @@ sub getPIDs {
       }
    }
    if (!close PS) {
-      warn "Error: problem closing sshj pipe to job node, command probably did not work";
-      @PS_output && print STDERR "ps fjxaww output was:\n", @PS_output;
+      @PS_output && print STDERR @PS_output;
+      warn "Error: problem with sshj cmd to find job processes on the job node\n";
       exit 1;
    }
 
    defined $job_pgid
-      or die "Error: could not find process information for job $jobid";
+      or die "Error: could not find process information for job $jobid\n";
 
    return ($job_pgid, $job_main_pid, @job_other_pids);
 }
@@ -97,4 +109,4 @@ print "PGID = $job_pgid\nMain PID = $job_main_pid\nOther PIDs = @job_other_pids\
 # Send the signal
 my $cmd = "sshj -j $jobid -- kill -$signal -$job_pgid";
 print $cmd, "\n";
-system($cmd) unless $notreally;
+exit(system($cmd)) unless $notreally;
