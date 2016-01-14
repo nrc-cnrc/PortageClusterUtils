@@ -377,6 +377,9 @@ if true; then
    pwd
    ls -l /space/project/portage
    ls -l /space/group/nrc_ict/pkgs/
+   echo
+   lscpu
+   head -25 /proc/cpuinfo | grep "model name"
    echo END DEBUGGING
    echo; echo; echo; echo
 fi >&2
