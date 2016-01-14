@@ -317,6 +317,12 @@ function gpsc {
    ERR_FILE=${ERR_FILE:-$HERE}
    OUT_FILE=${OUT_FILE:-$HERE}
 
+   # We set the ulimit -v 10MB lower than res_mem because it applies per process, not
+   # globally. Those 10MB are for manager scripts and such
+   # Known limitation: this won't catch memory problems when the user has multiple memory
+   # consuming processes in one job. Those will still most likely get bus errors.
+   VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 ) * 1024))
+
 cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
 #
@@ -364,8 +370,9 @@ export OMP_NUM_THREADS=$CPU_COUNT
 # TODO: we shouldn't source portage's profile !!?
 #source /space/project/portage/main/profile
 
-# NOTE:
-# Unlike on balzac, we are not enforcing any memory limitation since sge will take care of it thus no ulimit here.
+# On the GPSC, we set a ulimit -v to the memory requested, because otherwise the process
+# just dies with a bus error when it exceeds its memory allocation.
+ulimit -v $VMEM_ULIMIT_KB
 
 ######################
 # DEBUGGING
