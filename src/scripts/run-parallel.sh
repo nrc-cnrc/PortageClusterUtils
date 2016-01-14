@@ -465,6 +465,16 @@ trap '
       done >&2
       echo >&2
       echo ========== End ========== >&2
+   else
+      for x in ${LOGFILEPREFIX}log.worker*; do
+         if [[ -s $x ]]; then
+            echo ""
+            echo ========== $x ==========
+            cat $x | sed -n -e "/^Architecture/,/^model name/p;/^==* Starting/p;/^==* Finished/p;"
+         fi
+      done >&2
+      echo >&2
+      echo ========== End ========== >&2
    fi
    if [[ $DEBUG_CLEANUP ]]; then
       RM_VERBOSE="-v"
