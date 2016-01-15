@@ -19,9 +19,9 @@ sub usage {
    print STDERR @_, "";
    $0 =~ s#.*/##;
    print STDERR "
-Usage: $0 [-s SIGNAL] JOB_ID
+Usage: $0 [-s SIGNAL] JOB_ID ...
 
-  Send SIGNAL to the processes of cluster job JOB_ID.
+  Send SIGNAL to the processes of cluster job(s) JOB_ID ...
 
 Options:
 
@@ -49,13 +49,12 @@ defined $signal or $signal = 15;
 system("/bin/kill -l $signal > /dev/null") == 0 or die "Error: unknown signal $signal.\n";
 
 0 == @ARGV and usage "Error: missing job ID.";
-my $jobid = shift;
-0 == @ARGV or usage "Error: superfluous argument(s): @ARGV";
+my @jobids = @ARGV;
 
 my $cluster_type = `on-cluster.sh -type`;
 chomp $cluster_type;
 if ($cluster_type eq "qsub") {
-   my $cmd = "qsig -s $signal $jobid";
+   my $cmd = "qsig -s $signal @jobids";
    print $cmd, "\n";
    if ($notreally) {
       exit;
@@ -63,6 +62,21 @@ if ($cluster_type eq "qsub") {
       exit(system $cmd);
    }
 }
+
+if (@jobids > 1) {
+   my $rc = 0;
+   my $cmd = "$0 -s $signal";
+   $cmd .= " -debug" if $debug;
+   $cmd .= " -notreally" if $notreally;
+   for my $jobid (@jobids) {
+      if (0 != system("$cmd $jobid")) {
+         $rc = 1;
+      }
+   }
+   exit($rc);
+}
+
+my $jobid = $jobids[0];
 
 sub getPIDs {
    open PS, "sshj -j $jobid -- ps fjxaww |"
