@@ -67,8 +67,10 @@ Options:
   -f             force submission even if errors are detected
   -I             enter interactive mode thus getting a prompt to a node
   -P PERIOD      Log memory usage of process tree every PERIOD minutes. [6]
-  -require       Returns, without executing, how much vmem is required to run
-                 the jobs.
+  -require       Displays, without executing, how much vmem is required to run
+                 the jobs (in GB on Balzac, in MB on the GPSC).
+  -require-cpus  Displays, without executing, how many CPUs are required, if
+                 specified explicitely; otherwise, has not output.
 
 Further notes:
 
@@ -125,10 +127,12 @@ normalizeMemoryRequirement() {
 }
 
 
+### Balzac
 # Set some virtual memory constant per cpu.
 VMEM_LIMIT_GB_PER_CPU=7
 VMEM_HARD_LIMIT_GB_PER_CPU=6
 
+### GPSC
 # Note: a be node has 100000M of ram and 16 cores thus ~6GB of ram per core
 VMEM_LIMIT_MB_PER_CPU=6144   # 6 GB
 
@@ -139,6 +143,7 @@ MEMORY_POLLING_DELAY=6
 PRIORITY=
 JOB_ARRAY=
 
+### GPSC
 PARALLEL_ENVIRONMENT=dev
 # NOTE, PE_PARALLEL_PROCESSES should always be 1.
 PE_PARALLEL_PROCESSES=1
@@ -211,6 +216,7 @@ while [ $# -gt 0 ]; do
    -n)              NOT_REALLY=1;;
    -f)              FORCE=1;;
    -require)        REQUIREMENTS=1;;
+   -require-cpus)   CPU_REQUIREMENTS=1;;
    --)              shift; break;;
    -*)              error_exit "Unknown options $1.";;
    *)               break;;
@@ -218,7 +224,10 @@ while [ $# -gt 0 ]; do
    shift
 done
 
-[[ $CPU_COUNT ]] || CPU_COUNT=1
+if [[ ! $CPU_COUNT ]]; then
+   USING_DEFAULT_CPU_COUNT=1
+   CPU_COUNT=1
+fi
 [[ $VMEM_LIMIT_MB ]] || VMEM_LIMIT_MB=$((VMEM_LIMIT_MB_PER_CPU * 1))  # 6GB
 
 COMMAND="$*"
@@ -226,16 +235,24 @@ COMMAND="$*"
 
 function requirements {
    # Must be done before any qsub dependency
-   if [ $REQUIREMENTS ]; then
-      VMEM_HARD_LIMIT_GB=0
-      if [ $BALZAC ]; then
+   if [[ $REQUIREMENTS ]]; then
+      if [[ $BALZAC ]]; then
          VMEM_HARD_LIMIT_GB=$(($VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
          # -memmap adds extra virtual memory
-         if [ $MEMMAP ]; then
+         if [[ $MEMMAP ]]; then
             VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP))
          fi
+         echo $VMEM_HARD_LIMIT_GB
+      elif [[ $GPSC ]]; then
+         echo $VMEM_LIMIT_MB
+      else
+         echo 0
       fi
-      echo $VMEM_HARD_LIMIT_GB
+      exit
+   elif [[ $CPU_REQUIREMENTS ]]; then
+      if [[ ! $USING_DEFAULT_CPU_COUNT ]]; then
+         echo $CPU_COUNT
+      fi
       exit
    fi
 }
@@ -458,7 +475,7 @@ if uname -n | egrep -q 'balzac|blz'; then
    BALZAC=1
 elif uname -n | egrep -q 'venus|vns'; then
    VENUS=1
-elif which-test.sh jobsub >& /dev/null; then
+elif [[ `on-cluster.sh -type` == jobsub ]]; then
    GPSC=1
    gpsc
    exit
