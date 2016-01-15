@@ -471,10 +471,11 @@ trap '
             echo ""
             echo ========== $x ==========
             cat $x | sed -n -e "/^Architecture/,/^model name/p;/^==* Starting/p;/^==* Finished/p;"
+            did_some_output=1
          fi
       done >&2
       echo >&2
-      echo ========== End ========== >&2
+      [[ $did_some_output ]] && echo ========== End ========== >&2
    fi
    if [[ $DEBUG_CLEANUP ]]; then
       RM_VERBOSE="-v"
@@ -776,7 +777,7 @@ if [[ $CLUSTER ]]; then
    # Remove old psub-dummy-output files from previous runs
    # We use -exec rather than piping into xargs because it's much faster this
    # way when there are no files to delete, which will most often be the case.
-   find $HOME/.run-parallel-logs/ -type f -mtime +7 -exec rm -f '{}' \; 2>&1 | grep -v 'No such file or directory'
+   find $HOME/.run-parallel-logs/ -type f -mtime +7 -exec rm -f '{}' \; 2>&1 | grep -v 'No such file or directory' 1>&2
 
    # Can we write into $HOME/.run-parallel-logs/?
    TMPLOGFILEPREFIX=`mktemp $HOME/.run-parallel-logs/run-p.$SHORT_JOB_ID.XXX`
