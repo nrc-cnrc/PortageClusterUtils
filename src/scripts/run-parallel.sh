@@ -500,13 +500,7 @@ trap '
          SIGNAL=SIGUSR2
       fi
       echo "Using $SIGNAL"
-      if [[ $CLUSTER_TYPE == jobsub ]]; then
-         for worker in $WORKERS; do
-            jobsig.pl -s $SIGNAL $worker
-         done
-      else
-         qsig -s $SIGNAL $WORKERS
-      fi
+      jobsig.pl -s $SIGNAL $WORKERS
       sleep 10
       WORKER_JOBIDS=""
    fi >&2
@@ -624,9 +618,9 @@ fi
 if [[ $CLUSTER ]]; then
    MY_HOST=`hostname`
 
-   if [[ $PSUBOPTS =~ '.*(^| )-([0-9]+)($| )' ]]; then
-      NCPUS=${BASH_REMATCH[2]}
-      test -n $DEBUG && echo Requested $NCPUS CPUs per worker >&2
+   NCPUS=`psub -require-cpus $PSUBOPTS`
+   if [[ $NCPUS ]]; then
+      [[ $DEBUG ]] && echo Requested $NCPUS CPUs per worker >&2
    elif [[ $HIGHMEM ]]; then
       # For high memory, request two CPUs per worker with ncpus=2.
       PSUBOPTS="-2 $PSUBOPTS"
@@ -646,6 +640,12 @@ if [[ $CLUSTER ]]; then
          [[ $DEBUG ]] && echo "Found parent NCPUS override=$RUNPARALLEL_WORKER_NCPUS" >&2
       elif [[ $PBS_JOBID ]]; then
          if [[ `qstat -f $PBS_JOBID 2> /dev/null` =~ '1:ppn=([[:digit:]]+)' ]]; then
+            PARENT_NCPUS=${BASH_REMATCH[1]}
+         else
+            PARENT_NCPUS=1
+         fi
+      elif [[ $GECOSHEP_JOB_ID ]]; then
+         if [[ `jobst -j $GECOSHEP_JOB_ID 2> /dev/null` =~ 'res_cpus=([[:digit:]]+)' ]]; then
             PARENT_NCPUS=${BASH_REMATCH[1]}
          else
             PARENT_NCPUS=1
@@ -706,7 +706,13 @@ if [[ $CLUSTER ]]; then
          if [[ `qstat -f $PBS_JOBID 2> /dev/null` =~ 'Resource_List.vmem = ([[:digit:]]+)gb' ]]; then
             PARENT_VMEM=${BASH_REMATCH[1]}
          else
-            [[ $DEBUG ]] && echo "Failed determining PARENT_VMEM" >&2
+            [[ $DEBUG ]] && echo "Failed determining PARENT_VMEM using qstat" >&2
+         fi
+      elif [[ $GECOSHEP_JOB_ID ]]; then
+         if [[ `jobst -j $GECOSHEP_JOB_ID 2> /dev/null` =~ 'res_mem=([[:digit:]]+)' ]]; then
+            PARENT_VMEM=${BASH_REMATCH[1]}
+         else
+            [[ $DEBUG ]] && echo "Failed determining PARENT_VMEM using jobst" >&2
          fi
       else
          [[ $DEBUG ]] && echo "Not in a PBS_JOB thus not getting PARENT_VMEM" >&2
@@ -714,14 +720,16 @@ if [[ $CLUSTER ]]; then
 
       # If the parent doesn't have enough VMEM it won't be allowed to run a job.
       if [[ $JOB_VMEM && $PARENT_VMEM ]]; then
+         # Units: on Balzac, $JOB_VMEM and $PARENT_VMEM are in GB; on the GPSC, in MB
+         [[ $CLUSTER_TYPE == jobsub ]] && UNIT=MB || UNIT=GB
          if [[ $JOB_VMEM -gt $PARENT_VMEM ]]; then
-            echo "Requested more VMEM for workers (${JOB_VMEM}GB) than master has (${PARENT_VMEM}GB), setting -nolocal." >&2
+            echo "Requested more VMEM for workers ($JOB_VMEM $UNIT) than master has ($PARENT_VMEM $UNIT), setting -nolocal." >&2
             NOLOCAL=1
          else
             # Let's find out how many jobs can actually fit in local memory
             if (( $LOCAL_JOBS * $JOB_VMEM > $PARENT_VMEM )); then
                LOCAL_JOBS=$(($PARENT_VMEM / $JOB_VMEM))
-               echo "Parent has only enough VMEM (${PARENT_VMEM}GB) for $LOCAL_JOBS local workers (at ${JOB_VMEM}GB VMEM each)." >&2
+               echo "Parent has only enough VMEM ($PARENT_VMEM $UNIT) for $LOCAL_JOBS local workers (at $JOB_VMEM $UNIT VMEM each)." >&2
             fi
          fi
       fi
@@ -809,16 +817,17 @@ if [[ $CLUSTER ]]; then
 
    if [[ $DEBUG ]]; then
       echo "
-   NOLOCAL = $NOLOCAL
-   USER_LOCAL= $USER_LOCAL
-   PBS_JOBID = $PBS_JOBID
-   JOB_VMEM = $JOB_VMEM
-   PARENT_VMEM = $PARENT_VMEM
-   NCPUS = $NCPUS
-   PARENT_NCPUS = $PARENT_NCPUS
-   LOCAL_JOBS = $LOCAL_JOBS
-   FIRST_PSUB = $FIRST_PSUB
-   NUM = $NUM
+   NOLOCAL        = $NOLOCAL
+   USER_LOCAL     = $USER_LOCAL
+   PBS_JOBID      = $PBS_JOBID
+   GECOSHEP_JOB_ID= $GECOSHEP_JOB_ID
+   JOB_VMEM       = $JOB_VMEM
+   PARENT_VMEM    = $PARENT_VMEM
+   NCPUS          = $NCPUS
+   PARENT_NCPUS   = $PARENT_NCPUS
+   LOCAL_JOBS     = $LOCAL_JOBS
+   FIRST_PSUB     = $FIRST_PSUB
+   NUM            = $NUM
    " >&2
    fi
 
