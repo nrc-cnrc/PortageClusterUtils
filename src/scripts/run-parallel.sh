@@ -773,7 +773,7 @@ if [[ $CLUSTER ]]; then
    # Can we write into $HOME/.run-parallel-logs/?
    TMPLOGFILEPREFIX=`mktemp $HOME/.run-parallel-logs/run-p.$SHORT_JOB_ID.XXX`
    [[ $? == 0 ]] || error_exit "Can't create temporary file for worker log files."
-   LOGFILEPREFIX=$TMPLOGFILEPREFIX
+   LOGFILEPREFIX=$TMPLOGFILEPREFIX.
 
    #SUBMIT_CMD=(psub -o $HOME/.run-parallel-logs/psub-dummy-output -noscript $PSUBOPTS)
    SUBMIT_CMD=(psub -noscript $PSUBOPTS)
@@ -802,7 +802,6 @@ if [[ $CLUSTER ]]; then
    else
       WORKER_NAME=${JOB_NAME}w
    fi
-   LOGFILEPREFIX=$LOGFILEPREFIX.$WORKER_NAME.
 
    # This file will contain the PBS job IDs of each worker
    WORKER_JOBIDS=$WORKDIR/worker_jobids
