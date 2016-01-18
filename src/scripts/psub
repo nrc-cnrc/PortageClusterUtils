@@ -52,6 +52,7 @@ Options:
   -rt RUN_TIME   Specify the job's run time in minutes [1440 (one day)]
   -e ERR_FILE    stderr destination
   -o OUT_FILE    stdout destination
+  -j JOIN        Pass -j JOIN to qsub (on GPSC: y joins; on Balzac, oe joins)
   -noscript      don't write out the script
   -l RES=VAL[,RES2=VAL2[,...]]  resources for job (see man pbs_resources)
                  (separate multiple resources with commas, or repeat -l)
@@ -190,6 +191,9 @@ while [ $# -gt 0 ]; do
                     shift;;
    -o)              arg_check 1 $# $!;
                     OUT_FILE=$2;
+                    shift;;
+   -j)              arg_check 1 $# $!
+                    QSPARAMS="$QSPARAMS -j $2"
                     shift;;
    -P)              arg_check 1 $# $!;
                     MEMORY_POLLING_DELAY=$2;
