@@ -420,9 +420,6 @@ else
    CLUSTER=
 fi
 
-[[ $HOSTNAME =~ gpsc && $CLUSTER ]] &&
-   error_exit "run-parallel.sh must be submitted using psub on this cluster."
-
 # Assume there's a problem until we know things finished cleanly.
 GLOBAL_RETURN_CODE=2
 
@@ -845,6 +842,9 @@ if [[ $UNIT_TEST ]]; then
    rm -r $WORKDIR
    exit
 fi
+
+[[ $HOSTNAME =~ gpsc && $CLUSTER ]] &&
+   error_exit "run-parallel.sh must be submitted using psub on this cluster."
 
 # We use a named pipe instead of a file - faster, and more reliable.
 mkfifo $WORKDIR/port || error_exit "Can't create named pipe $WORKDIR/port"
