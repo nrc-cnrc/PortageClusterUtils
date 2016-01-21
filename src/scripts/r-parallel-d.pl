@@ -101,6 +101,15 @@ if ( ($num_workers + 0) ne $num_workers or $num_workers <= 0 ) {
    exit_with_error "Invalid value for InitNumWorkers: $num_workers; must be a positive integer.";
 }
 
+sub report_signal($) {
+   log_msg "Caught signal $_[0]. Not quiting in case workers are still reporting back.";
+}
+$SIG{INT} = sub { report_signal(2) };
+$SIG{QUIT} = sub { report_signal(3) };
+$SIG{USR1} = sub { report_signal(10) };
+$SIG{USR2} = sub { report_signal(12) };
+$SIG{TERM} = sub { report_signal(15) };
+
 # Return a random integer in the range [$min, $max).
 #srand(0); # predictable for testing
 srand(time() ^ ($$ + ($$ << 15))); # less predictable, for normal use
@@ -259,8 +268,8 @@ for ( ; $paddr = accept(Client, Server); close Client) {
             if ( $stop_on_error ) {
                # Don't laurch any further jobs, accomplished by pretending
                # the jobs that aren't launched yet never existed.
+               log_msg "Non-zero exit status, not launching any further jobs. $job_no of $num were launched.";
                $num=$job_no;
-               log_msg "Non-zero exit status, not launching any further jobs.";
             } elsif ( $killall_on_error ) {
                # Abort now, all workers will get killed
                log_msg "Non-zero exit status, aborting and killing workers.";
