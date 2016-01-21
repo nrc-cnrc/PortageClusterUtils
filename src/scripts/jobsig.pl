@@ -68,11 +68,15 @@ if (@jobids > 1) {
    my $cmd = "$0 -s $signal";
    $cmd .= " -debug" if $debug;
    $cmd .= " -notreally" if $notreally;
+   my $script = "";
    for my $jobid (@jobids) {
-      if (0 != system("$cmd $jobid")) {
-         $rc = 1;
-      }
+      $script .= "$cmd $jobid & ";
+      #if (0 != system("$cmd $jobid")) {
+      #   $rc = 1;
+      #}
    }
+   $script .= "wait ; date";
+   $rc = system($script);
    exit($rc);
 }
 
@@ -110,12 +114,15 @@ sub getPIDs {
       exit 1;
    }
 
-   defined $job_pgid
-      or die "Error: could not find process information for job $jobid\n";
+   if (! defined $job_pgid) {
+      $debug && print STDERR @PS_output;
+      die "Error: could not find process information for job $jobid\n";
+   }
 
    return ($job_pgid, $job_main_pid, @job_other_pids);
 }
 
+print localtime() . "\n";
 my ($job_pgid, $job_main_pid, @job_other_pids) = getPIDs();
 
 print "PGID = $job_pgid\nMain PID = $job_main_pid\nOther PIDs = @job_other_pids\n";
@@ -123,4 +130,8 @@ print "PGID = $job_pgid\nMain PID = $job_main_pid\nOther PIDs = @job_other_pids\
 # Send the signal
 my $cmd = "sshj -j $jobid -- kill -$signal -$job_pgid";
 print $cmd, "\n";
-exit(system($cmd)) unless $notreally;
+if (! $notreally) {
+   my $rc = system($cmd);
+   print $cmd . " finished at " . localtime() . ($rc ? " with rc=$rc" : "") . "\n";
+   exit($rc);
+}
