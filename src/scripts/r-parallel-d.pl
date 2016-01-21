@@ -115,7 +115,7 @@ $SIG{TERM} = sub { report_signal(15) };
 srand(time() ^ ($$ + ($$ << 15))); # less predictable, for normal use
 sub rand_in_range($$) {
    my ($min, $max) = @_;
-   return int(rand ($max-$min)) + $min;
+   return int(rand ($max-$min+1)) + $min;
 }
 
 # Read job file and store in an array.
@@ -145,7 +145,9 @@ threads->create('look_for_process', $process_id, $R_PARALLEL_D_PL_SLEEP_TIME)->d
 
 # This while(1) loop tries to open the listening socket until it succeeds
 while ( 1 ) {
-   my $port = rand_in_range 10000, 25000;
+   #my $port = rand_in_range 10000, 25000;
+   # On the GPSC, login nodes can receive connections on ports 5900 to 5999 only
+   my $port = rand_in_range 5900, 5999;
    my $proto = getprotobyname('tcp');
    socket(Server, PF_INET, SOCK_STREAM, $proto) or exit_with_error "$0 socket: $!";
    setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l", 1))

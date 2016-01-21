@@ -843,8 +843,10 @@ if [[ $UNIT_TEST ]]; then
    exit
 fi
 
-[[ $HOSTNAME =~ gpsc && $CLUSTER ]] &&
-   error_exit "run-parallel.sh must be submitted using psub on this cluster."
+# This is no longer required: we now use ports 5900-5999, where the GPSC login node
+# accepts connections.
+#[[ $HOSTNAME =~ gpsc && $CLUSTER ]] &&
+#   error_exit "run-parallel.sh must be submitted using psub on this cluster."
 
 # We use a named pipe instead of a file - faster, and more reliable.
 mkfifo $WORKDIR/port || error_exit "Can't create named pipe $WORKDIR/port"
