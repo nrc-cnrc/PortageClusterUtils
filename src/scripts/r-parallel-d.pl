@@ -102,7 +102,7 @@ if ( ($num_workers + 0) ne $num_workers or $num_workers <= 0 ) {
 }
 
 sub report_signal($) {
-   log_msg "Caught signal $_[0]. Not quiting in case workers are still reporting back.";
+   log_msg "Daemon caught signal $_[0]. Not quitting in case workers are still reporting back.";
 }
 $SIG{INT} = sub { report_signal(2) };
 $SIG{QUIT} = sub { report_signal(3) };

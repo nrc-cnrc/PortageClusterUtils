@@ -489,7 +489,7 @@ trap '
 # and SIGQUIT.
 trap '
    if [[ -n "$WORKER_JOBIDS" ]]; then
-      echo "Caught termination signal, killing workers slowly (please be patient)"
+      echo "Caught a termination signal, killing workers (please be patient)"
       WORKERS=`cat $WORKER_JOBIDS`
       NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
       if [[ $NUM_WORKERS -le 10 ]]; then
@@ -499,11 +499,11 @@ trap '
       fi
       echo "Using $SIGNAL"
       jobsig.pl -s $SIGNAL $WORKERS
-      sleep 10
+      sleep 15
       WORKER_JOBIDS=""
    fi >&2
    exit $GLOBAL_RETURN_CODE
-' 2 3 15
+' 2 3 10 12 15
 
 # Create a temp directory for all temp files to go into.
 WORKDIR=`mktemp -d ${PREFIX}run-p.$SHORT_JOB_ID.XXX` || error_exit "Can't create temp WORKDIR."
@@ -895,7 +895,9 @@ else
    if [[ $VERBOSE < 2 ]]; then
       SILENT_WORKER=-silent
    fi
-   WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=real%es:user%Us+sys%Ss:pcpu%P%% r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
+   # Remove /usr/bin/time because it interferes with traps and signal handling on the GPSC.
+   #WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=real%es:user%Us+sys%Ss:pcpu%P%% r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
+   WORKER_CMD_PRE="r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
    WORKER_CMD_POST=""
    if [[ $WORKER_SUBST ]]; then
       SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
@@ -993,7 +995,7 @@ if (( $NUM > $FIRST_PSUB )); then
             error_exit "Error launching worker $i using psub"
          # PBS doesn't like having too many qsubs at once, let's give it a
          # chance to breathe between each worker submission
-         sleep 1
+         (( i > 10 )) && sleep 1
       done
    fi
 fi
