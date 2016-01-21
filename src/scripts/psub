@@ -398,7 +398,7 @@ ulimit -v $VMEM_ULIMIT_KB
 
 ######################
 # DEBUGGING
-if true; then
+if [[ ! \$PSUB_NO_DEBUG ]]; then
    echo DEBUGGING
    env
    whoami
