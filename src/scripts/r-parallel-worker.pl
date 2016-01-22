@@ -62,6 +62,7 @@ if($help ne ''){
 my $me = `uname -n`;
 chomp $me;
 $me .= ":" . ($ENV{PBS_JOBID} || $ENV{GECOSHEP_JOB_ID} || "");
+my $need_sleep = ($me =~ /balzac/);
 $me =~ s/balzac.iit.nrc.ca/balzac/;
 
 if ( $primary ) { $me = "Primary $me"; }
@@ -260,7 +261,7 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
    }
 }
 
-if (!$primary and (time - $start_time) < 60) {
+if ($need_sleep and !$primary and (time - $start_time) < 60) {
    # Super short jobs are not cluster friendly, especially not arrays of them
    my $seconds = rand_in_range 5, 30;
    log_msg "Job too short - sleeping $seconds seconds before exiting.";

@@ -220,6 +220,11 @@ fi
 WORKER_CPU_STRING="Run-parallel-worker-CPU"
 START_TIME=`date +"%s"`
 CLUSTER_TYPE=`on-cluster.sh -type`
+if [[ $CLUSTER_TYPE == jobsub ]]; then
+   QDEL=jobdel
+else
+   QDEL=qdel
+fi
 NUM=
 HIGHMEM=
 NOHIGHMEM=
@@ -301,6 +306,7 @@ while (( $# > 0 )); do
    -quiet-daemon)  QUIET_DAEMON=1;;
    -cleanup)       CLEANUP=1;; # kept here so scripts using it don't have to be patched.
    -d|-debug)      DEBUG=1;;
+   -debug-trap)    DEBUG_TRAP=1;;
    -h|-help)       usage;;
    -unit-test)     UNIT_TEST=1;; # hidden option for unit testing
    *)              break;;
@@ -424,7 +430,7 @@ fi
 GLOBAL_RETURN_CODE=2
 
 DEBUG_CLEANUP=
-[[ $DEBUG ]] && DEBUG_CLEANUP=1
+[[ $DEBUG || $DEBUG_TRAP ]] && DEBUG_CLEANUP=1
 
 # Process clean up at exit or kill - set this trap early enough that we
 # clean up no matter what happens.
@@ -433,20 +439,25 @@ trap '
    [[ $DEBUG_CLEANUP ]] && echo "run-parallel.sh cleaning up: $WORKDIR/ $TMPLOGFILEPREFIX ${LOGFILEPREFIX}\*" >&2
    if [[ -n "$WORKER_JOBIDS" ]]; then
       WORKERS=`cat $WORKER_JOBIDS`
-      if [[ $CLUSTER_TYPE == jobsub ]]; then
-         jobdel $WORKERS >& /dev/null
-      else
-         qdel $WORKERS >& /dev/null
-      fi
+      $QDEL $WORKERS >& /dev/null
    else
       WORKERS=""
    fi
+   [[ $DEBUG_TRAP ]] && echo "WORKERS=$WORKERS"
    if [[ $DAEMON_PID && `ps -p $DAEMON_PID | wc -l` > 1 ]]; then
       kill $DAEMON_PID
    fi
    if [[ $WORKERS ]]; then
       CLEAN_UP_MAX_DELAY=20
-      while jobst -f $WORKERS 2> /dev/null | grep " [RQE] " >& /dev/null; do
+      if [[ $CLUSTER_TYPE == jobsub ]]; then
+         WORKER_SPECS=`echo $WORKERS | tr " " ","`
+         FIND_JOB_CMD="jobst -j $WORKER_SPECS >& /dev/null"
+      else
+         FIND_JOB_CMD="qstat $WORKERS 2> /dev/null | grep \" [RQE] \" >& /dev/null"
+      fi
+
+      [[ $DEBUG_TRAP ]] && echo "FIND_JOB_CMD=$FIND_JOB_CMD"
+      while eval $FIND_JOB_CMD; do
          if [[ $CLEAN_UP_MAX_DELAY = 0 ]]; then break; fi
          CLEAN_UP_MAX_DELAY=$((CLEAN_UP_MAX_DELAY - 1))
          sleep 1
@@ -1008,14 +1019,22 @@ if [[ $CLUSTER ]]; then
    # Give PBS up to 20 seconds to finish cleaning up worker jobs that have just
    # finished
    WORKERS=`cat $WORKER_JOBIDS 2> /dev/null`
+   [[ $DEBUG_TRAP ]] && echo "WORKERS=$WORKERS" >&2
    #echo run-parallel job_id: $PBS_JOBID workers: $WORKERS >&2
    #qstat $WORKERS >&2
    if [[ $WORKERS ]]; then
+      if [[ $CLUSTER_TYPE == jobsub ]]; then
+         WORKER_SPECS=`echo $WORKERS | tr " " ","`
+         FIND_JOB_CMD="jobst -j $WORKER_SPECS >& /dev/null"
+      else
+         FIND_JOB_CMD="qstat $WORKERS 2> /dev/null | grep \" [RQE] \" >& /dev/null"
+      fi
+      [[ $DEBUG_TRAP ]] && echo "FIND_JOB_CMD=$FIND_JOB_CMD" >&2
       for (( i = 0; i < 20; ++i )); do
-         #qstat $WORKERS >&2
-         if qstat $WORKERS 2> /dev/null | grep ' [QRE] ' > /dev/null ; then
+         if eval $FIND_JOB_CMD; then
             #echo Some workers are still running >&2
             sleep 1
+            [[ $DEBUG_TRAP ]] && echo . >&2
          else
             #echo Workers are done, we can safely exit >&2
             break
@@ -1024,7 +1043,8 @@ if [[ $CLUSTER ]]; then
          if [[ $i = 8 ]]; then
             # After 8 seconds, kill remaining psubed workers (which may not
             # have been launched yet) to clean things up.  (Ignore errors)
-            qdel $WORKERS >& /dev/null
+            [[ $DEBUG_TRAP ]] && echo $QDEL $WORKERS >&2
+            $QDEL $WORKERS >& /dev/null
          fi
       done
    fi
