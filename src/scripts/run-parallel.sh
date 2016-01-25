@@ -635,6 +635,13 @@ if [[ $CLUSTER ]]; then
       PSUBOPTS="-2 $PSUBOPTS"
       NCPUS=2
    elif [[ $NOHIGHMEM ]]; then
+      PSUBOPTS="-1 $PSUBOPTS"
+      NCPUS=1
+   elif [[ $PSUB_OPT_CPUS ]]; then
+      NCPUS=`psub -require-cpus $PSUB_OPT_CPUS`
+      echo Master was submitted with $NCPUS CPUs per process, propagating to workers. >&2
+      PSUBOPTS="$PSUBOPTS $PSUB_OPT_CPUS"
+   elif [[ $PSUB_OPT_J ]]; then
       NCPUS=1
    fi
 
@@ -702,6 +709,9 @@ if [[ $CLUSTER ]]; then
    PSUBOPTS="-p $WORKER_PRIORITY $PSUBOPTS"
    #echo PSUBOPTS $PSUBOPTS
 
+   [[ $PSUB_OPT_MEM ]] && PSUBOPTS="-mem $PSUB_OPT_MEM $PSUBOPTS"
+   [[ $PSUB_OPT_MEMMAP_GB ]] && PSUBOPTS="-memmap $PSUB_OPT_MEMMAP_GB $PSUBOPTS"
+
    if [[ ! $NOLOCAL && ! $USER_LOCAL ]]; then
       # Now that the PSUBOPTS variable has settled down, let's see how much
       # vmem the job requires.
@@ -724,7 +734,7 @@ if [[ $CLUSTER ]]; then
             [[ $DEBUG ]] && echo "Failed determining PARENT_VMEM using jobst" >&2
          fi
       else
-         [[ $DEBUG ]] && echo "Not in a PBS_JOB thus not getting PARENT_VMEM" >&2
+         [[ $DEBUG ]] && echo "Not in a scheduled job, thus not getting PARENT_VMEM" >&2
       fi
 
       # If the parent doesn't have enough VMEM it won't be allowed to run a job.
@@ -749,7 +759,6 @@ if [[ $CLUSTER ]]; then
       export RUNPARALLEL_WORKER_VMEM
       #export RUNPARALLEL_WORKER_VMEM="$JOB_VMEM"
    fi
-
 
    # The psub command is fairly complex, so here it is documented in
    # details

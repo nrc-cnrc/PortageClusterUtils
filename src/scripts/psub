@@ -36,23 +36,29 @@ Options:
   -h(elp)        print this help message
   -v(erbose)     print the qsub script before submitting it
   -N JOB_NAME    specify job name
-  -#             use # CPUs on a node (nodes with # CPUs must exist)
-                 thus getting access to more memory.
-  -cpus C        Specify the required number of cpus [1].
-  -mem M         Specufy the required amount of memory.  By default, GB are
-                 assumed but user can specify G for GigaBytes or M for
-                 MegaBytes [6 GB].
+
+  -#             use # CPUs on a node thus getting access to more memory.
+                 (Deprecated: use -cpus and -mem instead.)
+  -cpus C        Specify the required number of cpus. [1]
+  -mem M         Specify the required amount of memory.  By default, GB are
+                 assumed but user can specify G for GB or M for MB. [6G]
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
                  mapped IO.  Important: use a value less than or equal to the
                  total size of files you will open using memory mapped IO,
-                 otherwise you risk bringing down a node.
+                 otherwise you risk bringing down a node. [0]
+  -j J           use -j J if you intend to run J processes in the same job, each
+                 needing C cpus, M RAM and SIZE GB of shared memory-mapped data.
+                 Your job will have J*M+SIZE RAM and J*C cpus, but a ulimit of
+                 M+SIZE VMEM and OMP_NUM_THREADS=C for each process. [1]
+  Scripts run by psub can find out the values of the above four options in
+  variables PSUB_OPT_{CPUS,MEM,MEMMAP_GB,J}
+
   -i RES_IMAGE   Change the container's image [\$ENV{PSUB_RES_IMAGE}]
   -pe ENVIRONMENT Change the parallel environment [dev]
   -pepp          Change parallel processes [1]
   -rt RUN_TIME   Specify the job's run time in minutes [1440 (one day)]
   -e ERR_FILE    stderr destination
   -o OUT_FILE    stdout destination
-  -j JOIN        Pass -j JOIN to qsub (on GPSC: y joins; on Balzac, oe joins)
   -noscript      don't write out the script
   -l RES=VAL[,RES2=VAL2[,...]]  resources for job (see man pbs_resources)
                  (separate multiple resources with commas, or repeat -l)
@@ -143,12 +149,18 @@ VMEM_LIMIT_MB=
 MEMORY_POLLING_DELAY=6
 PRIORITY=
 JOB_ARRAY=
+OPT_J=1
+
+PSUB_OPT_MEM=
+PSUB_OPT_MEMMAP=
+PSUB_OPT_J=
+PSUB_OPT_CPUS=
 
 ### GPSC
 PARALLEL_ENVIRONMENT=dev
 # NOTE, PE_PARALLEL_PROCESSES should always be 1.
 PE_PARALLEL_PROCESSES=1
-RUNTIME=1440 # one day in minutes (24 x 60).
+RUNTIME_MINUTES=1440 # one day in minutes (24 x 60).
 
 NODES=
 while [ $# -gt 0 ]; do
@@ -158,22 +170,31 @@ while [ $# -gt 0 ]; do
    -N)              arg_check 1 $# $!;
                     NAME=$2;
                     shift;;
-   -[1-9]|-[1-9][0-9]) echo "Warning: -# is deprecated on gpsc." >&2;
-                    [[ $CPU_COUNT ]] || CPU_COUNT=$((0 - $1));
-                    [[ $VMEM_LIMIT_MB ]] || VMEM_LIMIT_MB=$((VMEM_LIMIT_MB_PER_CPU * $((0 - $1))));;
-   -cpus)           arg_check 1 $# $!;
-                    CPU_COUNT=$2;
+   -[1-9]|-[1-9][0-9]) echo "Warning: -# is deprecated on gpsc: use -cpus and -mem instead." >&2;
+                    [[ $CPU_COUNT ]] || CPU_COUNT=$((0 - $1))
+                    [[ $VMEM_LIMIT_MB ]] || VMEM_LIMIT_MB=$((VMEM_LIMIT_MB_PER_CPU * $((0 - $1))))
+                    PSUB_OPT_CPUS="$PSUB_OPT_CPUS $1";;
+   -cpus)           arg_check 1 $# $!
+                    CPU_COUNT=$2
+                    PSUB_OPT_CPUS="$PSUB_OPT_CPUS $1 $2"
                     shift;;
-   -mem)            arg_check 1 $# $!;
-                    VMEM_LIMIT_MB=`normalizeMemoryRequirement "$2"`;
+   -mem)            arg_check 1 $# $!
+                    VMEM_LIMIT_MB=`normalizeMemoryRequirement "$2"`
+                    PSUB_OPT_MEM=$2
+                    shift;;
+   -memmap)         arg_check 1 $# $!
+                    arg_check_pos_int $2 $1
+                    MEMMAP_GB=$2
+                    PSUB_OPT_MEMMAP_GB=$2
+                    shift;;
+   -j)              arg_check 1 $# $!
+                    arg_check_pos_int $2 $1
+                    OPT_J=$2
+                    PSUB_OPT_J=$2
                     shift;;
    -I)              INTMODE=1;
                     NOSCRIPT=1;
                     [[ $CPU_COUNT ]] || CPU_COUNT=4;;
-   -memmap)         arg_check 1 $# $!;
-                    arg_check_pos_int $2 $1;
-                    MEMMAP=$2;
-                    shift;;
    -i)              arg_check 1 $# $!;
                     PSUB_RES_IMAGE=$2;
                     shift;;
@@ -184,16 +205,13 @@ while [ $# -gt 0 ]; do
                     PE_PARALLEL_PROCESSES=$2;
                     shift;;
    -rt)             arg_check 1 $# $!;
-                    RUNTIME=$2;
+                    RUNTIME_MINUTES=$2;
                     shift;;
    -e)              arg_check 1 $# $!;
                     ERR_FILE=$2;
                     shift;;
    -o)              arg_check 1 $# $!;
                     OUT_FILE=$2;
-                    shift;;
-   -j)              arg_check 1 $# $!
-                    QSPARAMS="$QSPARAMS -j $2"
                     shift;;
    -P)              arg_check 1 $# $!;
                     MEMORY_POLLING_DELAY=$2;
@@ -204,7 +222,6 @@ while [ $# -gt 0 ]; do
                     shift;;
    -nodes)          arg_check 1 $# $!;
                     NODES="${NODES:+$NODES,}$2";
-                    EXPLICIT_NODES=1;
                     shift;;
    -qsparams)       arg_check 1 $# $!;
                     QSPARAMS=$2;
@@ -232,10 +249,10 @@ if [[ ! $CPU_COUNT ]]; then
    USING_DEFAULT_CPU_COUNT=1
    CPU_COUNT=1
 fi
+
 [[ $VMEM_LIMIT_MB ]] || VMEM_LIMIT_MB=$((VMEM_LIMIT_MB_PER_CPU * 1))  # 6GB
 
 COMMAND="$*"
-
 
 function requirements {
    # Must be done before any qsub dependency
@@ -243,8 +260,8 @@ function requirements {
       if [[ $BALZAC ]]; then
          VMEM_HARD_LIMIT_GB=$(($VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
          # -memmap adds extra virtual memory
-         if [[ $MEMMAP ]]; then
-            VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP))
+         if [[ $MEMMAP_GB ]]; then
+            VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP_GB))
          fi
          echo $VMEM_HARD_LIMIT_GB
       elif [[ $GPSC ]]; then
@@ -274,7 +291,7 @@ function script2Command {
          local HASH_BANG_LINE=`head -1 $PROG_NAME`
          local INTERPRETER=${HASH_BANG_LINE/#\#\!}
          INTERPRETER=${INTERPRETER%% *}
-         if which "$INTERPRETER" >& /dev/null; then
+         if which-test.sh "$INTERPRETER"; then
             echo Calling your script with "$INTERPRETER"
             COMMAND="$INTERPRETER $COMMAND"
          else
@@ -291,6 +308,9 @@ function script2Command {
 }
 
 
+###############################################################################
+###########################   GPSC SPECIFIC STUFF   ###########################
+###############################################################################
 function gpsc {
    requirements
 
@@ -309,7 +329,7 @@ function gpsc {
    local PROG_NAME=`echo "$COMMAND" | perl -e '
       $_ = <>;
       chomp;
-      # Use STDIN as the job name of the command seems empty
+      # Use STDIN if the job name of the command seems empty
       $_ or $_ = "STDIN";
       @tokens = split;
       print $tokens[0];
@@ -326,13 +346,14 @@ function gpsc {
    # TODO:  is there a limit on job name's length?
    # Make sure $NAME is not longer that 15 characters, and starts with a letter
 
-   # -memmap adds extra virtual memory
-   if [[ $MEMMAP ]]; then
-      VMEM_LIMIT_MB=$((VMEM_LIMIT_MB + MEMMAP * 1024))
-   fi
+   # Calculate the total required value of res_mem
+   TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
+
+   # The job's actual number of CPUs requested is $
+   TOTAL_CPU_COUNT=$((OPT_J * CPU_COUNT))
 
    # Runtime is in seconds.
-   local RUNTIME=$((RUNTIME * 60))
+   local RUNTIME_SECONDS=$((RUNTIME_MINUTES * 60))
 
    local HERE=`pwd`
    ERR_FILE=${ERR_FILE:-$HERE}
@@ -342,7 +363,8 @@ function gpsc {
    # globally. Those 10MB are for manager scripts and such
    # Known limitation: this won't catch memory problems when the user has multiple memory
    # consuming processes in one job. Those will still most likely get bus errors.
-   VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 ) * 1024))
+   # Also, the ulimit is not increased by -j, only by -mem and -memmap.
+   VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
 
 cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
@@ -360,9 +382,9 @@ cat <<==EOF== > $TMPSCRIPT
 
 ## Run exactly one process under dev.
 #$ -pe $PARALLEL_ENVIRONMENT  $PE_PARALLEL_PROCESSES
-#$ -l res_cpus=$CPU_COUNT
-#$ -l res_mem=$VMEM_LIMIT_MB
-#$ -l h_rt=$RUNTIME
+#$ -l res_cpus=$TOTAL_CPU_COUNT
+#$ -l res_mem=$TOTAL_RES_MEM_MB
+#$ -l h_rt=$RUNTIME_SECONDS
 #$ -l res_image=$RES_IMAGE
 #$ -o $OUT_FILE
 #$ -e $ERR_FILE
@@ -386,6 +408,10 @@ cat <<==EOF== > $TMPSCRIPT
 `env | egrep '^(PORTAGE|LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
 
 export OMP_NUM_THREADS=$CPU_COUNT
+export PSUB_OPT_J=$PSUB_OPT_J
+export PSUB_OPT_MEM=$PSUB_OPT_MEM
+export PSUB_OPT_CPUS=$PSUB_OPT_CPUS
+export PSUB_OPT_MEMMAP_GB=$PSUB_OPT_MEMMAP_GB
 
 # TODO: redefine TMPDIR to use SSDs.
 
@@ -443,7 +469,7 @@ jobst -j \$GECOSHEP_JOB_ID >&2
 #        informatin/parameters are available as comments in the header of the
 #        job file?
 # qsub command executed
-# qsub  -N $NAME  -terse  -r no  -pe $PARALLEL_ENVIRONMENT $PE_PARALLEL_PROCESSES  -l res_cpus=$CPU_COUNT  -l res_mem=$VMEM_LIMIT_MB  -l h_rt=$RUNTIME  -l res_image=$RES_IMAGE  -o $OUT_FILE  -e $ERR_FILE  $JOB_ARRAY  $PRIORITY  ${RESOURCES:+-l $RESOURCES}  ${NODES:+-l $NODES}  $TMPSCRIPT
+# qsub  -N $NAME  -terse  -r no  -pe $PARALLEL_ENVIRONMENT $PE_PARALLEL_PROCESSES  -l res_cpus=$TOTAL_CPU_COUNT  -l res_mem=$TOTAL_RES_MEM_MB  -l h_rt=$RUNTIME_SECONDS  -l res_image=$RES_IMAGE  -o $OUT_FILE  -e $ERR_FILE  $JOB_ARRAY  $PRIORITY  ${RESOURCES:+-l $RESOURCES}  ${NODES:+-l $NODES}  $TMPSCRIPT
 
 # original psub command given by user (with quotes and \\ removed)
 # $PSUB_CMD
@@ -488,6 +514,10 @@ else
    true
 fi
 
+###############################################################################
+#################   NOT APPLICABLE FOR GPSC PAST THIS POINT   #################
+###############################################################################
+
 requirements
 
 # In interactive mode we need to reserve an entire node
@@ -518,8 +548,8 @@ if [ -z "$COMMAND" -a ! -n "$INTMODE" ]; then
 fi
 
 # -memmap is only implemented for Balzac, warn if used elsewhere
-if [ -n "$MEMMAP" -a -z "$BALZAC" ]; then
-   echo Warning: -memmap option only implemented for Balzac at this point.
+if [ -n "$MEMMAP_GB" -a -z "$BALZAC" ]; then
+   echo Warning: -memmap option only implemented for Balzac and GPSC at this point.
 fi
 
 if [ $INTMODE ]; then
@@ -565,9 +595,9 @@ if [ $BALZAC ]; then
    VMEM_LIMIT_GB=$(($VMEM_LIMIT_GB_PER_CPU * $CPU_COUNT))
    VMEM_HARD_LIMIT_GB=$(($VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
    # -memmap adds extra virtual memory
-   if [ $MEMMAP ]; then
-      VMEM_LIMIT_GB=$((VMEM_LIMIT_GB + MEMMAP))
-      VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP))
+   if [ $MEMMAP_GB ]; then
+      VMEM_LIMIT_GB=$((VMEM_LIMIT_GB + MEMMAP_GB))
+      VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP_GB))
    fi
    VMEM_HARD_LIMIT_KB=$((VMEM_HARD_LIMIT_GB * 1024 * 1024))
 
