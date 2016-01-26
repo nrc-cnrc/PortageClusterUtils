@@ -264,7 +264,7 @@ while (( $# > 0 )); do
 
                    # NOTE: Make cannot communicate accross machine.
                    # If this invocation is for make, run it locally.
-                   if [[ $* =~ ^make ]]; then
+                   if [[ "$*" =~ ^make ]]; then
                       test -n "$DEBUG" && echo "  <D> Found a make command: $*" >&2
                       exec $*;
                    fi
