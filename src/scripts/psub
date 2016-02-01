@@ -405,7 +405,8 @@ cat <<==EOF== > $TMPSCRIPT
 #$ $QSPARAMS
 
 # User's environment.
-`env | egrep '^(PORTAGE|LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
+`env | egrep '^PORTAGE' | sed -e 's/^/export /'`
+`env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
 
 export OMP_NUM_THREADS=$CPU_COUNT
 export PSUB_OPT_J=$PSUB_OPT_J
