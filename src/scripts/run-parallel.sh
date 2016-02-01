@@ -129,6 +129,7 @@ Cluster mode options:
   -nolocal      psub all workers [run one worker locally, unless on head node]
   -local L      run L jobs locally [calculated automatically]
   -nocluster    force non-cluster mode [auto-detect if we're on a cluster]
+  -j J          submit J workers per psub job using psub's -j J option
   -quota T      When workers have done T minutes of work, re-psub them [30]
   -psub         Provide custom psub options.
   -qsub         Provide custom qsub options.
@@ -192,6 +193,14 @@ arg_check() {
    fi
 }
 
+arg_check_pos_int() {
+   expr $1 + 0 &> /dev/null
+   RC=$?
+   if [ $RC != 0 -a $RC != 1 ] || [ $1 -le 0 ]; then
+      error_exit "Invalid argument to $2 option: $1; positive integer expected."
+   fi
+}
+
 # Print a warning message
 warn()
 {
@@ -229,6 +238,7 @@ NUM=
 HIGHMEM=
 NOHIGHMEM=
 NOLOCAL=
+OPT_J=
 if on_head_node; then NOLOCAL=1; fi
 USER_LOCAL=
 NOCLUSTER=
@@ -291,6 +301,7 @@ while (( $# > 0 )); do
    -nolocal)       NOLOCAL=1; USER_LOCAL=;;
    -local)         arg_check 1 $# $1; USER_LOCAL="$2"; NOLOCAL=; shift;;
    -nocluster)     NOCLUSTER=1;;
+   -j)             arg_check 1 $# $1; arg_check_pos_int $2 $1; OPT_J=$2; shift;;
    -on-error)      arg_check 1 $# $1; ON_ERROR="$2"; shift;;
    -k|-keep-going) ON_ERROR=continue;;
    -N)             arg_check 1 $# $1; JOB_NAME="$2-"; shift;;
@@ -919,11 +930,7 @@ else
    #WORKER_CMD_PRE="/usr/bin/time -f $WORKER_CPU_STRING=real%es:user%Us+sys%Ss:pcpu%P%% r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
    WORKER_CMD_PRE="r-parallel-worker.pl $SILENT_WORKER -host=$MY_HOST -port=$MY_PORT -period $MON_PERIOD"
    WORKER_CMD_POST=""
-   if [[ $WORKER_SUBST ]]; then
-      SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__"
-   else
-      SUBST_OPT=""
-   fi
+   [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/__WORKER__ID__" || SUBST_OPT=""
    WORKER_OTHER_OPT="$SUBST_OPT"
    [[ $CLUSTER ]] && WORKER_OTHER_OPT="$WORKER_OTHER_OPT $QUOTA"
 fi
@@ -947,19 +954,28 @@ else
 fi
 echo $NUM > $WORKDIR/next_worker_id
 
+# usage: gen_worker_cmd $i
+# or:    gen_worker_cmd $i -primary
+gen_worker_cmd() {
+   local i=$1
+   local primary=$2
+   local OUT=$WORKDIR/out.worker-$i
+   local ERR=$WORKDIR/err.worker-$i
+   local MONOPT="-mon $WORKDIR/mon.worker-$i"
+   [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i" || SUBST_OPT=
+   [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA $primary" || WORKER_OTHER_OPT=
+   echo "$WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT > $OUT 2> $ERR"
+}
+
 # start local worker(s) locally, if not disabled.
 if [[ ! $NOLOCAL ]]; then
    # start first worker(s) locally
    for (( i = 0; i < $FIRST_PSUB; ++i )); do
-      OUT=$WORKDIR/out.worker-$i
-      ERR=$WORKDIR/err.worker-$i
-      MONOPT="-mon $WORKDIR/mon.worker-$i"
-      [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i"
-      [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT -primary"
+      WORKER_CMD=`gen_worker_cmd $i -primary`
       if (( $VERBOSE > 2 )); then
-         echo $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR \& >&2
+         echo $WORKER_CMD \& >&2
       fi
-      eval $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT > $OUT 2> $ERR &
+      eval $WORKER_CMD &
    done
 fi
 
@@ -978,8 +994,8 @@ if (( $NUM > $FIRST_PSUB )); then
       DUMMY_OUT=${LOGFILEPREFIX}psub-dummy-out.worker
       ID='$PBS_ARRAYID'
       MONOPT="-mon $WORKDIR/mon.worker-$ID"
-      [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$ID"
-      [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA"
+      [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$ID" || SUBST_OPT=
+      [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA" || WORKER_OTHER_OPT=
       if (( $VERBOSE > 2 )); then
          echo "${SUBMIT_CMD[@]}" -t $FIRST_PSUB-$(($NUM-1)) -N $WORKER_NAME -o $DUMMY_OUT -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT$ID 2\> $ERR$ID >&2
       fi
@@ -996,22 +1012,40 @@ if (( $NUM > $FIRST_PSUB )); then
             echo $WORKER_BASE_JOBID_NUM-$i$WORKER_BASE_JOBID_SUFFIX >> $WORKER_JOBIDS
          done
       fi
+   elif [[ $OPT_J > 1 ]]; then
+      i=$FIRST_PSUB
+      while true; do
+         BLOCK_END=$(( $i + $OPT_J ))
+         [[ $BLOCK_END -gt $NUM ]] && BLOCK_END=$NUM
+         LOCAL_J=$(( BLOCK_END - i ))
+         WORKER_RANGE=$i-$(( BLOCK_END - 1 ))
+         LOG=${LOGFILEPREFIX}log.workers-$WORKER_RANGE
+         DUMMY_OUT=${LOGFILEPREFIX}psub-dummy-out.workers-$WORKER_RANGE
+         WORKER_CMD_LIST=
+         for (( ; i < $BLOCK_END ; ++i )); do
+            WORKER_CMD_LIST="$WORKER_CMD_LIST `gen_worker_cmd $i` &"
+         done
+         if (( $VERBOSE > 2 )); then
+            echo "${SUBMIT_CMD[@]}" -j $LOCAL_J -N $WORKER_NAME-$WORKER_RANGE -o $DUMMY_OUT -e $LOG "$WORKER_CMD_LIST wait" >&2
+         fi
+         "${SUBMIT_CMD[@]}" -j $LOCAL_J -N $WORKER_NAME-$WORKER_RANGE -o $DUMMY_OUT -e $LOG "$WORKER_CMD_LIST wait" >> $WORKER_JOBIDS ||
+            error_exit "Error launching worker $i using psub"
+         if (( $i == $NUM )); then
+            break
+         fi
+      done
    else
       for (( i = $FIRST_PSUB ; i < $NUM ; ++i )); do
          # These should not end up being used by the commands, only by the
          # worker scripts themselves
-         OUT=$WORKDIR/out.worker-$i
-         ERR=$WORKDIR/err.worker-$i
+         WORKER_CMD=`gen_worker_cmd $i`
          LOG=${LOGFILEPREFIX}log.worker-$i
          DUMMY_OUT=${LOGFILEPREFIX}psub-dummy-out.worker-$i
-         MONOPT="-mon $WORKDIR/mon.worker-$i"
-         [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i"
-         [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA"
 
          if (( $VERBOSE > 2 )); then
-            echo "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR >&2
+            echo "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG "$WORKER_CMD" >&2
          fi
-         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $OUT 2\> $ERR >> $WORKER_JOBIDS ||
+         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG "$WORKER_CMD" >> $WORKER_JOBIDS ||
             error_exit "Error launching worker $i using psub"
          # PBS doesn't like having too many qsubs at once, let's give it a
          # chance to breathe between each worker submission
