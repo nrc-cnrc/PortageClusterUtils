@@ -54,13 +54,13 @@ install:  test
 	install -d -m0750 $(INSTALL_DIR)/bin
 	install -p -m0750 $(BINSCRIPTS) $(INSTALL_DIR)/bin
 
+# jobtree & qstattree have some Perl dependencies
 test: check_perl_dependencies
 
-# NOTE:
-# - qstattree requires Term::ANSIColor since this is when colorvalid was added.
+# Term::ANSIColor 3.00 is needed for the bright_ colours; otherwise Term::ANSIColor 2.02 is needed for colorvalid.
+.PHONY: check_perl_dependencies
 check_perl_dependencies:
 	perldoc -l Data::TreeDumper
 	perldoc -l Tree::Simple
 	perldoc -l Time::Piece
-	perl -e 'use Term::ANSIColor 2.02;'
-
+	perl -e 'use Term::ANSIColor 3.00;'

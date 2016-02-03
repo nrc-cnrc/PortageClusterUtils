@@ -705,6 +705,7 @@ else
 fi
 
 TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
+TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
 trap "rm -f $TMPSCRIPT $TMPSCRIPT.jobid; exit" 0 2 3 13 14 15
 
 cat <<==EOF== > $TMPSCRIPT
@@ -715,7 +716,7 @@ export PATH=\$PBS_O_PATH
 ==EOF==
 
 env | grep ^PORTAGE | sed 's/^/export /' >> $TMPSCRIPT
-for var in LD_LIBRARY_PATH PERL5LIB PYTHONPATH MANPATH; do
+for var in LD_LIBRARY_PATH PERL5LIB PYTHONPATH MANPATH MADA_HOME; do
    if [ "`env | grep ^$var=`" != "" ]; then
       echo "export "`env | grep ^$var=` >> $TMPSCRIPT
    fi
