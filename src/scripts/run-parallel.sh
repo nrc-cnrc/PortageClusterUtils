@@ -489,7 +489,8 @@ trap '
          if [[ -s $x ]]; then
             echo ""
             echo ========== $x ==========
-            cat $x | sed -n -e "/^Architecture/,/^model name/p;/^==* Starting/p;/^==* Finished/p;"
+            #cat $x | sed -n -e "/^Architecture/,/^model name/p;/^==* Starting/p;/^==* Finished/p;"
+            cat $x | sed -n -e "/^==* Starting/p;/^==* Finished/p;"
             did_some_output=1
          fi
       done >&2
