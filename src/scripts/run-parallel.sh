@@ -318,6 +318,7 @@ while (( $# > 0 )); do
    -cleanup)       CLEANUP=1;; # kept here so scripts using it don't have to be patched.
    -d|-debug)      DEBUG=1;;
    -debug-trap)    DEBUG_TRAP=1;;
+   -debug-cleanup) DEBUG_CLEANUP=1;;
    -h|-help)       usage;;
    -unit-test)     UNIT_TEST=1;; # hidden option for unit testing
    *)              break;;
@@ -440,9 +441,6 @@ fi
 # Assume there's a problem until we know things finished cleanly.
 GLOBAL_RETURN_CODE=2
 
-DEBUG_CLEANUP=
-[[ $DEBUG || $DEBUG_TRAP ]] && DEBUG_CLEANUP=1
-
 # Process clean up at exit or kill - set this trap early enough that we
 # clean up no matter what happens.
 trap '
@@ -480,22 +478,23 @@ trap '
             echo ""
             echo ========== $x ==========
             cat $x
+            did_some_output=1
          fi
       done >&2
-      echo >&2
-      echo ========== End ========== >&2
-   else
+   elif [[ $DEBUG_CLEANUP ]]; then
       for x in ${LOGFILEPREFIX}log.worker*; do
          if [[ -s $x ]]; then
             echo ""
             echo ========== $x ==========
             #cat $x | sed -n -e "/^Architecture/,/^model name/p;/^==* Starting/p;/^==* Finished/p;"
-            cat $x | sed -n -e "/^==* Starting/p;/^==* Finished/p;"
+            cat $x | sed -n -e "/^model name/p;/^==* Starting/p;/^==* Finished/p;"
             did_some_output=1
          fi
       done >&2
+   fi
+   if [[ $did_some_output ]]; then
       echo >&2
-      [[ $did_some_output ]] && echo ========== End ========== >&2
+      echo ========== End ========== >&2
    fi
    if [[ $DEBUG_CLEANUP ]]; then
       RM_VERBOSE="-v"
