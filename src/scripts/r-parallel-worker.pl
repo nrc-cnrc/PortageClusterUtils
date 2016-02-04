@@ -156,9 +156,9 @@ sub report_signal($) {
    } else {
       send_recv "SIGNALED ($me) ***(rc=$_[0])*** (signal=$_[0]) $reply_rcvd";
       if (1) {
-         log_msg "Sleeping 10 seconds to give children time to clean up.";
+         log_msg "Sleeping 20 seconds to give children time to clean up.";
          $sleeping = 1;
-         sleep 10;
+         sleep 20;
          $sleeping = 0;
       } elsif ( $_[0] == 10 ) {
          my $delay = int(rand(5));
