@@ -523,7 +523,7 @@ trap '
          SIGNAL=SIGUSR2
       fi
       echo "Using $SIGNAL"
-      jobsig.pl -s $SIGNAL $WORKERS
+      jobsig.pl -p -s $SIGNAL $WORKERS
       sleep 15
       WORKER_JOBIDS=""
    fi >&2

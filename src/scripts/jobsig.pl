@@ -27,7 +27,10 @@ Options:
 
   -h(elp)        print this help message
   -s SIGNAL      send signal SIGNAL [15=TERM=SIGTERM]
+  -p(arallel)    signal multiple jobs concurrently [consecutively]
   -n(otreally)   Just show what we would do, but do not send the signal
+  -v(erbose)     increase verbosity
+  -q(uiet)       minimize verbosity
 ";
    exit 1;
 }
@@ -44,8 +47,10 @@ GetOptions(
    debug       => \my $debug,
    notreally   => \my $notreally,
    "s=s"       => \my $signal,
+   parallel    => \my $parallel,
 ) or usage "Error: Invalid option(s).";
 defined $signal or $signal = 15;
+$debug and $verbose += 2;
 system("/bin/kill -l $signal > /dev/null") == 0 or die "Error: unknown signal $signal.\n";
 
 0 == @ARGV and usage "Error: missing job ID.";
@@ -63,27 +68,37 @@ if ($cluster_type eq "qsub") {
    }
 }
 
+$verbose and print "Signalling job(s) @jobids with signal $signal.\n";
+
 if (@jobids > 1) {
    my $rc = 0;
    my $cmd = "$0 -s $signal";
    $cmd .= " -debug" if $debug;
    $cmd .= " -notreally" if $notreally;
-   my $script = "";
-   for my $jobid (@jobids) {
-      $script .= "$cmd $jobid & ";
-      #if (0 != system("$cmd $jobid")) {
-      #   $rc = 1;
-      #}
+   $cmd .= " -verbose" if $verbose > 2;
+   $cmd .= " -quiet" if $verbose < 2;
+   if ($parallel) {
+      my $script = "";
+      for my $jobid (@jobids) {
+         $script .= "$cmd $jobid & ";
+      }
+      $script .= "wait ; date";
+      $rc = system($script);
+      $verbose and print "Tip: if your terminal is wonky now, type <enter>stty sane<enter>\n";
+   } else {
+      for my $jobid (@jobids) {
+         if (0 != system("$cmd $jobid")) {
+            $rc = 1;
+         }
+      }
    }
-   $script .= "wait ; date";
-   $rc = system($script);
    exit($rc);
 }
 
 my $jobid = $jobids[0];
 
 sub getPIDs {
-   open PS, "sshj -j $jobid -- ps fjxaww |"
+   open PS, "sshj -j $jobid -- ps fjxaww 2>&1 |"
       or die "Error: cannot open sshj pipe to get process IDs";
    my ($job_pgid, $job_main_pid, @job_other_pids);
    my @PS_output;
@@ -122,13 +137,14 @@ sub getPIDs {
    return ($job_pgid, $job_main_pid, @job_other_pids);
 }
 
-print localtime() . "\n";
+$verbose and print localtime() . "\n";
 my ($job_pgid, $job_main_pid, @job_other_pids) = getPIDs();
 
-print "PGID = $job_pgid\nMain PID = $job_main_pid\nOther PIDs = @job_other_pids\n";
+$verbose > 1 and print "PGID = $job_pgid\nMain PID = $job_main_pid\nOther PIDs = @job_other_pids\n";
 
 # Send the signal
-my $cmd = "sshj -j $jobid -- kill -$signal -$job_pgid";
+my $redirect_stderr = $verbose ? "" : " 2> /dev/null";
+my $cmd = "sshj -j $jobid -- kill -$signal -$job_pgid $redirect_stderr";
 print $cmd, "\n";
 if (! $notreally) {
    my $rc = system($cmd);
