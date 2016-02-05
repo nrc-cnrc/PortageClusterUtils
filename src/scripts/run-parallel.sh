@@ -439,7 +439,9 @@ else
 fi
 
 # Assume there's a problem until we know things finished cleanly.
-GLOBAL_RETURN_CODE=2
+GLOBAL_RETURN_CODE=3
+# NORMAL_FINISH will be set to 1 before exiting later if run-parellel.sh has finished cleanly.
+NORMAL_FINISH=
 
 # Process clean up at exit or kill - set this trap early enough that we
 # clean up no matter what happens.
@@ -472,13 +474,14 @@ trap '
          sleep 1
       done
    fi
-   if [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]]; then
+   DID_SOME_LOG_OUTPUT=
+   if [[ $DEBUG || ! NORMAL_FINISH ]]; then
       for x in ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR/err.worker-* $WORKDIR/mon.worker-*; do
          if [[ -s $x ]]; then
             echo ""
             echo ========== $x ==========
             cat $x
-            did_some_output=1
+            DID_SOME_LOG_OUTPUT=1
          fi
       done >&2
    elif [[ $DEBUG_CLEANUP ]]; then
@@ -488,11 +491,11 @@ trap '
             echo ========== $x ==========
             #cat $x | sed -n -e "/^Architecture/,/^model name/p;/^==* Starting/p;/^==* Finished/p;"
             cat $x | sed -n -e "/^model name/p;/^==* Starting/p;/^==* Finished/p;"
-            did_some_output=1
+            DID_SOME_LOG_OUTPUT=1
          fi
       done >&2
    fi
-   if [[ $did_some_output ]]; then
+   if [[ $DID_SOME_LOG_OUTPUT ]]; then
       echo >&2
       echo ========== End ========== >&2
    fi
@@ -500,7 +503,7 @@ trap '
       RM_VERBOSE="-v"
       ls -l $WORKDIR/* ${LOGFILEPREFIX}* >&2
    fi
-   [[ $DEBUG || $GLOBAL_RETURN_CODE != 0 ]] || rm $RM_VERBOSE -rf ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR >&2
+   [[ $DEBUG || ! NORMAL_FINISH ]] || rm $RM_VERBOSE -rf ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR >&2
    [[ -f $TMPLOGFILEPREFIX ]] && rm $RM_VERBOSE -f $TMPLOGFILEPREFIX >&2
    [[ $DEBUG_CLEANUP ]] && echo "run-parallel.sh exiting with status code: $GLOBAL_RETURN_CODE" >&2
    exit $GLOBAL_RETURN_CODE
@@ -624,6 +627,7 @@ fi
 if [[ $NUM_OF_INSTR = 0 ]]; then
    echo "No commands to execute!  So I guess I'm done..." >&2
    GLOBAL_RETURN_CODE=0
+   NORMAL_FINISH=1
    exit
 fi
 
@@ -1183,6 +1187,7 @@ elif [[ $EXEC ]]; then
    fi
    echo $RPTOTALS >&2
    GLOBAL_RETURN_CODE=`cat $WORKDIR/rc`
+   NORMAL_FINISH=1
    exit $GLOBAL_RETURN_CODE
 elif [[ $UNORDERED_CAT ]]; then
    find $WORKDIR -name 'out.worker*' | xargs cat
@@ -1194,8 +1199,10 @@ echo $RPTOTALS >&2
 if grep -q -v '^0$' $WORKDIR/rc >& /dev/null; then
    # At least one job got a non-zero return code
    GLOBAL_RETURN_CODE=2
+   NORMAL_FINISH=1
    exit 2
 else
    GLOBAL_RETURN_CODE=0
+   NORMAL_FINISH=1
    exit 0
 fi
