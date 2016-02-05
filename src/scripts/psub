@@ -50,6 +50,7 @@ Options:
                  needing C cpus, M RAM and SIZE GB of shared memory-mapped data.
                  Your job will have J*M+SIZE RAM and J*C cpus, but a ulimit of
                  M+SIZE VMEM and OMP_NUM_THREADS=C for each process. [1]
+  -gpu           Ask for a node with a GPU.
   Scripts run by psub can find out the values of the above four options in
   variables PSUB_OPT_{CPUS,MEM,MEMMAP_GB,J}
 
@@ -150,6 +151,7 @@ MEMORY_POLLING_DELAY=6
 PRIORITY=
 JOB_ARRAY=
 OPT_J=1
+REQUIRES_GPU=
 
 PSUB_OPT_MEM=
 PSUB_OPT_MEMMAP=
@@ -192,6 +194,10 @@ while [ $# -gt 0 ]; do
                     OPT_J=$2
                     PSUB_OPT_J=$2
                     shift;;
+   -gpu)            REQUIRES_GPU=1
+                    PARALLEL_ENVIRONMENT="gpu"
+                    RESOURCES="${RESOURCES:+$RESOURCES,}res_gpu=1"
+                    ;;
    -I)              INTMODE=1;
                     NOSCRIPT=1;
                     [[ $CPU_COUNT ]] || CPU_COUNT=4;;
@@ -358,6 +364,12 @@ function gpsc {
    local HERE=`pwd`
    ERR_FILE=${ERR_FILE:-$HERE}
    OUT_FILE=${OUT_FILE:-$HERE}
+
+   # The CUDA driver allocates a lot of virtual memory.  According to the
+   # internet it is something like ram + gpu_cores x some memory.  It is not
+   # clear how to calculate how much virtual memory the CUDA driver will need
+   # thus a first guestimate is 90G.
+   [[ $REQUIRES_GPU ]] &&  VMEM_LIMIT_MB=$((90 * 1024 + VMEM_LIMIT_MB))
 
    # We set the ulimit -v 10MB lower than res_mem because it applies per process, not
    # globally. Those 10MB are for manager scripts and such
