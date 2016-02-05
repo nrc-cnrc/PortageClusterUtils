@@ -475,7 +475,7 @@ trap '
       done
    fi
    DID_SOME_LOG_OUTPUT=
-   if [[ $DEBUG || ! NORMAL_FINISH ]]; then
+   if [[ $DEBUG || ! $NORMAL_FINISH ]]; then
       for x in ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR/err.worker-* $WORKDIR/mon.worker-*; do
          if [[ -s $x ]]; then
             echo ""
@@ -503,7 +503,7 @@ trap '
       RM_VERBOSE="-v"
       ls -l $WORKDIR/* ${LOGFILEPREFIX}* >&2
    fi
-   [[ $DEBUG || ! NORMAL_FINISH ]] || rm $RM_VERBOSE -rf ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR >&2
+   [[ $DEBUG || ! $NORMAL_FINISH ]] || rm $RM_VERBOSE -rf ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR >&2
    [[ -f $TMPLOGFILEPREFIX ]] && rm $RM_VERBOSE -f $TMPLOGFILEPREFIX >&2
    [[ $DEBUG_CLEANUP ]] && echo "run-parallel.sh exiting with status code: $GLOBAL_RETURN_CODE" >&2
    exit $GLOBAL_RETURN_CODE
