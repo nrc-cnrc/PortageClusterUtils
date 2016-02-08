@@ -652,6 +652,10 @@ if [[ $CLUSTER ]]; then
    elif [[ $NOHIGHMEM ]]; then
       PSUBOPTS="-1 $PSUBOPTS"
       NCPUS=1
+   elif [[ $RUNPARALLEL_WORKER_NCPUS ]]; then
+      NCPUS=$RUNPARALLEL_WORKER_NCPUS
+      echo Master was submitted with $NCPUS CPUs per process, propagating to workers. >&2
+      PSUBOPTS="$PSUBOPTS -cpus $NCPUS"
    elif [[ $PSUB_OPT_CPUS ]]; then
       NCPUS=`psub -require-cpus $PSUB_OPT_CPUS`
       echo Master was submitted with $NCPUS CPUs per process, propagating to workers. >&2
@@ -669,18 +673,9 @@ if [[ $CLUSTER ]]; then
       if [[ $RUNPARALLEL_WORKER_NCPUS ]]; then
          PARENT_NCPUS=$RUNPARALLEL_WORKER_NCPUS
          [[ $DEBUG ]] && echo "Found parent NCPUS override=$RUNPARALLEL_WORKER_NCPUS" >&2
-      elif [[ $PBS_JOBID ]]; then
-         if [[ `qstat -f $PBS_JOBID 2> /dev/null` =~ '1:ppn=([[:digit:]]+)' ]]; then
-            PARENT_NCPUS=${BASH_REMATCH[1]}
-         else
-            PARENT_NCPUS=1
-         fi
-      elif [[ $GECOSHEP_JOB_ID ]]; then
-         if [[ `jobst -j $GECOSHEP_JOB_ID 2> /dev/null` =~ 'res_cpus=([[:digit:]]+)' ]]; then
-            PARENT_NCPUS=${BASH_REMATCH[1]}
-         else
-            PARENT_NCPUS=1
-         fi
+      elif [[ $PSUB_OPT_CPUS ]]; then
+         PARENT_NCPUS=`psub -require-cpus $PSUB_OPT_CPUS`
+         [[ $PARENT_NCPUS ]] || PARENT_NCPUS=1
       fi
 
       if [[ $NCPUS && $PARENT_NCPUS ]]; then
@@ -724,8 +719,15 @@ if [[ $CLUSTER ]]; then
    PSUBOPTS="-p $WORKER_PRIORITY $PSUBOPTS"
    #echo PSUBOPTS $PSUBOPTS
 
-   [[ $PSUB_OPT_MEM ]] && PSUBOPTS="-mem $PSUB_OPT_MEM $PSUBOPTS"
-   [[ $PSUB_OPT_MEMMAP_GB ]] && PSUBOPTS="-memmap $PSUB_OPT_MEMMAP_GB $PSUBOPTS"
+   # Units: on Balzac, $JOB_VMEM and $PARENT_VMEM are in GB; on the GPSC, in MB
+   [[ $CLUSTER_TYPE == jobsub ]] && VMEM_UNIT=M || VMEM_UNIT=G
+
+   if [[ $RUNPARALLEL_WORKER_VMEM ]]; then
+      PSUBOPTS="-mem $RUNPARALLEL_WORKER_VMEM$VMEM_UNIT $PSUBOPTS"
+   else
+      [[ $PSUB_OPT_MEM ]] && PSUBOPTS="-mem $PSUB_OPT_MEM $PSUBOPTS"
+      [[ $PSUB_OPT_MEMMAP_GB ]] && PSUBOPTS="-memmap $PSUB_OPT_MEMMAP_GB $PSUBOPTS"
+   fi
 
    if [[ ! $NOLOCAL && ! $USER_LOCAL ]]; then
       # Now that the PSUBOPTS variable has settled down, let's see how much
@@ -735,35 +737,25 @@ if [[ $CLUSTER ]]; then
       if [[ $RUNPARALLEL_WORKER_VMEM ]]; then
          [[ $DEBUG || $VERBOSE > 0 ]] && echo "Found parent VMEM override=$RUNPARALLEL_WORKER_VMEM" >&2
          PARENT_VMEM=$RUNPARALLEL_WORKER_VMEM
-      elif [[ $PBS_JOBID ]]; then
-         # How much VMEM was allocated to the parent?
-         if [[ `qstat -f $PBS_JOBID 2> /dev/null` =~ 'Resource_List.vmem = ([[:digit:]]+)gb' ]]; then
-            PARENT_VMEM=${BASH_REMATCH[1]}
-         else
-            [[ $DEBUG ]] && echo "Failed determining PARENT_VMEM using qstat" >&2
-         fi
-      elif [[ $GECOSHEP_JOB_ID ]]; then
-         if [[ `jobst -j $GECOSHEP_JOB_ID 2> /dev/null` =~ 'res_mem=([[:digit:]]+)' ]]; then
-            PARENT_VMEM=${BASH_REMATCH[1]}
-         else
-            [[ $DEBUG ]] && echo "Failed determining PARENT_VMEM using jobst" >&2
-         fi
+      elif [[ $PSUB_OPT_MEM || $PSUB_OPT_MEMMAP_GB ]]; then
+         PARENT_PSUB=
+         [[ $PSUB_OPT_MEM ]] && PARENT_PSUB="-mem $PSUB_OPT_MEM $PARENT_PSUB"
+         [[ $PSUB_OPT_MEMMAP_GB ]] && PARENT_PSUB="-memmap $PSUB_OPT_MEMMAP_GB $PARENT_PSUB"
+         PARENT_VMEM=`psub -require $PARENT_PSUB`
       else
          [[ $DEBUG ]] && echo "Not in a scheduled job, thus not getting PARENT_VMEM" >&2
       fi
 
       # If the parent doesn't have enough VMEM it won't be allowed to run a job.
       if [[ $JOB_VMEM && $PARENT_VMEM ]]; then
-         # Units: on Balzac, $JOB_VMEM and $PARENT_VMEM are in GB; on the GPSC, in MB
-         [[ $CLUSTER_TYPE == jobsub ]] && UNIT=MB || UNIT=GB
          if [[ $JOB_VMEM -gt $PARENT_VMEM ]]; then
-            echo "Requested more VMEM for workers ($JOB_VMEM $UNIT) than master has ($PARENT_VMEM $UNIT), setting -nolocal." >&2
+            echo "Requested more VMEM for workers ($JOB_VMEM ${VMEM_UNIT}B) than master has ($PARENT_VMEM ${VMEM_UNIT}B), setting -nolocal." >&2
             NOLOCAL=1
          else
             # Let's find out how many jobs can actually fit in local memory
             if (( $LOCAL_JOBS * $JOB_VMEM > $PARENT_VMEM )); then
                LOCAL_JOBS=$(($PARENT_VMEM / $JOB_VMEM))
-               echo "Parent has only enough VMEM ($PARENT_VMEM $UNIT) for $LOCAL_JOBS local workers (at $JOB_VMEM $UNIT VMEM each)." >&2
+               echo "Parent has only enough VMEM ($PARENT_VMEM ${VMEM_UNIT}B) for $LOCAL_JOBS local workers (at $JOB_VMEM ${VMEM_UNIT}B VMEM each)." >&2
             fi
          fi
       fi
