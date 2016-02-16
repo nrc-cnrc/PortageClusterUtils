@@ -673,7 +673,7 @@ if [[ $CLUSTER ]]; then
       if [[ $RUNPARALLEL_WORKER_NCPUS ]]; then
          PARENT_NCPUS=$RUNPARALLEL_WORKER_NCPUS
          [[ $DEBUG ]] && echo "Found parent NCPUS override=$RUNPARALLEL_WORKER_NCPUS" >&2
-      elif [[ $PSUB_OPT_CPUS ]]; then
+      elif [[ -n "${PSUB_OPT_CPUS+xxx}" ]]; then
          PARENT_NCPUS=`psub -require-cpus $PSUB_OPT_CPUS`
          [[ $PARENT_NCPUS ]] || PARENT_NCPUS=1
       fi
@@ -737,7 +737,7 @@ if [[ $CLUSTER ]]; then
       if [[ $RUNPARALLEL_WORKER_VMEM ]]; then
          [[ $DEBUG || $VERBOSE > 0 ]] && echo "Found parent VMEM override=$RUNPARALLEL_WORKER_VMEM" >&2
          PARENT_VMEM=$RUNPARALLEL_WORKER_VMEM
-      elif [[ $PSUB_OPT_MEM || $PSUB_OPT_MEMMAP_GB ]]; then
+      elif [[ -n "${PSUB_OPT_MEM+xxx}" ]]; then
          PARENT_PSUB=
          [[ $PSUB_OPT_MEM ]] && PARENT_PSUB="-mem $PSUB_OPT_MEM $PARENT_PSUB"
          [[ $PSUB_OPT_MEMMAP_GB ]] && PARENT_PSUB="-memmap $PSUB_OPT_MEMMAP_GB $PARENT_PSUB"
