@@ -40,10 +40,13 @@ usage() {
 [[ "$1" == "-v" ]] && VERBOSE=1 && shift
 [[ $# -eq 0 ]] && usage
 
-# Hack: we detect that we're running on a cluster by looking for qsub.
+# Hack: we detect that we're running on a cluster by looking for jobsub or qsub.
 # Defining the PORTAGE_NOCLUSTER environment variable to a non-empty string
-# hides qsub globally by altering what this script returns.
-if [[ $1 = qsub && $PORTAGE_NOCLUSTER ]]; then
+# hides jobsub/qsub globally by altering what this script returns.
+if [[ $1 = jobsub && $PORTAGE_NOCLUSTER ]]; then
+   [[ $VERBOSE ]] && echo ignoring jobsub >&2
+   exit 1
+elif [[ $1 = qsub && $PORTAGE_NOCLUSTER ]]; then
    [[ $VERBOSE ]] && echo ignoring qsub >&2
    exit 1
 elif [[ -x "`which $1 2> /dev/null`" ]]; then
