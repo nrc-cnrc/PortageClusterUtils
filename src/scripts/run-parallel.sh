@@ -235,8 +235,6 @@ else
    QDEL=qdel
 fi
 NUM=
-HIGHMEM=
-NOHIGHMEM=
 NOLOCAL=
 OPT_J=
 if on_head_node; then NOLOCAL=1; fi
@@ -256,6 +254,7 @@ JOBSET_FILENAME=`mktemp -u run-p.tmpjobs.$SHORT_JOB_ID.XXX` || error_exit "Can't
 ON_ERROR=stop
 SUBST=
 MON_PERIOD=60
+PSUBOPTS=
 #TODO: run-parallel.sh -c RP_ARGS -... -... {-exec | -c} cmd args
 # This would allow a job in a Makefile, which uses SHELL = run-parallel.sh, to
 # specify some parameters other than the default.
@@ -296,8 +295,8 @@ while (( $# > 0 )); do
                    PSUBOPTS="$PSUBOPTS $RP_PSUB_OPTS";
                    echo "$*" >> $JOBSET_FILENAME;
                    break;;
-   -highmem)       HIGHMEM=1;;
-   -nohighmem)     NOHIGHMEM=1;;
+   -highmem)       PSUBOPTS="$PSUBOPTS -2";;
+   -nohighmem)     PSUBOPTS="$PSUBOPTS -1";;
    -nolocal)       NOLOCAL=1; USER_LOCAL=;;
    -local)         arg_check 1 $# $1; USER_LOCAL="$2"; NOLOCAL=; shift;;
    -nocluster)     NOCLUSTER=1;;
@@ -598,8 +597,6 @@ if [[ $DEBUG ]]; then
    echo "
    NUM       = $NUM
    NUM_OF_INSTR = $NUM_OF_INSTR
-   HIGHMEM   = $HIGHMEM
-   NOHIGHMEM = $NOHIGHMEM
    NOLOCAL   = $NOLOCAL
    USER_LOCAL= $USER_LOCAL
    NOCLUSTER = $NOCLUSTER
@@ -642,25 +639,18 @@ fi
 if [[ $CLUSTER ]]; then
    MY_HOST=`hostname`
 
+   # The child's options are first any resource option given to the psub
+   # instance that called this script, but any specificed with -psub or
+   # -[no]highmen.
+   [[ $PSUB_RESOURCE_OPTIONS ]] &&
+      echo "Propagating these psub options from parent to workers: $PSUB_RESOURCE_OPTIONS" >&2
+   [[ $PSUBOPTS ]] &&
+      echo "Requested these psub options/overrides for workers: $PSUBOPTS" >&2
+   PSUBOPTS="$PSUB_RESOURCE_OPTIONS $PSUBOPTS"
    NCPUS=`psub -require-cpus $PSUBOPTS`
    if [[ $NCPUS ]]; then
-      [[ $DEBUG ]] && echo Requested $NCPUS CPUs per worker >&2
-   elif [[ $HIGHMEM ]]; then
-      # For high memory, request two CPUs per worker with ncpus=2.
-      PSUBOPTS="-2 $PSUBOPTS"
-      NCPUS=2
-   elif [[ $NOHIGHMEM ]]; then
-      PSUBOPTS="-1 $PSUBOPTS"
-      NCPUS=1
-   elif [[ $RUNPARALLEL_WORKER_NCPUS ]]; then
-      NCPUS=$RUNPARALLEL_WORKER_NCPUS
-      echo Master was submitted with $NCPUS CPUs per process, propagating to workers. >&2
-      PSUBOPTS="$PSUBOPTS -cpus $NCPUS"
-   elif [[ $PSUB_OPT_CPUS ]]; then
-      NCPUS=`psub -require-cpus $PSUB_OPT_CPUS`
-      echo Master was submitted with $NCPUS CPUs per process, propagating to workers. >&2
-      PSUBOPTS="$PSUBOPTS $PSUB_OPT_CPUS"
-   elif [[ $PSUB_OPT_J ]]; then
+      [[ $DEBUG ]] && echo "Requested $NCPUS CPU(s) per worker" >&2
+   else
       NCPUS=1
    fi
 
@@ -670,36 +660,40 @@ if [[ $CLUSTER ]]; then
       # We assume by default that we can run one local job.
       LOCAL_JOBS=1
 
-      if [[ $RUNPARALLEL_WORKER_NCPUS ]]; then
-         PARENT_NCPUS=$RUNPARALLEL_WORKER_NCPUS
-         [[ $DEBUG ]] && echo "Found parent NCPUS override=$RUNPARALLEL_WORKER_NCPUS" >&2
-      elif [[ -n "${PSUB_OPT_CPUS+xxx}" ]]; then
-         PARENT_NCPUS=`psub -require-cpus $PSUB_OPT_CPUS`
-         [[ $PARENT_NCPUS ]] || PARENT_NCPUS=1
+      PARENT_NCPUS=`psub -require-cpus $PSUB_RESOURCE_OPTIONS`
+      [[ $PARENT_NCPUS ]] || PARENT_NCPUS=1
+      [[ $PSUB_OPT_J ]] && PARENT_NCPUS=$((PARENT_NCPUS * PSUB_OPT_J))
+
+      if [[ $NCPUS -gt $PARENT_NCPUS ]]; then
+         echo "Requested more CPUs for workers ($NCPUS) than master has ($PARENT_NCPUS), setting -nolocal." >&2
+         NOLOCAL=1
+      elif (( $PARENT_NCPUS / $NCPUS > 1 )); then
+         LOCAL_JOBS=$(($PARENT_NCPUS / $NCPUS))
+         echo "Parent has enough CPUs ($PARENT_NCPUS) for $LOCAL_JOBS local workers ($NCPUS CPU(s) each)." >&2
+         if (( $LOCAL_JOBS > $NUM )); then
+            LOCAL_JOBS=$NUM
+            echo "But only requested $NUM worker(s)". >&2
+         fi
       fi
 
-      if [[ $NCPUS && $PARENT_NCPUS ]]; then
-         if [[ $NCPUS -gt $PARENT_NCPUS ]]; then
-            echo Requested more CPUs for workers than master has, setting -nolocal. >&2
+      JOB_VMEM=`psub -require $PSUBOPTS`
+      PARENT_VMEM=`psub -require $PSUB_RESOURCE_OPTIONS`
+      [[ $PSUB_OPT_J ]] && PARENT_VMEM=$((PARENT_VMEM * PSUB_OPT_J))
+      if [[ ! $NOLOCAL ]]; then
+         if (( $JOB_VMEM > $PARENT_VMEM )); then
+            echo "Requested more VMEM for workers ($JOB_VMEM) than master has ($PARENT_VMEM), setting -nolocal." >&2
             NOLOCAL=1
-         elif (( $PARENT_NCPUS / $NCPUS > 1 )); then
-            LOCAL_JOBS=$(($PARENT_NCPUS / $NCPUS))
-            echo Parent has enough CPUs for $LOCAL_JOBS local workers. >&2
-            if (( $LOCAL_JOBS > $NUM )); then
-               LOCAL_JOBS=$NUM
-               echo But only requested $NUM worker"(s)". >&2
+         else
+            # Let's find out how many jobs can actually fit in local memory
+            if (( $LOCAL_JOBS * $JOB_VMEM > $PARENT_VMEM )); then
+               LOCAL_JOBS=$(($PARENT_VMEM / $JOB_VMEM))
+               echo "Parent has only enough VMEM ($PARENT_VMEM) for $LOCAL_JOBS local workers (at $JOB_VMEM VMEM each)." >&2
             fi
          fi
-      elif [[ $PARENT_NCPUS && $PARENT_NCPUS -gt 1 && ! $NCPUS ]]; then
-         echo Master was submitted with $PARENT_NCPUS CPUs, propagating to workers. >&2
-         PSUBOPTS="-$PARENT_NCPUS $PSUBOPTS"
       fi
 
-      # Make the current NCPUS variable visible to local sub run-parallel jobs, if any.
-      # two statements are required, because of the -k switch in the #! line
-      RUNPARALLEL_WORKER_NCPUS="$NCPUS"
-      export RUNPARALLEL_WORKER_NCPUS
-      #export RUNPARALLEL_WORKER_NCPUS="$NCPUS"
+      # Make the per-worker psub options visible to local workers via the same variable as psub
+      export PSUB_RESOURCE_OPTIONS="$PSUBOPTS"
    fi
 
    if [[ -n "$PBS_JOBID" ]]; then
@@ -718,54 +712,6 @@ if [[ $CLUSTER ]]; then
    #echo MASTER_PRIORITY $MASTER_PRIORITY
    PSUBOPTS="-p $WORKER_PRIORITY $PSUBOPTS"
    #echo PSUBOPTS $PSUBOPTS
-
-   # Units: on Balzac, $JOB_VMEM and $PARENT_VMEM are in GB; on the GPSC, in MB
-   [[ $CLUSTER_TYPE == jobsub ]] && VMEM_UNIT=M || VMEM_UNIT=G
-
-   if [[ $RUNPARALLEL_WORKER_VMEM ]]; then
-      PSUBOPTS="-mem $RUNPARALLEL_WORKER_VMEM$VMEM_UNIT $PSUBOPTS"
-   else
-      [[ $PSUB_OPT_MEM ]] && PSUBOPTS="-mem $PSUB_OPT_MEM $PSUBOPTS"
-      [[ $PSUB_OPT_MEMMAP_GB ]] && PSUBOPTS="-memmap $PSUB_OPT_MEMMAP_GB $PSUBOPTS"
-   fi
-
-   if [[ ! $NOLOCAL && ! $USER_LOCAL ]]; then
-      # Now that the PSUBOPTS variable has settled down, let's see how much
-      # vmem the job requires.
-      JOB_VMEM=`psub -require $PSUBOPTS`
-
-      if [[ $RUNPARALLEL_WORKER_VMEM ]]; then
-         [[ $DEBUG || $VERBOSE > 0 ]] && echo "Found parent VMEM override=$RUNPARALLEL_WORKER_VMEM" >&2
-         PARENT_VMEM=$RUNPARALLEL_WORKER_VMEM
-      elif [[ -n "${PSUB_OPT_MEM+xxx}" ]]; then
-         PARENT_PSUB=
-         [[ $PSUB_OPT_MEM ]] && PARENT_PSUB="-mem $PSUB_OPT_MEM $PARENT_PSUB"
-         [[ $PSUB_OPT_MEMMAP_GB ]] && PARENT_PSUB="-memmap $PSUB_OPT_MEMMAP_GB $PARENT_PSUB"
-         PARENT_VMEM=`psub -require $PARENT_PSUB`
-      else
-         [[ $DEBUG ]] && echo "Not in a scheduled job, thus not getting PARENT_VMEM" >&2
-      fi
-
-      # If the parent doesn't have enough VMEM it won't be allowed to run a job.
-      if [[ $JOB_VMEM && $PARENT_VMEM ]]; then
-         if [[ $JOB_VMEM -gt $PARENT_VMEM ]]; then
-            echo "Requested more VMEM for workers ($JOB_VMEM ${VMEM_UNIT}B) than master has ($PARENT_VMEM ${VMEM_UNIT}B), setting -nolocal." >&2
-            NOLOCAL=1
-         else
-            # Let's find out how many jobs can actually fit in local memory
-            if (( $LOCAL_JOBS * $JOB_VMEM > $PARENT_VMEM )); then
-               LOCAL_JOBS=$(($PARENT_VMEM / $JOB_VMEM))
-               echo "Parent has only enough VMEM ($PARENT_VMEM ${VMEM_UNIT}B) for $LOCAL_JOBS local workers (at $JOB_VMEM ${VMEM_UNIT}B VMEM each)." >&2
-            fi
-         fi
-      fi
-
-      # Make the current VMEM variable visible to local sub run-parallel jobs, if any.
-      # two statements are required, because of the -k switch in the #! line
-      RUNPARALLEL_WORKER_VMEM="$JOB_VMEM"
-      export RUNPARALLEL_WORKER_VMEM
-      #export RUNPARALLEL_WORKER_VMEM="$JOB_VMEM"
-   fi
 
    # The psub command is fairly complex, so here it is documented in
    # details
