@@ -243,9 +243,10 @@ sub displayJobs {
    my $jobs = shift;
    my @colors = @_;
 
-   sub filter {
+   my $max_height = $jobs->getHeight() - 1;
+
+   my $filter = sub {
       my $tree = shift ;
-      my $max_height = $tree->getHeight() - 1;
 
       if('Tree::Simple' eq ref $tree) {
          my $counter = 0 ;
@@ -284,16 +285,14 @@ sub displayJobs {
    $Data::TreeDumper::Displayobjecttype = 0;
    $Data::TreeDumper::Displayaddress    = 0;
 
-   my $max_height = $jobs->getHeight() - 1;
-
    # Let's display the header
-   print "  job-ID " . "   " x $max_height . "prior   name      user   cpus mem   time   st    submit/start at     queue              slots ja-task-ID\n";
+   print "   job-ID" . "   " x $max_height . "prior   name      user   cpus  mem   time  st    submit/start at           queue        slots ja-task-ID\n";
    print "--------" . "---" x $max_height . " ----- ---------- ------- ---- ----- ------ --- ------------------- -------------------- ----- ----------";
    print DumpTree($jobs,
       '',
       COLOR_LEVELS => [\@colors, ''],
       NO_WRAP => 1,
-      FILTER => \&filter);
+      FILTER => \&$filter);
    print Term::ANSIColor::color('reset');
 }
 
