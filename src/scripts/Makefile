@@ -16,7 +16,9 @@ BINSCRIPTS = \
         cvs-diff-all-revisions.sh \
         cvs-log-sort.pl \
         cvs-status-summary.pl \
-	on-cluster.sh \
+        jobsig.pl \
+        jobtree \
+        on-cluster.sh \
         parallelize.pl \
         process-memory-usage.pl \
         psub \
@@ -53,9 +55,13 @@ install:  test
 	install -d -m0750 $(INSTALL_DIR)/bin
 	install -p -m0750 $(BINSCRIPTS) $(INSTALL_DIR)/bin
 
+# jobtree & qstattree have some Perl dependencies
 test: check_perl_dependencies
 
+# Term::ANSIColor 3.00 is needed for the bright_ colours; otherwise Term::ANSIColor 2.02 is needed for colorvalid.
+.PHONY: check_perl_dependencies
 check_perl_dependencies:
 	perldoc -l Data::TreeDumper
 	perldoc -l Tree::Simple
-
+	perldoc -l Time::Piece
+	perl -e 'use Term::ANSIColor 3.00;'

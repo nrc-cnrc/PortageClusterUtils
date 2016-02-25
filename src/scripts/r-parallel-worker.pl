@@ -61,7 +61,8 @@ if($help ne ''){
 
 my $me = `uname -n`;
 chomp $me;
-$me .= ":" . ($ENV{PBS_JOBID} || "");
+$me .= ":" . ($ENV{PBS_JOBID} || $ENV{GECOSHEP_JOB_ID} || "");
+my $need_sleep = ($me =~ /balzac/);
 $me =~ s/balzac.iit.nrc.ca/balzac/;
 
 if ( $primary ) { $me = "Primary $me"; }
@@ -153,7 +154,13 @@ sub report_signal($) {
    if ($sleeping) {
       log_msg "Currently sleeping, ignoring repeated signal";
    } else {
-      if ( $_[0] == 10 ) {
+      send_recv "SIGNALED ($me) ***(rc=$_[0])*** (signal=$_[0]) $reply_rcvd";
+      if (1) {
+         log_msg "Sleeping 20 seconds to give children time to clean up.";
+         $sleeping = 1;
+         sleep 20;
+         $sleeping = 0;
+      } elsif ( $_[0] == 10 ) {
          my $delay = int(rand(5));
          log_msg "Caught signal USR1 (10); sleeping $delay seconds and aborting job";
          $sleeping = 1;
@@ -167,7 +174,6 @@ sub report_signal($) {
          $sleeping = 0;
       }
       log_msg "Caught signal $_[0]. Aborting job";
-      send_recv "SIGNALED ($me) ***(rc=$_[0])*** (signal=$_[0]) $reply_rcvd";
       exit;
    }
 }
@@ -255,7 +261,7 @@ while(defined $reply_rcvd and $reply_rcvd !~ /^\*\*\*EMPTY\*\*\*/i
    }
 }
 
-if (!$primary and (time - $start_time) < 60) {
+if ($need_sleep and !$primary and (time - $start_time) < 60) {
    # Super short jobs are not cluster friendly, especially not arrays of them
    my $seconds = rand_in_range 5, 30;
    log_msg "Job too short - sleeping $seconds seconds before exiting.";

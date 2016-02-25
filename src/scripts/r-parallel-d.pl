@@ -101,12 +101,21 @@ if ( ($num_workers + 0) ne $num_workers or $num_workers <= 0 ) {
    exit_with_error "Invalid value for InitNumWorkers: $num_workers; must be a positive integer.";
 }
 
+sub report_signal($) {
+   log_msg "Daemon caught signal $_[0]. Not quitting in case workers are still reporting back.";
+}
+$SIG{INT} = sub { report_signal(2) };
+$SIG{QUIT} = sub { report_signal(3) };
+$SIG{USR1} = sub { report_signal(10) };
+$SIG{USR2} = sub { report_signal(12) };
+$SIG{TERM} = sub { report_signal(15) };
+
 # Return a random integer in the range [$min, $max).
 #srand(0); # predictable for testing
 srand(time() ^ ($$ + ($$ << 15))); # less predictable, for normal use
 sub rand_in_range($$) {
    my ($min, $max) = @_;
-   return int(rand ($max-$min)) + $min;
+   return int(rand ($max-$min+1)) + $min;
 }
 
 # Read job file and store in an array.
@@ -136,7 +145,9 @@ threads->create('look_for_process', $process_id, $R_PARALLEL_D_PL_SLEEP_TIME)->d
 
 # This while(1) loop tries to open the listening socket until it succeeds
 while ( 1 ) {
-   my $port = rand_in_range 10000, 25000;
+   my $port = ($ENV{HOSTNAME} =~ /gpsc-in/)
+      ? rand_in_range 5900, 5999  # GPSC login nodes can receive cx on ports 5900 to 5999 only
+      : rand_in_range 10000, 25000; # In general, use a wide range to avoid collisions
    my $proto = getprotobyname('tcp');
    socket(Server, PF_INET, SOCK_STREAM, $proto) or exit_with_error "$0 socket: $!";
    setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l", 1))
@@ -259,8 +270,8 @@ for ( ; $paddr = accept(Client, Server); close Client) {
             if ( $stop_on_error ) {
                # Don't laurch any further jobs, accomplished by pretending
                # the jobs that aren't launched yet never existed.
+               log_msg "Non-zero exit status, not launching any further jobs. $job_no of $num were launched.";
                $num=$job_no;
-               log_msg "Non-zero exit status, not launching any further jobs.";
             } elsif ( $killall_on_error ) {
                # Abort now, all workers will get killed
                log_msg "Non-zero exit status, aborting and killing workers.";

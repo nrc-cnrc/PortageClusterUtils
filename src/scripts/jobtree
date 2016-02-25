@@ -1,0 +1,348 @@
+#!/usr/bin/env perl
+
+# @file jobtree
+# @brief Create a tree from the output of jobst.
+#
+# @author Samuel Larkin and Darlene Stewart
+#
+# Traitement multilingue de textes / Multilingual Text Processing
+# Tech. de l'information et des communications / Information and Communications Tech.
+# Conseil national de recherches Canada / National Research Council Canada
+# Copyright 2015, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2015, Her Majesty in Right of Canada
+
+
+use strict;
+use warnings;
+
+sub usage {
+   local $, = "\n";
+   print STDERR @_, "";
+   $0 =~ s#.*/##;
+   print STDERR "
+Usage: $0 [options]
+
+  Transform jobst output into a colorful tree of processes.
+  This helps to find relationships between jobs.
+
+NOTE:
+  To change the color of the tree, set the environment variable
+  PORTAGE_QSTATTREE_COLORS to a space separated list of colors.
+  Valid colors include:
+     black, red, green, yellow, blue, magenta, cyan, white
+     variants such as bright_blue
+
+Options:
+
+  -u(ser) USER  Filter jobs for USER [None]
+  -P REGEX      Filter jobs based on a regular expression [None]
+  -l(ocaltime)  Convert time from UTC to local time [don't convert time]
+
+  -j(obst) CMD  Use CMD as command to get job status [jobst]
+                e.g. use '-jobst cat' to test on input from STDIN
+
+  -h(elp)       print this help message
+  -v(erbose)    increment the verbosity level by 1 (may be repeated)
+  -d(ebug)      print debugging information
+
+";
+   exit 1;
+}
+
+use Getopt::Long;
+# Note to programmer: Getopt::Long automatically accepts unambiguous
+# abbreviations for all options.
+my $verbose = 1;
+my $jobStreamCommand = "jobst -r";
+GetOptions(
+   "user=s"    => \my $user,
+   "P=s"       => \my $regex,
+   "jobst=s"   => \$jobStreamCommand,
+
+   localtime   => \my $localtime,
+   help        => sub { usage },
+   verbose     => sub { ++$verbose },
+   quiet       => sub { $verbose = 0 },
+   debug       => \my $debug,
+) or usage;
+
+$jobStreamCommand .= " -u $user" if(defined($user));
+
+
+sub max ($$) { $_[$_[0] < $_[1]] }
+
+
+########################################
+# Populate the tree with qstat info.
+sub createJobList {
+   use Tree::Simple;
+
+   # make a tree root.
+   my $tree = Tree::Simple->new("0", Tree::Simple->ROOT);
+
+   # This is a flat map to quickly access job's sub tree.
+   my %jobs;
+   my $splitByJob = 'sed "/^\s\+[0-9]\+ / s/^/\n/"';
+   my %users;
+   local $/ = "\n\n";
+   open IN, "$jobStreamCommand | $splitByJob |" or die "Can't call jobst $!";
+   while (my $line = <IN>) {
+      # Skip the header
+      if ($line =~ /^\s*[0-9]+/) {
+         # filter jobs based on a regular expression.
+         next if (defined($regex) and $line !~ m/$regex/);
+
+         my $description = $line;
+         $description =~ s/\n/ /;
+
+         my @lines = split(/\n/, $line);
+         $line = shift(@lines);
+         chomp($line);
+         $line =~ s/^\s*//;
+         $line =~ s/\s*$//;
+         my ($id, $prior, $name, $user, $state, $date, $time, $queue, $a) = split(/\s+/, $line, 9);
+
+         unless (defined($users{$user})) {
+            $users{$user} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
+         }
+
+         $users{$user}{job_count} += 1;
+
+         my $res_cpus = 0;
+         if ($description =~ m/.*res_cpus=(\d+).*/s) {
+            $res_cpus = $1;
+            $users{$user}{cpus} += $res_cpus;
+         }
+         else {
+            die "Error: Unable to match for res_cpus", $description;
+         }
+
+         my $res_mem = 0;
+         if ($description =~ m/.*res_mem=(\d+).*/s) {
+            $res_mem = $1 / 1024;
+            $users{$user}{mem} += $res_mem;
+         }
+         else {
+            die "Error: Unable to match for res_mem", $description;
+         }
+
+         # Some job may not have h_rt set.
+         my $h_rt = 0;
+         if ($description =~ m/.*h_rt=(\d+).*/s) {
+            $h_rt = $1;
+            if ($h_rt >= 10000000) {
+               $h_rt = "inf";
+            }
+            else {
+               $h_rt /= 3600;
+            }
+            $users{$user}{h_rt} = max($users{$user}{h_rt}, $h_rt);
+         }
+
+         # Drop .science.gc.ca from the queue's name.
+         $queue =~ s/\.science\..+?$//;
+
+         if (defined($localtime)) {
+            print STDERR "date=", $date, ", time=", $time, "\n" if ($debug);
+            my $datetime = `date -d "${date} ${time}UTC" +"%Y-%m-%d %H:%M:%S"`;
+            print STDERR "datetime=", $datetime, "\n" if ($debug);
+            ($date, $time) = split(' ',$datetime);
+            print STDERR "date=", $date, ", time=", $time, "\n" if ($debug);
+         }
+
+         # Let's create a node for that job.
+         my $sub_tree = Tree::Simple->new(sprintf("%-8d %.3f %-10s %-7s %4d %4dG %6d %-3s %s %s %20s %s",
+            $id,
+            $prior,
+            $name,
+            $user,
+            $res_cpus,
+            $res_mem,
+            $h_rt,
+            $state,
+            $date,
+            $time,
+            $queue,
+            $a || ""));
+         $jobs{$id} = $sub_tree;
+
+         # Does this job a sub job of another master job.
+         # j13343w-0 dictated by run-parallel.sh's $WORKER_NAME
+         print STDERR "id=", $id, ", name=", $name, "\n" if ($debug);
+         if ($name =~ /^j(\d+)(w-\d+)?/) {
+            my $parent = $1;
+            print STDERR "parent=", $parent, "\n" if ($debug);
+            if (exists($jobs{$parent})) {
+               print STDERR "  parent job exists.\n" if ($debug);
+               $jobs{$parent}->addChild($sub_tree);
+            }
+            else {
+               # Humm! looks like we should have found a parent for this job.  May
+               # be it's a orphan job or our regex is missing some cases.
+               #warn "Unknown parent job: $line\n";
+               # Though we haven't found a parent let's add it as a root, so we don't lose it...
+               $tree->addChild($sub_tree);
+               print STDERR "  parent job DOES NOT exist.\n" if ($debug);
+            }
+         }
+         else {
+            # This job doesn't have a master parent job thus it belongs at the
+            # root of the tree.
+            $tree->addChild($sub_tree);
+         }
+      }
+   }
+   close(IN) or die "Problem with the input stream.";
+
+   # clean up circular references
+   $tree->DESTROY();
+
+   print STDERR "Height: " . $tree->getHeight() . "\n" if ($debug);
+   print STDERR "Depth: " . $tree->getDepth() . "\n" if ($debug);
+   print STDERR "Width: " . $tree->getWidth() . "\n" if ($debug);
+
+   return $tree, %users;
+}
+
+
+
+########################################
+# Create a map of color per tree level.
+# Note: perldoc Term::ANSIColor
+sub getColors {
+   my @colors;
+   eval {
+      eval "use Term::ANSIColor 3 qw(:constants colorvalid)" or die;
+      # User defined colors.
+      if (defined($ENV{PORTAGE_QSTATTREE_COLORS})) {
+         my @user_colors = split(/\s+/, $ENV{PORTAGE_QSTATTREE_COLORS});
+         print STDERR "Using user colors: " . join(", ", @user_colors) . "\n" if ($debug);
+         # Validate user's colors.
+         map { Term::ANSIColor::colorvalid($_) or die "$_ is not a valid ANSIColor!"; } @user_colors;
+         @colors = map { Term::ANSIColor::color($_); } @user_colors;
+      }
+      1;
+   }
+   or do {
+      warn "WARNING: User colors not supported on this system\n" if (defined($ENV{PORTAGE_QSTATTREE_COLORS}));
+      use Term::ANSIColor 2 qw(:constants);
+      # Creating default colors.
+      @colors = map { Term::ANSIColor::color($_); } ( 'red' , 'green' , 'yellow' , 'blue' , 'magenta' , 'cyan',
+                                                      'bright_red' , 'bright_green' , 'bright_yellow' ,
+                                                      'bright_blue' , 'bright_magenta' , 'bright_cyan' );
+   };
+
+   return @colors;
+}
+
+
+
+########################################
+# Display that job tree.
+sub displayJobs {
+   my $jobs = shift;
+   my @colors = @_;
+
+   my $max_height = $jobs->getHeight() - 1;
+
+   my $filter = sub {
+      my $tree = shift ;
+
+      if('Tree::Simple' eq ref $tree) {
+         my $counter = 0 ;
+
+         # Let's fix the indentation of entries.
+         print STDERR "tree node: " . $tree->getNodeValue() . "\n" if ($debug);
+         foreach my $t (@{$tree->{_children}}) {
+            my $depth = $max_height - $t->getDepth() - 1;
+            print STDERR "depth: " . $depth . "\n" if ($debug);
+            $t->{_node} =~ s/ /" " . "   " x $depth/e;
+            print STDERR "t _node: " . $t->{_node} . "\n" if ($debug);
+         }
+         # If we don't do the following, which was the example on cpan about
+         # DumpTree, the output tree will contain krud that makes the three
+         # really hard to read.  The following produces the exact output we are
+         # looking for.
+         return
+            (
+             # The current node will be replace by an array.
+             'ARRAY'
+             # The current node is replaced by the children of the current node.
+             , $tree->{_children}
+             # DumpTree will ouput the array index before each sub tree which
+             # is kinda UGLY.  Let's create a map that translates indices into
+             # a better label.  That label will be the string we assigned to
+             # that node when building the tree earlier.
+             , map { [$counter++, $_->{_node} ] } @{$tree->{_children}} # index to label generation
+            ) ;
+      }
+
+      return(Data::TreeDumper::DefaultNodesToDisplay($tree)) ;
+   };
+
+   use Data::TreeDumper;
+   $Data::TreeDumper::Useascii          = 1;
+   $Data::TreeDumper::Displayobjecttype = 0;
+   $Data::TreeDumper::Displayaddress    = 0;
+
+   # Let's display the header
+   print "   job-ID" . "   " x $max_height . "prior   name      user   cpus  mem   time  st    submit/start at           queue        slots ja-task-ID\n";
+   print "--------" . "---" x $max_height . " ----- ---------- ------- ---- ----- ------ --- ------------------- -------------------- ----- ----------";
+   print DumpTree($jobs,
+      '',
+      COLOR_LEVELS => [\@colors, ''],
+      NO_WRAP => 1,
+      FILTER => \&$filter);
+   print Term::ANSIColor::color('reset');
+}
+
+
+
+sub epilogue {
+   my $jobs  = shift;
+   my $color = shift;
+   my %users = @_;
+
+   my $header = "%7s %5s %4s %7s %10s\n";
+   my $format = "%7s %5d %4d %7.2f %10d\n";
+
+   my $max_height = $jobs->getHeight() - 1;
+
+   # Highlight user stats.
+   use Env qw(LOGNAME);
+
+   # Highlight user stats.
+   my $noColor = Term::ANSIColor::color('reset');
+
+   my @usernames = sort keys %users;
+
+   my ($total_job_count, $total_cpus, $total_mem, $max_h_rt) = (0,0,0,0);
+   map {
+      $total_job_count += $_->{job_count};
+      $total_cpus += $_->{cpus};
+      $total_mem  += $_->{mem};
+      $max_h_rt    = max($max_h_rt, $_->{h_rt});
+   }
+   values %users;
+   $users{TOTAL} = { job_count => $total_job_count, cpus => $total_cpus, mem => $total_mem, h_rt => $max_h_rt };
+
+   print "--------", "---" x $max_height, "-" x 105, "\n";
+   printf($header, 'user', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
+   printf($header, '-' x 7, '-' x 5, '-' x 4, '-' x 7, '-' x 10);
+   foreach my $name (@usernames, "TOTAL") {
+      my %stats = %{$users{$name}};
+      print $color if $LOGNAME eq $name;
+      printf($format, $name, $stats{job_count}, $stats{cpus}, $stats{mem}, $stats{h_rt});
+      print "$noColor";
+   }
+
+   # For safety, let's make sure the color scheme is reseted before we exit.
+   print Term::ANSIColor::color('reset');
+}
+
+
+my ($jobs, %users) = createJobList;
+my @colors = getColors;
+displayJobs($jobs, @colors);
+epilogue($jobs, $colors[1], %users);
+

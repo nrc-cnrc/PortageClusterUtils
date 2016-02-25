@@ -38,6 +38,7 @@ use strict;
 use warnings;
 use POSIX qw(ceil);
 use File::Basename;
+use File::Temp;
 
 sub usage {
    local $, = "\n";
@@ -261,10 +262,12 @@ if ( $debug ) {
 }
 
 # Create a working directory to prevent polluting the environment.
-$workdir = "parallelize.pl.$$" unless(defined($workdir));
-mkdir($workdir);
-
-
+if (defined($workdir)) {
+   mkdir($workdir);
+}
+else {
+   $workdir = File::Temp::tempdir("parallelize.pl.$$-XXXX");
+}
 
 # Make sure there is at least one input file.
 die "Error: You must provide an input file." unless(scalar(@SPLITS) gt 0);
