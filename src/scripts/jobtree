@@ -15,6 +15,8 @@
 use strict;
 use warnings;
 
+my $home_root="/fs/vnas_H";
+
 sub usage {
    local $, = "\n";
    print STDERR @_, "";
@@ -37,6 +39,9 @@ Options:
   -u(ser) USER  Filter jobs for USER [None]
   -P REGEX      Filter jobs based on a regular expression [None]
   -l(ocaltime)  Convert time from UTC to local time [don't convert time]
+  -g(roup) DEPT/DIV  Filter jobs for users that from division DIV of department
+                DEPT. The user list will be taken from ${home_root}DEPT/DIV.
+                E.g.: -g nrc/ict
 
   -j(obst) CMD  Use CMD as command to get job status [jobst]
                 e.g. use '-jobst cat' to test on input from STDIN
@@ -58,6 +63,7 @@ GetOptions(
    "user=s"    => \my $user,
    "P=s"       => \my $regex,
    "jobst=s"   => \$jobStreamCommand,
+   "group=s"   => \my $group,
 
    localtime   => \my $localtime,
    help        => sub { usage },
@@ -67,7 +73,9 @@ GetOptions(
 ) or usage;
 
 $jobStreamCommand .= " -u $user" if(defined($user));
-
+if ($group) {
+   -d "$home_root$group" or die "Can't find group $group - no root home $home_root$group.";
+}
 
 sub max ($$) { $_[$_[0] < $_[1]] }
 
@@ -101,6 +109,10 @@ sub createJobList {
          $line =~ s/^\s*//;
          $line =~ s/\s*$//;
          my ($id, $prior, $name, $user, $state, $date, $time, $queue, $a) = split(/\s+/, $line, 9);
+
+         if ($group) {
+            next unless -d "$home_root$group/$user";
+         }
 
          unless (defined($users{$user})) {
             $users{$user} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
