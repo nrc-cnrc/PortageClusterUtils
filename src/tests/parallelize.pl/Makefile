@@ -1,0 +1,113 @@
+#!/usr/bin/make -f
+# vim:noet:ts=3:nowrap:filetype=make
+
+PARALLELIZE_PL := parallelize.pl
+
+-include Makefile.params
+
+export PORTAGE_NOCLUSTER=1
+PROCESS := rev
+
+NUM_SRC_INPUT := 1000
+
+SHELL := bash
+
+DEFAULT_GOAL := all
+PHONY: all
+all:  testSuite
+
+
+PHONY: clean
+clean:
+	${RM} -fr input* testcase*
+
+
+.PHONY: testSuite
+
+input:
+	seq 0001 ${NUM_SRC_INPUT} > $@
+
+input.gz:  input
+	cat $< | gzip > $@
+
+input.xz:  input
+	cat $< | xz > $@
+
+
+
+########################################
+# Using xz compressed files.
+
+testcase.xz:  input.xz
+	${PARALLELIZE_PL} -workdir=$@.wk -debug -n 50 -np 5 '${PROCESS} < input.xz > $@' 2> $@.log
+
+.PHONY: testcase.xz.validate
+testSuite:  testcase.xz.validate
+testcase.xz.validate:  %.validate:  %
+	[[ `cat $*.wk/input.xz/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the input is missing" >&2
+	[[ `\ls $*.wk/input.xz/* | wc -l` -eq 50 ]] || ! echo "Too many input parts" >&2
+	[[ `\ls $*.wk/input.xz/*.done | wc -l` -eq 50 ]] || ! echo "Not all input parts were processed" >&2
+	[[ `find $*.wk/input.xz/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All input parts should be none empty." >&2
+	[[ `find $*.wk/_SLASH_dev_SLASH_stderr.done/ -type f | wc -l` -eq 50 ]] || ! echo "Missing error logs" >&2
+	[[ `cat $*.wk/$*.done/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the output is missing" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Too many output parts" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Not all output parts were processed" >&2
+	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
+	diff <(xzcat input.xz | rev) <(xzcat $*)  --brief
+
+testcase.stripe.xz:  input.xz
+	${PARALLELIZE_PL} -stripe -workdir=$@.wk -debug -n 50 -np 5 '${PROCESS} < input.xz > $@' 2> $@.log
+
+.PHONY: testcase.stripe.xz.validate
+testSuite:  testcase.stripe.xz.validate
+testcase.stripe.xz.validate:  %.validate:  %
+	[[ `cat $*.wk/input.xz/* | wc -l` -eq 0 ]] || ! echo "Seems that stripe did not work" >&2
+	[[ `\ls $*.wk/input.xz/* | wc -l` -eq 50 ]] || ! echo "Too many input parts" >&2
+	[[ `\ls $*.wk/input.xz/*.done | wc -l` -eq 50 ]] || ! echo "Not all input parts were processed" >&2
+	[[ `find $*.wk/input.xz/ -type f -empty | wc -l` -eq 50 ]] || ! echo "All input parts should be empty." >&2
+	[[ `find $*.wk/_SLASH_dev_SLASH_stderr.done/ -type f | wc -l` -eq 50 ]] || ! echo "Missing error logs" >&2
+	[[ `cat $*.wk/$*.done/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the output is missing" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Too many output parts" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Not all output parts were processed" >&2
+	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
+	diff <(xzcat input.xz | rev) <(xzcat $*)  --brief
+
+
+
+########################################
+# Using gzip compressed files.
+
+testcase.gz:  input.gz
+	${PARALLELIZE_PL} -workdir=$@.wk -debug -n 50 -np 5 '${PROCESS} < input.gz > $@' 2> $@.log
+
+.PHONY: testcase.gz.validate
+testSuite:  testcase.gz.validate
+testcase.gz.validate:  %.validate:  %
+	[[ `cat $*.wk/input.gz/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the input is missing" >&2
+	[[ `\ls $*.wk/input.gz/* | wc -l` -eq 50 ]] || ! echo "Too many input parts" >&2
+	[[ `\ls $*.wk/input.gz/*.done | wc -l` -eq 50 ]] || ! echo "Not all input parts were processed" >&2
+	[[ `find $*.wk/input.gz/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All input parts should be none empty." >&2
+	[[ `find $*.wk/_SLASH_dev_SLASH_stderr.done/ -type f | wc -l` -eq 50 ]] || ! echo "Missing error logs" >&2
+	[[ `cat $*.wk/$*.done/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the output is missing" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Too many output parts" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Not all output parts were processed" >&2
+	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
+	diff <(zcat input.gz | rev) <(zcat $*)  --brief
+
+testcase.stripe.gz:  input.gz
+	${PARALLELIZE_PL} -stripe -workdir=$@.wk -debug -n 50 -np 5 '${PROCESS} < input.gz > $@' 2> $@.log
+
+.PHONY: testcase.stripe.gz.validate
+testSuite:  testcase.stripe.gz.validate
+testcase.stripe.gz.validate:  %.validate:  %
+	[[ `cat $*.wk/input.gz/* | wc -l` -eq 0 ]] || ! echo "Seems that stripe did not work" >&2
+	[[ `\ls $*.wk/input.gz/* | wc -l` -eq 50 ]] || ! echo "Too many input parts" >&2
+	[[ `\ls $*.wk/input.gz/*.done | wc -l` -eq 50 ]] || ! echo "Not all input parts were processed" >&2
+	[[ `find $*.wk/input.gz/ -type f -empty | wc -l` -eq 50 ]] || ! echo "All input parts should be empty." >&2
+	[[ `find $*.wk/_SLASH_dev_SLASH_stderr.done/ -type f | wc -l` -eq 50 ]] || ! echo "Missing error logs" >&2
+	[[ `cat $*.wk/$*.done/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the output is missing" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Too many output parts" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Not all output parts were processed" >&2
+	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
+	diff <(zcat input.gz | rev) <(zcat $*)  --brief
+
