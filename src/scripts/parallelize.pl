@@ -315,7 +315,7 @@ unless ($use_stripe_splitting) {
    # Split all SPLITS
    foreach my $s (@SPLITS) {
       my $dir = "$workdir/" . $basename{$s};
-      my $mimeType=`file --brief --mime-type $s`;
+      my $mimeType=`file --dereference --brief --mime-type $s`;
       chomp($mimeType);
       my $reader=$READERS{$mimeType} || 'cat';
 
@@ -367,7 +367,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    if ($use_stripe_splitting) {
       my $done = "$workdir/" . $basename{$SPLITS[0]} . "/$index.done";
       foreach my $s (@SPLITS) {
-         my $mimeType=`file --brief --mime-type $s`;
+         my $mimeType=`file --dereference --brief --mime-type $s`;
          chomp($mimeType);
          my $reader=$READERS{$mimeType} || 'cat';
          # NOTE: doing zcat file.gz | stripe.py is much much faster than
@@ -382,11 +382,11 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       print(CMD_FILE "set -o pipefail; test -f $done || { { $debug_cmd $SUB_CMD; } && touch $done; }\n");
    }
    else {
-      my @delete = ();
+      my @done = ();
       # For each occurence of a file to split, replace it by a chunk.
       foreach my $s (@SPLITS) {
          my $file = "$workdir/" . $basename{$s} . "/$index";
-         push(@delete, $file);
+         push(@done, $file);
          unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s|\))/$1$file$2/) {
             die "Error: Unable to match $s and $file";
          }
@@ -395,7 +395,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       verbose(1, "\tAdding to the command list: $SUB_CMD");
       # By deleting the input chunks we say this block was properly process in
       # case of a resume is needed.
-      print(CMD_FILE "set -o pipefail; test ! -f $delete[0] || { { $debug_cmd $SUB_CMD; } && mv $delete[0] $delete[0].done; }\n");
+      print(CMD_FILE "set -o pipefail; test ! -f $done[0] || { { $debug_cmd $SUB_CMD; } && mv $done[0] $done[0].done; }\n");
    }
 }
 close(CMD_FILE) or die "Error: Unable to close command file!";
