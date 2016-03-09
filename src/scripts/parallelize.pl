@@ -315,7 +315,7 @@ unless ($use_stripe_splitting) {
    # Split all SPLITS
    foreach my $s (@SPLITS) {
       my $dir = "$workdir/" . $basename{$s};
-      my $mimeType=`file --brief --mime-type $s`;
+      my $mimeType=`file --dereference --brief --mime-type $s`;
       chomp($mimeType);
       my $reader=$READERS{$mimeType} || 'cat';
 
@@ -367,7 +367,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    if ($use_stripe_splitting) {
       my $done = "$workdir/" . $basename{$SPLITS[0]} . "/$index.done";
       foreach my $s (@SPLITS) {
-         my $mimeType=`file --brief --mime-type $s`;
+         my $mimeType=`file --dereference --brief --mime-type $s`;
          chomp($mimeType);
          my $reader=$READERS{$mimeType} || 'cat';
          # NOTE: doing zcat file.gz | stripe.py is much much faster than
