@@ -315,8 +315,8 @@ sub epilogue {
    my $color = shift;
    my %users = @_;
 
-   my $header = "%7s %5s %4s %7s %10s\n";
-   my $format = "%7s %5d %4d %7.2f %10d\n";
+   my $header = "%7s %8s %5s %4s %7s %10s\n";
+   my $format = "%7s %8s %5d %4d %7.2f %10d\n";
 
    my $max_height = $jobs->getHeight() - 1;
 
@@ -336,15 +336,31 @@ sub epilogue {
       $max_h_rt    = max($max_h_rt, $_->{h_rt});
    }
    values %users;
-   $users{TOTAL} = { job_count => $total_job_count, cpus => $total_cpus, mem => $total_mem, h_rt => $max_h_rt };
+   $users{TOTAL} = {
+      group => "",
+      job_count => $total_job_count,
+      cpus => $total_cpus,
+      mem => $total_mem,
+      h_rt => $max_h_rt
+   };
+
+   # Find out the group for each user, to print in the tally only
+   foreach my $name (@usernames) {
+      my @home_dir = glob "$home_root*/*/$name";
+      if (@home_dir && $home_dir[0] =~ m#$home_root(.*/.*)/$name#) {
+         $users{$name}{group} = $1;
+      } else {
+         $users{$name}{group} = "";
+      }
+   }
 
    print "--------", "---" x $max_height, "-" x 105, "\n";
-   printf($header, 'user', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
-   printf($header, '-' x 7, '-' x 5, '-' x 4, '-' x 7, '-' x 10);
+   printf($header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
+   printf($header, '-' x 7, '-' x 8, '-' x 5, '-' x 4, '-' x 7, '-' x 10);
    foreach my $name (@usernames, "TOTAL") {
       my %stats = %{$users{$name}};
       print $color if $LOGNAME eq $name;
-      printf($format, $name, $stats{job_count}, $stats{cpus}, $stats{mem}, $stats{h_rt});
+      printf($format, $name, $stats{group}, $stats{job_count}, $stats{cpus}, $stats{mem}, $stats{h_rt});
       print "$noColor";
    }
 
