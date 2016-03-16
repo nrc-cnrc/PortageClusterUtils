@@ -163,7 +163,7 @@ sub createJobList {
          }
 
          # Let's create a node for that job.
-         my $sub_tree = Tree::Simple->new(sprintf("%-8d %.3f %-10s %-7s %4d %4dG %6d %-3s %s %s %20s %s",
+         my $sub_tree = Tree::Simple->new(sprintf("%-8d %.3f %-10s %-7s %2d %3dG %4d %-3s %s %s %20s %s",
             $id,
             $prior,
             $name,
@@ -298,8 +298,8 @@ sub displayJobs {
    $Data::TreeDumper::Displayaddress    = 0;
 
    # Let's display the header
-   print "   job-ID" . "   " x $max_height . "prior   name      user   cpus  mem   time  st    submit/start at           queue        slots ja-task-ID\n";
-   print "--------" . "---" x $max_height . " ----- ---------- ------- ---- ----- ------ --- ------------------- -------------------- ----- ----------";
+   print "   job-ID" . "   " x $max_height . "prior   name      user  cpus mem time st    submit/start at           queue        slots ja-task-ID\n";
+   print "--------" . "---" x $max_height . " ----- ---------- ------- -- ---- ---- --- ------------------- -------------------- ----- ----------";
    print DumpTree($jobs,
       '',
       COLOR_LEVELS => [\@colors, ''],
