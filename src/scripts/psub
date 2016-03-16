@@ -255,6 +255,7 @@ while [ $# -gt 0 ]; do
    -qsparams)       arg_check 1 $# $!;
                     QSPARAMS=$2;
                     shift;;
+   -join)           QSPARAMS="-j y";;
    -p)              arg_check 1 $# $!;
                     PRIORITY="$1 $2";
                     shift;;
