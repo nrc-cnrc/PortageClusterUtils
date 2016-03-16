@@ -44,7 +44,10 @@ Options:
   -i RES_IMAGE   Change the container's image [\$ENV{PSUB_RES_IMAGE}]
   -pe ENVIRONMENT Change the parallel environment [dev]
   -pepp          Change parallel processes [1]
-  -rt RUN_TIME   Specify the job's run time in minutes [1440 (one day)]
+  -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]
+                 Default can be changed by setting the enviornment variable
+                 PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES, e.g. for ten days:
+                 export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=\$((10*24*60))
 
   General options:
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
@@ -178,7 +181,7 @@ PSUB_RESOURCE_OPTIONS=
 PARALLEL_ENVIRONMENT=dev
 # NOTE, PE_PARALLEL_PROCESSES should always be 1.
 PE_PARALLEL_PROCESSES=1
-RUNTIME_MINUTES=1440 # one day in minutes (24 x 60).
+RUNTIME_MINUTES=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-((24*60))} # default: one day in minutes (24 x 60 = 1440).
 
 NODES=
 while [ $# -gt 0 ]; do
@@ -496,6 +499,7 @@ cat <<==EOF== > $TMPSCRIPT
 # User's environment.
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
+`env | egrep '^(PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES)=' | sed -e 's/^/export /'`
 
 # Set the number of allowed openmp threads based on the number of cpus.
 export OMP_NUM_THREADS=$CPU_COUNT
