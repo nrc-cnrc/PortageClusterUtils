@@ -68,6 +68,7 @@ Options:
   -N JOB_NAME    specify job name
   -e ERR_FILE    stderr destination
   -o OUT_FILE    stdout destination
+  -join          join stderr with stdout in one file
   -noscript      don't write out the script
   -l RES=VAL[,RES2=VAL2[,...]]  resources for job (see man pbs_resources)
                  (separate multiple resources with commas, or repeat -l)
