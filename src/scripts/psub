@@ -80,6 +80,8 @@ Options:
                  should start first. 0 = normal, >0 = high, <0 = low.
                  Only use > 0 for short, urgent jobs. [0]
   -t ARRAY       See "qsub -t" in the TORQUE admin manual or man qsub
+  -noc(luster)   Block recursive jobs: the job will think it's running on a
+                 stand-alone, non-clustered machine.
   -n             "not really" (dump the PBS script, but don't submit it)
   -f             force submission even if errors are detected
   -I             enter interactive mode thus getting a prompt to a node
@@ -175,6 +177,7 @@ PRIORITY=
 JOB_ARRAY=
 OPT_J=1
 REQUIRES_GPU=
+NOCLUSTER_OPTION=
 
 PSUB_RESOURCE_OPTIONS=
 
@@ -260,6 +263,7 @@ while [ $# -gt 0 ]; do
                     QSPARAMS=$2;
                     shift;;
    -join)           QSPARAMS="-j y";;
+   -noc|-nocluster) NOCLUSTER_OPTION="export PORTAGE_NOCLUSTER=1";;
    -p)              arg_check 1 $# $!;
                     PRIORITY="$1 $2";
                     shift;;
@@ -501,6 +505,7 @@ cat <<==EOF== > $TMPSCRIPT
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
 `env | egrep '^(PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES)=' | sed -e 's/^/export /'`
+$NOCLUSTER_OPTION
 
 # Set the number of allowed openmp threads based on the number of cpus.
 export OMP_NUM_THREADS=$CPU_COUNT
@@ -693,6 +698,7 @@ ulimit -s 100000"
 export PATH=\$PBS_O_PATH
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|MADA_HOME)=' | sed -e 's/^/export /'`
+$NOCLUSTER_OPTION
 
 # Preserve the calling working directory
 cd \$PBS_O_WORKDIR || exit
