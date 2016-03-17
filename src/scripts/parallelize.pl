@@ -165,6 +165,19 @@ GetOptions(
 my %READERS = ( 'text/plain' => 'cat', 'application/x-gzip' => 'gzip -cqdf', 'application/x-xz' => 'xz -cqdf' );
 my %WRITERS = ( '.gz' => 'gzip', '.xz' => 'xz' );
 
+sub getMimeType {
+   my $filename = shift or die "ERROR: You need to provide a filename.";
+   #my $mimeType=`file --dereference --brief --mime $filename`;
+   #chomp($mimeType);
+   if ($filename =~ m/\.gz$/) {
+      return 'application/x-gzip';
+   }
+   elsif ($filename =~ m/\.xz$/) {
+      return 'application/x-xz';
+   }
+   return 'text/plain';
+}
+
 sub debug {
    print STDERR "<D> @_\n" if ($debug);
 }
@@ -315,9 +328,8 @@ unless ($use_stripe_splitting) {
    # Split all SPLITS
    foreach my $s (@SPLITS) {
       my $dir = "$workdir/" . $basename{$s};
-      my $mimeType=`file --dereference --brief --mime-type $s`;
-      chomp($mimeType);
-      my $reader=$READERS{$mimeType} || 'cat';
+      my $reader = $READERS{getMimeType $s} || 'cat';
+      verbose(2, "Using reader: <$reader>");
 
       my $NUM_LINE = $W;
       # Did the user specified a number of line to split into?
@@ -367,9 +379,8 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    if ($use_stripe_splitting) {
       my $done = "$workdir/" . $basename{$SPLITS[0]} . "/$index.done";
       foreach my $s (@SPLITS) {
-         my $mimeType=`file --dereference --brief --mime-type $s`;
-         chomp($mimeType);
-         my $reader=$READERS{$mimeType} || 'cat';
+         my $reader = $READERS{getMimeType $s} || 'cat';
+         verbose(2, "Using reader: <$reader>");
          # NOTE: doing zcat file.gz | stripe.py is much much faster than
          # stripe.py file.gz.  Seems like the python's implementation of gzip is
          # quite slow.

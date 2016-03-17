@@ -20,20 +20,25 @@ all:  testSuite
 
 PHONY: clean
 clean:
-	${RM} -fr input* testcase*
+	${RM} -fr input* testcase* run-p.*/
 
 
-.PHONY: testSuite
+.PHONY:  testSuite
+.PHONY:  inputs
 
+inputs:  input
 input:
 	seq 0001 ${NUM_SRC_INPUT} > $@
 
+inputs:  input.gz
 input.gz:  input
 	cat $< | gzip > $@
 
+inputs:  input.xz
 input.xz:  input
 	cat $< | xz > $@
 
+inputs:  input.symlink
 input.symlink:  input
 	ln -fs $< $@
 
