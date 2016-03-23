@@ -108,7 +108,17 @@ sub createJobList {
          chomp($line);
          $line =~ s/^\s*//;
          $line =~ s/\s*$//;
-         my ($id, $prior, $name, $user, $state, $date, $time, $queue, $a) = split(/\s+/, $line, 9);
+         my ($id, $prior, $name, $user, $state, $date, $time, $queue, $slots, $a) = split(/\s+/, $line, 10);
+         if (!$slots && $queue =~ /^\d+$/) {
+            $slots = $queue;
+            $queue = "";
+         }
+         if ($slots !~ /^\d+$/) {
+            print STDERR "Weird slots: $slots; setting to 1\n";
+            $slots = 1;
+         }
+         $a = "" unless defined $a;
+
 
          if ($group) {
             next unless -d "$home_root$group/$user";
@@ -123,7 +133,7 @@ sub createJobList {
          my $res_cpus = 0;
          if ($description =~ m/.*res_cpus=(\d+).*/s) {
             $res_cpus = $1;
-            $users{$user}{cpus} += $res_cpus;
+            $users{$user}{cpus} += $res_cpus * $slots;
          }
          else {
             die "Error: Unable to match for res_cpus", $description;
@@ -132,7 +142,7 @@ sub createJobList {
          my $res_mem = 0;
          if ($description =~ m/.*res_mem=(\d+).*/s) {
             $res_mem = $1 / 1024;
-            $users{$user}{mem} += $res_mem;
+            $users{$user}{mem} += $res_mem * $slots;
          }
          else {
             die "Error: Unable to match for res_mem", $description;
@@ -163,7 +173,7 @@ sub createJobList {
          }
 
          # Let's create a node for that job.
-         my $sub_tree = Tree::Simple->new(sprintf("%-8d %.3f %-10s %-7s %2d %3dG %4d %-3s %s %s %20s %s",
+         my $label = sprintf("%-8d %.3f %-10s %-7s %2d %3dG %4d %-3s %s %s %20s %-5s %s",
             $id,
             $prior,
             $name,
@@ -175,7 +185,10 @@ sub createJobList {
             $date,
             $time,
             $queue,
-            $a || ""));
+            $slots,
+            $a);
+         $label =~ s/ *$//;
+         my $sub_tree = Tree::Simple->new($label);
          $jobs{$id} = $sub_tree;
 
          # Does this job a sub job of another master job.
