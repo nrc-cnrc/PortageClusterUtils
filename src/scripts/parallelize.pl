@@ -162,8 +162,8 @@ GetOptions(
 ) or usage "Error: Invalid option(s).";
 
 
-my %READERS = ( 'text/plain' => 'cat', 'application/x-gzip' => 'gzip -cqdf', 'application/x-xz' => 'xz -cqdf' );
-my %WRITERS = ( '.gz' => 'gzip', '.xz' => 'xz' );
+my %READERS = ( 'text/plain' => 'cat', 'application/x-gzip' => 'gzip -cqdf', 'application/x-xz' => 'xz -cqdf', 'application/x-bzip2' => 'bzip2 -cqdf' );
+my %WRITERS = ( '.gz' => 'gzip', '.xz' => 'xz', '.bz2' => 'bzip2' );
 
 sub getMimeType {
    my $filename = shift or die "ERROR: You need to provide a filename.";
@@ -171,6 +171,9 @@ sub getMimeType {
    #chomp($mimeType);
    if ($filename =~ m/\.gz$/) {
       return 'application/x-gzip';
+   }
+   elsif ($filename =~ m/\.bz2$/) {
+      return 'application/x-bzip2';
    }
    elsif ($filename =~ m/\.xz$/) {
       return 'application/x-xz';

@@ -34,6 +34,10 @@ inputs:  input.gz
 input.gz:  input
 	cat $< | gzip > $@
 
+inputs:  input.bz2
+input.bz2:  input
+	cat $< | bzip2 > $@
+
 inputs:  input.xz
 input.xz:  input
 	cat $< | xz > $@
@@ -203,6 +207,48 @@ testcase.stripe.gz.validate:  %.validate:  %
 	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Not all output parts were processed" >&2
 	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
 	diff <(zcat input.gz | rev) <(zcat $*)  --brief
+
+
+
+########################################
+# Using bzip2 compressed files.
+.PHONY:  bz2
+bz2:  testcase.bz2.validate
+bz2:  testcase.stripe.bz2.validate
+
+testcase.bz2:  input.bz2
+	${PARALLELIZE_PL} -workdir=$@.wk -debug -n 50 -np 5 '${PROCESS} < $< > $@' 2> $@.log
+
+.PHONY: testcase.bz2.validate
+testSuite:  testcase.bz2.validate
+testcase.bz2.validate:  %.validate:  %
+	[[ `cat $*.wk/input.bz2/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the input is missing" >&2
+	[[ `\ls $*.wk/input.bz2/* | wc -l` -eq 50 ]] || ! echo "Too many input parts" >&2
+	[[ `\ls $*.wk/input.bz2/*.done | wc -l` -eq 50 ]] || ! echo "Not all input parts were processed" >&2
+	[[ `find $*.wk/input.bz2/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All input parts should be none empty." >&2
+	[[ `find $*.wk/_SLASH_dev_SLASH_stderr.done/ -type f | wc -l` -eq 50 ]] || ! echo "Missing error logs" >&2
+	[[ `cat $*.wk/$*.done/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the output is missing" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Too many output parts" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Not all output parts were processed" >&2
+	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
+	diff <(bzcat input.bz2 | rev) <(bzcat $*)  --brief
+
+testcase.stripe.bz2:  input.bz2
+	${PARALLELIZE_PL} -stripe -workdir=$@.wk -debug -n 50 -np 5 '${PROCESS} < $< > $@' 2> $@.log
+
+.PHONY: testcase.stripe.bz2.validate
+testSuite:  testcase.stripe.bz2.validate
+testcase.stripe.bz2.validate:  %.validate:  %
+	[[ `cat $*.wk/input.bz2/* | wc -l` -eq 0 ]] || ! echo "Seems that stripe did not work" >&2
+	[[ `\ls $*.wk/input.bz2/* | wc -l` -eq 50 ]] || ! echo "Too many input parts" >&2
+	[[ `\ls $*.wk/input.bz2/*.done | wc -l` -eq 50 ]] || ! echo "Not all input parts were processed" >&2
+	[[ `find $*.wk/input.bz2/ -type f -empty | wc -l` -eq 50 ]] || ! echo "All input parts should be empty." >&2
+	[[ `find $*.wk/_SLASH_dev_SLASH_stderr.done/ -type f | wc -l` -eq 50 ]] || ! echo "Missing error logs" >&2
+	[[ `cat $*.wk/$*.done/* | wc -l` -eq ${NUM_SRC_INPUT} ]] || ! echo "Some of the output is missing" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Too many output parts" >&2
+	[[ `\ls $*.wk/$*.done/* | wc -l` -eq 50 ]] || ! echo "Not all output parts were processed" >&2
+	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
+	diff <(bzcat input.bz2 | rev) <(bzcat $*)  --brief
 
 
 
