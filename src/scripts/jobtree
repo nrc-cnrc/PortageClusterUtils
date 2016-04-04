@@ -328,8 +328,8 @@ sub epilogue {
    my $color = shift;
    my %users = @_;
 
-   my $header = "%7s %8s %5s %4s %7s %10s\n";
-   my $format = "%7s %8s %5d %4d %7.2f %10d\n";
+   my $header = "%7s %8s %5s %5s %9s %10s\n";
+   my $format = "%7s %8s %5d %5d %9.2f %10d\n";
 
    my $max_height = $jobs->getHeight() - 1;
 
@@ -369,7 +369,7 @@ sub epilogue {
 
    print "--------", "---" x $max_height, "-" x 105, "\n";
    printf($header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
-   printf($header, '-' x 7, '-' x 8, '-' x 5, '-' x 4, '-' x 7, '-' x 10);
+   printf($header, '-' x 7, '-' x 8, '-' x 5, '-' x 5, '-' x 9, '-' x 10);
    foreach my $name (@usernames, "TOTAL") {
       my %stats = %{$users{$name}};
       print $color if $LOGNAME eq $name;
