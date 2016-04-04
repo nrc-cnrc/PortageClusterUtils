@@ -518,14 +518,8 @@ for sig in 2 3 10 12 15; do
          echo "Caught signal '$sig', killing workers (please be patient)"
          WORKERS=`cat $WORKER_JOBIDS`
          if [[ -n "$WORKERS" ]]; then
-            NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
-            if [[ $NUM_WORKERS -le 10 ]]; then
-               SIGNAL=SIGUSR1
-            else
-               SIGNAL=SIGUSR2
-            fi
-            echo "Using $SIGNAL"
-            jobsig.pl -p -s $SIGNAL $WORKERS
+            echo $QDEL $WORKERS
+            $QDEL $WORKERS
             sleep 15
          fi
          WORKER_JOBIDS=""
