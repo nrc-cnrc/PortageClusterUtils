@@ -512,23 +512,25 @@ trap '
 # When working in cluster mode, killing many jobs at once is not friendly, so
 # we setup a trap with a more cluster-friendly behaviour for SIGTERM, SIGINT
 # and SIGQUIT.
-trap '
-   if [[ -n "$WORKER_JOBIDS" ]]; then
-      echo "Caught a termination signal, killing workers (please be patient)"
-      WORKERS=`cat $WORKER_JOBIDS`
-      NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
-      if [[ $NUM_WORKERS -le 10 ]]; then
-         SIGNAL=SIGUSR1
-      else
-         SIGNAL=SIGUSR2
-      fi
-      echo "Using $SIGNAL"
-      jobsig.pl -p -s $SIGNAL $WORKERS
-      sleep 15
-      WORKER_JOBIDS=""
-   fi >&2
-   exit $GLOBAL_RETURN_CODE
-' 2 3 10 12 15
+for sig in 2 3 10 12 15; do
+   trap '
+      if [[ -n "$WORKER_JOBIDS" ]]; then
+         echo "Caught signal '$sig', killing workers (please be patient)"
+         WORKERS=`cat $WORKER_JOBIDS`
+         NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
+         if [[ $NUM_WORKERS -le 10 ]]; then
+            SIGNAL=SIGUSR1
+         else
+            SIGNAL=SIGUSR2
+         fi
+         echo "Using $SIGNAL"
+         jobsig.pl -p -s $SIGNAL $WORKERS
+         sleep 15
+         WORKER_JOBIDS=""
+      fi >&2
+      exit $GLOBAL_RETURN_CODE
+   ' $sig
+done
 
 # Create a temp directory for all temp files to go into.
 WORKDIR=`mktemp -d ${PREFIX}run-p.$SHORT_JOB_ID.XXX` || error_exit "Can't create temp WORKDIR."
@@ -847,7 +849,7 @@ else
       echo Pinging $MY_HOST:$MY_PORT >&2
    fi
    if [[ "`echo PING | r-parallel-worker.pl -netcat -host $MY_HOST -port $MY_PORT`" != PONG ]]; then
-      error_exit "Daemon did not respond correctly to PING request"
+      error_exit "Daemon did not respond correctly to PING request. Running on `hostname`, trying to ping $MY_HOST:$MY_PORT."
    fi
 fi
 
