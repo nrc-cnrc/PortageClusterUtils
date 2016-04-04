@@ -517,15 +517,17 @@ for sig in 2 3 10 12 15; do
       if [[ -n "$WORKER_JOBIDS" ]]; then
          echo "Caught signal '$sig', killing workers (please be patient)"
          WORKERS=`cat $WORKER_JOBIDS`
-         NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
-         if [[ $NUM_WORKERS -le 10 ]]; then
-            SIGNAL=SIGUSR1
-         else
-            SIGNAL=SIGUSR2
+         if [[ -n "$WORKERS" ]]; then
+            NUM_WORKERS=`wc -l < $WORKER_JOBIDS`
+            if [[ $NUM_WORKERS -le 10 ]]; then
+               SIGNAL=SIGUSR1
+            else
+               SIGNAL=SIGUSR2
+            fi
+            echo "Using $SIGNAL"
+            jobsig.pl -p -s $SIGNAL $WORKERS
+            sleep 15
          fi
-         echo "Using $SIGNAL"
-         jobsig.pl -p -s $SIGNAL $WORKERS
-         sleep 15
          WORKER_JOBIDS=""
       fi >&2
       exit $GLOBAL_RETURN_CODE
