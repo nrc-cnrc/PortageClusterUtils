@@ -845,7 +845,14 @@ else
       echo Pinging $MY_HOST:$MY_PORT >&2
    fi
    if [[ "`echo PING | r-parallel-worker.pl -netcat -host $MY_HOST -port $MY_PORT`" != PONG ]]; then
-      error_exit "Daemon did not respond correctly to PING request. Running on `hostname`, trying to ping $MY_HOST:$MY_PORT."
+      # When PING fails, do some real ping in the hope it will give us useful
+      # troubleshoting info, then try again once before giving up.
+      ping -c 10 $MY_HOST >&2
+      sleep 5
+      if [[ "`echo PING | r-parallel-worker.pl -netcat -host $MY_HOST -port $MY_PORT`" != PONG ]]; then
+
+         error_exit "Daemon did not respond correctly to PING request. Running on `hostname`, trying to ping $MY_HOST:$MY_PORT."
+      fi
    fi
 fi
 
