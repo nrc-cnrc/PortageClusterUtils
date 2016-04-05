@@ -148,6 +148,10 @@ sub createJobList {
             die "Error: Unable to match for res_mem", $description;
          }
 
+         if ($description =~ m/res_gpu=1/) {
+            $a .= " GPU";
+         }
+
          # Some job may not have h_rt set.
          my $h_rt = 0;
          if ($description =~ m/.*h_rt=(\d+).*/s) {
