@@ -136,7 +136,8 @@ sub createJobList {
             $users{$user}{cpus} += $res_cpus * $slots;
          }
          else {
-            die "Error: Unable to match for res_cpus", $description;
+            warn "Warning: Unable to match for res_cpus, assuming 1 cpu", $description;
+            $res_cpus = 1;
          }
 
          my $res_mem = 0;
@@ -145,7 +146,7 @@ sub createJobList {
             $users{$user}{mem} += $res_mem * $slots;
          }
          else {
-            die "Error: Unable to match for res_mem", $description;
+            warn "Warning: Unable to match for res_mem in ", $description;
          }
 
          if ($description =~ m/res_gpu=1/) {
