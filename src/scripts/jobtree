@@ -42,6 +42,7 @@ Options:
   -g(roup) DEPT/DIV  Filter jobs for users that from division DIV of department
                 DEPT. The user list will be taken from ${home_root}DEPT/DIV.
                 E.g.: -g nrc/ict
+  -s(ummray)    Simply output the summary without the tree. [Don't]
 
   -j(obst) CMD  Use CMD as command to get job status [jobst]
                 e.g. use '-jobst cat' to test on input from STDIN
@@ -64,6 +65,7 @@ GetOptions(
    "P=s"       => \my $regex,
    "jobst=s"   => \$jobStreamCommand,
    "group=s"   => \my $group,
+   "summary"   => \my $summaryOnly,
 
    localtime   => \my $localtime,
    help        => sub { usage },
@@ -372,7 +374,7 @@ sub epilogue {
       }
    }
 
-   print "--------", "---" x $max_height, "-" x 105, "\n";
+   print "--------", "---" x $max_height, "-" x 105, "\n" unless($summaryOnly);
    printf($header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
    printf($header, '-' x 7, '-' x 8, '-' x 5, '-' x 5, '-' x 9, '-' x 10);
    foreach my $name (@usernames, "TOTAL") {
@@ -389,6 +391,6 @@ sub epilogue {
 
 my ($jobs, %users) = createJobList;
 my @colors = getColors;
-displayJobs($jobs, @colors);
+displayJobs($jobs, @colors) unless($summaryOnly);
 epilogue($jobs, $colors[1], %users);
 
