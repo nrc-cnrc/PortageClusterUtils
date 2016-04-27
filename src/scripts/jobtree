@@ -113,6 +113,7 @@ sub createJobList {
          $line =~ s/^\s*//;
          $line =~ s/\s*$//;
          my ($id, $prior, $name, $user, $state, $date, $time, $queue, $slots, $a) = split(/\s+/, $line, 10);
+         $state = "UNK" unless($state ne "");
          if (!$slots && $queue =~ /^\d+$/) {
             $slots = $queue;
             $queue = "";
@@ -132,12 +133,18 @@ sub createJobList {
             $users{$user} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
          }
 
+         unless (defined($users{$user}{states}{$state})) {
+            $users{$user}{states}{$state} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
+         }
+
          $users{$user}{job_count} += 1;
+         $users{$user}{states}{$state}{job_count} += 1;
 
          my $res_cpus = 0;
          if ($description =~ m/.*res_cpus=(\d+).*/s) {
             $res_cpus = $1;
             $users{$user}{cpus} += $res_cpus * $slots;
+            $users{$user}{states}{$state}{cpus} += $res_cpus * $slots;
          }
          else {
             warn "Warning: Unable to match for res_cpus, assuming 1 cpu", $description;
@@ -148,6 +155,7 @@ sub createJobList {
          if ($description =~ m/.*res_mem=(\d+).*/s) {
             $res_mem = $1 / 1024;
             $users{$user}{mem} += $res_mem * $slots;
+            $users{$user}{states}{$state}{mem} += $res_mem * $slots;
          }
          else {
             warn "Warning: Unable to match for res_mem in ", $description;
@@ -168,6 +176,7 @@ sub createJobList {
                $h_rt /= 3600;
             }
             $users{$user}{h_rt} = max($users{$user}{h_rt}, $h_rt);
+            $users{$user}{states}{$state}{h_rt} = max($users{$user}{h_rt}, $h_rt);
          }
 
          # Drop .science.gc.ca from the queue's name.
@@ -333,6 +342,45 @@ sub displayJobs {
 
 
 sub epilogue {
+   sub total {
+      # Tally across users, job information that meet the filter.
+      my $keep = shift;
+      my %users = @_;
+      my ($total_job_count, $total_cpus, $total_mem, $max_h_rt) = (0, 0, 0, 0);
+
+      map {
+         # For each user, tally state information where the state passes the user's keep-filter.
+         my $states = $_->{states};
+         map {
+            # Tally information.
+            $total_job_count += $_->{job_count};
+            $total_cpus      += $_->{cpus};
+            $total_mem       += $_->{mem};
+            $max_h_rt        = max($max_h_rt, $_->{h_rt});
+         }
+         map {
+            # Extract the state's information.
+            my $state = $_;
+            $states->{$state};
+         }
+         grep {
+            # Keep the states that the user needs.
+            my $state = $_;
+            $keep->($state);
+         }
+         keys %{$states};
+      }
+      values %users;
+
+      return {
+         group => "",
+         job_count => $total_job_count,
+         cpus => $total_cpus,
+         mem => $total_mem,
+         h_rt => $max_h_rt
+      };
+   };
+
    my $jobs  = shift;
    my $color = shift;
    my %users = @_;
@@ -350,21 +398,8 @@ sub epilogue {
 
    my @usernames = sort keys %users;
 
-   my ($total_job_count, $total_cpus, $total_mem, $max_h_rt) = (0,0,0,0);
-   map {
-      $total_job_count += $_->{job_count};
-      $total_cpus += $_->{cpus};
-      $total_mem  += $_->{mem};
-      $max_h_rt    = max($max_h_rt, $_->{h_rt});
-   }
-   values %users;
-   $users{TOTAL} = {
-      group => "",
-      job_count => $total_job_count,
-      cpus => $total_cpus,
-      mem => $total_mem,
-      h_rt => $max_h_rt
-   };
+   $users{TOTAL} = total(sub { my $a = shift; $a !~ m/Eqw/; }, %users);
+   $users{Eqw}   = total(sub { my $a = shift; $a =~ m/Eqw/; }, %users);
 
    # Find out the group for each user, to print in the tally only
    foreach my $name (@usernames) {
@@ -372,9 +407,11 @@ sub epilogue {
       #print "HOME_DIR=@home_dir\n";
       if (@home_dir && $home_dir[0] =~ m#$home_root(.*/.*)/$name#) {
          $users{$name}{group} = $1;
-      } elsif (@home_dir && $home_dir[0] =~ m#$home_root2(.*)/$name#) {
+      }
+      elsif (@home_dir && $home_dir[0] =~ m#$home_root2(.*)/$name#) {
          $users{$name}{group} = $1;
-      } else {
+      }
+      else {
          $users{$name}{group} = "";
       }
    }
@@ -382,7 +419,7 @@ sub epilogue {
    print "--------", "---" x $max_height, "-" x 105, "\n" unless($summaryOnly);
    printf($header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
    printf($header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 10);
-   foreach my $name (@usernames, "TOTAL") {
+   foreach my $name (@usernames, "TOTAL", "Eqw") {
       my %stats = %{$users{$name}};
       print $color if $LOGNAME eq $name;
       printf($format, $name, $stats{group}, $stats{job_count}, $stats{cpus}, $stats{mem}, $stats{h_rt});
