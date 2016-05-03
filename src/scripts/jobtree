@@ -412,7 +412,17 @@ sub epilogue {
          $users{$name}{group} = $1;
       }
       else {
-         $users{$name}{group} = "";
+         my $home_link = `ls -l /home/$name`;
+         print "HOME_LINK=$home_link\n";
+         if ($home_link =~ m#$home_root(.*/.*)/$name#) {
+            $users{$name}{group} = $1;
+         }
+         elsif ($home_link =~ m#$home_root2(.*)/$name#) {
+            $users{$name}{group} = $1;
+         }
+         else {
+            $users{$name}{group} = "";
+         }
       }
    }
 
