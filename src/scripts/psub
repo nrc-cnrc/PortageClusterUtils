@@ -773,7 +773,12 @@ echo $JOBID
 JOBID=${JOBID%%[ ./]*}
 
 if [[ ! $NOSCRIPT ]]; then
-   cp $TMPSCRIPT $NAME.j${JOBID:-0}
+   JOBSCRIPT=$NAME.j${JOBID:-0}
+   cp $TMPSCRIPT $JOBSCRIPT
+   # mktemp doesn't give any group permissions, so we need to set appropriate
+   # group read/execute permissions on the jobfile: union of its original perms
+   # and the group read/execute perms of the current directory.
+   chmod $(printf %o $(( 0$(stat -c %a .) & 0050 | 0$(stat -c %a $JOBSCRIPT) )) ) $JOBSCRIPT
 fi
 
 [[ $BALZAC ]] && sleep 1 # give TORQUE a chance to breathe when many jobs are submitted

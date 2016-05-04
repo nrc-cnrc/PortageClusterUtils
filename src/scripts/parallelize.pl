@@ -271,6 +271,8 @@ if (defined($workdir)) {
 }
 else {
    $workdir = File::Temp::tempdir("parallelize.pl.$$-XXXX");
+   # Add group read/execute permissions as appropriate
+   chmod(((stat $workdir)[2] & 0777) | ((stat ".")[2] & 0050), $workdir);
 }
 
 # Make sure there is at least one input file.
