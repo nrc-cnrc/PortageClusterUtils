@@ -643,7 +643,7 @@ if [[ $CLUSTER ]]; then
    # -[no]highmen.
    [[ $PSUB_RESOURCE_OPTIONS ]] &&
       echo "Propagating these psub options from parent to workers: $PSUB_RESOURCE_OPTIONS" >&2
-   [[ $PSUBOPTS ]] &&
+   [[ $PSUBOPTS =~ "[^ ]" ]] &&
       echo "Requested these psub options/overrides for workers: $PSUBOPTS" >&2
    PSUBOPTS="$PSUB_RESOURCE_OPTIONS $PSUBOPTS"
    NCPUS=`psub -require-cpus $PSUBOPTS`
