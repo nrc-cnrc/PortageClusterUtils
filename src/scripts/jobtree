@@ -398,8 +398,10 @@ sub epilogue {
 
    my @usernames = sort keys %users;
 
-   $users{TOTAL} = total(sub { my $a = shift; $a !~ m/Eqw/; }, %users);
+   $users{running} = total(sub { my $a = shift; $a =~ m/r/; }, %users);
+   $users{qw}   = total(sub { my $a = shift; $a =~ m/^qw/; }, %users);
    $users{Eqw}   = total(sub { my $a = shift; $a =~ m/Eqw/; }, %users);
+   $users{TOTAL} = total(sub { my $a = shift; $a !~ m/Eqw/; }, %users);
 
    # Find out the group for each user, to print in the tally only
    foreach my $name (@usernames) {
@@ -429,8 +431,14 @@ sub epilogue {
    print "--------", "---" x $max_height, "-" x 105, "\n" unless($summaryOnly);
    printf($header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
    printf($header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 10);
-   foreach my $name (@usernames, "TOTAL", "Eqw") {
+   my $print_TOTAL = 0;
+   foreach my $name (@usernames, "running", "qw", "TOTAL", "Eqw") {
+      printf($header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 10) if $name eq "running";
       my %stats = %{$users{$name}};
+      $print_TOTAL = 1 if $name eq "qw" && $stats{job_count} != 0;
+      next if $name eq "qw" && $stats{job_count} == 0;
+      next if $name eq "TOTAL" && ! $print_TOTAL;
+      next if $name eq "Eqw" && $stats{job_count} == 0;
       print $color if $LOGNAME eq $name;
       printf($format, $name, $stats{group}, $stats{job_count}, $stats{cpus}, $stats{mem}, $stats{h_rt});
       print "$noColor";
