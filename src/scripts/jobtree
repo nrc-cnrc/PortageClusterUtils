@@ -181,7 +181,7 @@ sub createJobList {
          }
 
          # Drop .science.gc.ca from the queue's name.
-         $queue =~ s/\.science\..+?$//;
+         $queue =~ s/\.sci.+?$//;
 
          if (defined($localtime)) {
             print STDERR "date=", $date, ", time=", $time, "\n" if ($debug);
@@ -192,7 +192,7 @@ sub createJobList {
          }
 
          # Let's create a node for that job.
-         my $label = sprintf("%-8d %.3f %-10s %-7s %2d %3dG %4d %-3s %s %s %20s %-5s %s",
+         my $label = sprintf("%-8d %.3f %-10s %-7s %2d %3dG %4d %-3s %s %s %23s %3s   %s",
             $id,
             $prior,
             $name,
@@ -330,8 +330,8 @@ sub displayJobs {
    $Data::TreeDumper::Displayaddress    = 0;
 
    # Let's display the header
-   print "   job-ID" . "   " x $max_height . "prior   name      user  cpus mem time st    submit/start at           queue        slots ja-task-ID\n";
-   print "--------" . "---" x $max_height . " ----- ---------- ------- -- ---- ---- --- ------------------- -------------------- ----- ----------";
+   print "   job-ID" . "   " x $max_height . "prior   name      user  cpus mem time st    submit/start at            queue          slots ja-task-ID\n";
+   print "--------" . "---" x $max_height . " ----- ---------- ------- -- ---- ---- --- ------------------- ----------------------- ----- ----------";
    print DumpTree($jobs,
       '',
       COLOR_LEVELS => [\@colors, ''],
