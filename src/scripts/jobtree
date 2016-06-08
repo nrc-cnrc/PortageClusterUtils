@@ -114,7 +114,8 @@ sub createJobList {
          $line =~ s/\s*$//;
          my ($id, $prior, $name, $user, $state, $date, $time, $queue, $slots, $a) = split(/\s+/, $line, 10);
          $state = "UNK" unless($state ne "");
-         if (!$slots && $queue =~ /^\d+$/) {
+         if (!$a && $queue =~ /^\d+$/) {
+            $a = $slots;
             $slots = $queue;
             $queue = "";
          }
@@ -406,7 +407,7 @@ sub epilogue {
    # Find out the group for each user, to print in the tally only
    foreach my $name (@usernames) {
       my @home_dir = glob "$home_root*/*/$name $home_root2*/$name";
-      #print "HOME_DIR=@home_dir\n";
+      print STDERR "HOME_DIR=@home_dir\n" if ($debug);
       if (@home_dir && $home_dir[0] =~ m#$home_root(.*/.*)/$name#) {
          $users{$name}{group} = $1;
       }
@@ -415,7 +416,7 @@ sub epilogue {
       }
       else {
          my $home_link = `ls -l /home/$name`;
-         print "HOME_LINK=$home_link\n";
+         print STDERR "HOME_LINK=$home_link\n" if ($debug);
          if ($home_link =~ m#$home_root(.*/.*)/$name#) {
             $users{$name}{group} = $1;
          }
