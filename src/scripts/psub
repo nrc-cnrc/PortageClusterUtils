@@ -225,7 +225,7 @@ while [ $# -gt 0 ]; do
                     shift;;
    -gpu)            REQUIRES_GPU=1
                     PARALLEL_ENVIRONMENT="gpu"
-                    RESOURCES="${RESOURCES:+$RESOURCES,}res_gpu=1"
+                    RESOURCES="${RESOURCES:+$RESOURCES,}res_gpus=1"
                     ;;
    -I)              INTMODE=1;
                     NOSCRIPT=1;
