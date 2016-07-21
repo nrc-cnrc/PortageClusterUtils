@@ -504,6 +504,7 @@ cat <<==EOF== > $TMPSCRIPT
 # User's environment.
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
+`env | egrep '^(LANG|LC_[A-Z]+)=' | sed -e 's/^/export /'`
 `env | egrep '^(PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES)=' | sed -e 's/^/export /'`
 $NOCLUSTER_OPTION
 
