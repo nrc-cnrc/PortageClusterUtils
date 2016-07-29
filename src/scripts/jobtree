@@ -399,7 +399,7 @@ sub epilogue {
    # Highlight user stats.
    my $noColor = Term::ANSIColor::color('reset');
 
-   my @usernames = sort keys %users;
+   my @usernames = keys %users;
 
    $users{running} = total(sub { my $a = shift; $a =~ m/r/; }, %users);
    $users{qw}   = total(sub { my $a = shift; $a =~ m/^qw/; }, %users);
@@ -430,6 +430,13 @@ sub epilogue {
          }
       }
    }
+
+   # Sort user names by group, and then by user name within the group
+   @usernames =
+      map { $_->[1] }
+      sort { $a->[0] eq $b->[0] ? $a->[1] cmp $b->[1] : $a->[0] cmp $b->[0] }
+      map { [$users{$_}{group}, $_] }
+      @usernames;
 
    print "--------", "---" x $max_height, "-" x 105, "\n" unless($summaryOnly);
    printf($header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
