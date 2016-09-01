@@ -164,7 +164,7 @@ sub createJobList {
                if $verbose > 1;
          }
 
-         if ($description =~ m/res_gpu=1/) {
+         if ($description =~ m/res_gpus?=1/) {
             $a .= " GPU";
          }
 
