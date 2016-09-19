@@ -94,7 +94,7 @@ sub createJobList {
 
    # This is a flat map to quickly access job's sub tree.
    my %jobs;
-   my $splitByJob = 'sed "/^\s\+[0-9]\+ / s/^/\n/"';
+   my $splitByJob = 'sed "/^\s*[0-9]\+ / s/^/\n/"';
    my %users;
    local $/ = "\n\n";
    open IN, "$jobStreamCommand | $splitByJob |" or die "Can't call jobst $!";
