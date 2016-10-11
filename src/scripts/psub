@@ -48,6 +48,9 @@ Options:
                  Default can be changed by setting the enviornment variable
                  PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES, e.g. for ten days:
                  export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=\$((10*24*60))
+  -c CELL        Specify the cell you want your jobs to run in [gpsc1.science.gc.ca]
+                 Default can be changed by setting the enviornment variable.
+                 export JOBCTL_CELL=gpsc2.science.gc.ca
 
   General options:
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
@@ -243,6 +246,9 @@ while [ $# -gt 0 ]; do
                     RUNTIME_MINUTES=$2;
                     PSUB_RESOURCE_OPTIONS="$PSUB_RESOURCE_OPTIONS $1 $2"
                     shift;;
+   -c)              arg_check 1 $# $!;
+                    JOBCTL_CELL=$2;
+                    shift;;
    -e)              arg_check 1 $# $!;
                     ERR_FILE=$2;
                     shift;;
@@ -427,6 +433,12 @@ NAME=`echo $NAME | perl -e '
 # This function handles the stuff that is specific to the GPSC. (And maybe other
 # clusters using jobsub?)
 function write_gpsc_script {
+   if [[ -z "$JOBCTL_CELL" ]];
+   then
+      # Covers the case where JOBCTL_CELL=X psub cmds
+      export JOBCTL_CELL=$JOBCTL_CELL
+   fi
+
    # PSUB_RES_IMAGE is set in profile.d/portage in order to have
    # control of the image at the project-level.
    local RES_IMAGE=${PSUB_RES_IMAGE:-nrc_all_default_centos-6.7-amd64_latest}
@@ -461,7 +473,7 @@ function write_gpsc_script {
    # Also, the ulimit is not increased by -j, only by -mem and -memmap.
    VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
 
-   QSUB_CMD=jobsub
+   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
 
 cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
@@ -505,7 +517,7 @@ cat <<==EOF== > $TMPSCRIPT
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
 `env | egrep '^(LANG|LC_[A-Z]+)=' | sed -e 's/^/export /'`
-`env | egrep '^(PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES)=' | sed -e 's/^/export /'`
+`env | egrep '^(PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|JOBCTL_CELL)=' | sed -e 's/^/export /'`
 $NOCLUSTER_OPTION
 
 # Set the number of allowed openmp threads based on the number of cpus.
