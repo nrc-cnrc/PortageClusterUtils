@@ -835,6 +835,7 @@ fi
 DAEMON_PID=$!
 
 MY_PORT=`cat $WORKDIR/port`
+rm -f $WORKDIR/port # Clean this right away so we never leave a fifo behind
 [[ $DEBUG ]] && echo "MY_PORT=$MY_PORT" >&2
 if [[ $MY_PORT = FAIL ]]; then
    error_exit "Daemon had a fatal error"
