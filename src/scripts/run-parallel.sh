@@ -301,7 +301,9 @@ while (( $# > 0 )); do
    -nolocal)       NOLOCAL=1; USER_LOCAL=;;
    -local)         arg_check 1 $# $1; USER_LOCAL="$2"; NOLOCAL=; shift;;
    -nocluster)     NOCLUSTER=1;;
-   -j)             arg_check 1 $# $1; arg_check_pos_int $2 $1; OPT_J=$2; shift;;
+   -j)             arg_check 1 $# $1; arg_check_pos_int $2 $1; OPT_J=$2;
+                   QUOTA=0; # EJJ Oct2016: -j is not compatible with -quota.
+                   shift;;
    -on-error)      arg_check 1 $# $1; ON_ERROR="$2"; shift;;
    -k|-keep-going) ON_ERROR=continue;;
    -N)             arg_check 1 $# $1; JOB_NAME="$2-"; shift;;
