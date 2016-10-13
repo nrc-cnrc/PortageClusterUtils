@@ -131,7 +131,8 @@ Cluster mode options:
   -local L      run L jobs locally [calculated automatically]
   -nocluster    force non-cluster mode [auto-detect if we're on a cluster]
   -j J          submit J workers per psub job using psub's -j J option
-  -quota T      When workers have done T minutes of work, re-psub them [30]
+  -quota T      When workers have done T minutes of work, re-psub them;
+                0 means no quota [30, or 0 if -j is specified]
   -psub         Provide custom psub options.
   -qsub         Provide custom qsub options.
 
@@ -301,9 +302,7 @@ while (( $# > 0 )); do
    -nolocal)       NOLOCAL=1; USER_LOCAL=;;
    -local)         arg_check 1 $# $1; USER_LOCAL="$2"; NOLOCAL=; shift;;
    -nocluster)     NOCLUSTER=1;;
-   -j)             arg_check 1 $# $1; arg_check_pos_int $2 $1; OPT_J=$2;
-                   QUOTA=0; # EJJ Oct2016: -j is not compatible with -quota.
-                   shift;;
+   -j)             arg_check 1 $# $1; arg_check_pos_int $2 $1; OPT_J=$2; shift;;
    -on-error)      arg_check 1 $# $1; ON_ERROR="$2"; shift;;
    -k|-keep-going) ON_ERROR=continue;;
    -N)             arg_check 1 $# $1; JOB_NAME="$2-"; shift;;
@@ -327,6 +326,10 @@ while (( $# > 0 )); do
    esac
    shift
 done
+
+# EJJ Oct2016: -j is not really compatible with -quota: -j disabled quota by
+# default, unless the user explicitly specified  quota value.
+[[ $OPT_J && ! $QUOTA ]] && QUOTA=0
 
 # Special commands pre-empt normal operation
 if [[ "$1" = add || "$1" = quench || "$1" = kill || "$1" = num_worker ]]; then
