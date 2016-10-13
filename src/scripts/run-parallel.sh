@@ -129,7 +129,7 @@ Cluster mode options:
   -nohighmem    Use only 1 CPU per worker, even if master job had more.
   -nolocal      psub all workers [run one worker locally, unless on head node]
   -local L      run L jobs locally [calculated automatically]
-  -nocluster    force non-cluster mode [auto-detect if we're on a cluster]
+  -noc(luster)  force non-cluster mode [auto-detect if we're on a cluster]
   -j J          submit J workers per psub job using psub's -j J option
   -quota T      When workers have done T minutes of work, re-psub them;
                 0 means no quota [30, or 0 if -j is specified]
@@ -301,7 +301,7 @@ while (( $# > 0 )); do
    -nohighmem)     PSUBOPTS="$PSUBOPTS -1";;
    -nolocal)       NOLOCAL=1; USER_LOCAL=;;
    -local)         arg_check 1 $# $1; USER_LOCAL="$2"; NOLOCAL=; shift;;
-   -nocluster)     NOCLUSTER=1;;
+   -noc|-nocluster) NOCLUSTER=1;;
    -j)             arg_check 1 $# $1; arg_check_pos_int $2 $1; OPT_J=$2; shift;;
    -on-error)      arg_check 1 $# $1; ON_ERROR="$2"; shift;;
    -k|-keep-going) ON_ERROR=continue;;
