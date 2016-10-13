@@ -145,7 +145,7 @@ threads->create('look_for_process', $process_id, $R_PARALLEL_D_PL_SLEEP_TIME)->d
 
 # This while(1) loop tries to open the listening socket until it succeeds
 while ( 1 ) {
-   my $port = ($ENV{HOSTNAME} =~ /gpsc-in/)
+   my $port = ($ENV{HOSTNAME} =~ /gpsc-in/ || $ENV{HOSTNAME} =~ /cnt/)
       ? rand_in_range 5900, 5999  # GPSC login nodes can receive cx on ports 5900 to 5999 only
       : rand_in_range 10000, 25000; # In general, use a wide range to avoid collisions
    my $proto = getprotobyname('tcp');
