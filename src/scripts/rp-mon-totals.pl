@@ -27,7 +27,7 @@ Usage: $0 MONFILE(S)
   Summarize run-parallel.sh totals from mon.worker-* files.
 
 ";
-   exit 1;
+   exit $_ ? 1 : 0;
 }
 
 use Getopt::Long;

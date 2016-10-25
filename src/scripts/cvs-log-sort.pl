@@ -29,7 +29,7 @@ Usage: cvs log | $0 | less
   time on multiple files.
 
 ";
-   exit 1;
+   exit $_ ? 1 : 0;
 }
 
 use Getopt::Long;

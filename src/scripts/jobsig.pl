@@ -32,7 +32,7 @@ Options:
   -v(erbose)     increase verbosity
   -q(uiet)       minimize verbosity
 ";
-   exit 1;
+   exit $_ ? 1 : 0;
 }
 
 use Getopt::Long;

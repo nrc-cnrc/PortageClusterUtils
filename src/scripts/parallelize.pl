@@ -116,7 +116,7 @@ BAD examples:
   Your output will be zipped twice.
 
 ";
-   exit 1;
+   exit $_ ? 1 : 0;
 }
 
 my $debug_cmd = "";
