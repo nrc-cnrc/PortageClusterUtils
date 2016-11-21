@@ -83,6 +83,7 @@ if ($group) {
 
 sub max ($$) { $_[$_[0] < $_[1]] }
 
+my %all_states;
 
 ########################################
 # Populate the tree with qstat info.
@@ -114,6 +115,7 @@ sub createJobList {
          $line =~ s/\s*$//;
          my ($id, $prior, $name, $user, $state, $date, $time, $queue, $slots, $a) = split(/\s+/, $line, 10);
          $state = "UNK" unless($state ne "");
+         $all_states{$state} += 1;
          if (!$a && $queue =~ /^\d+$/) {
             $a = $slots;
             $slots = $queue;
@@ -343,6 +345,7 @@ sub displayJobs {
 }
 
 
+my $epilogue_header = "%7s %-16s %5s %5s %9s %10s\n";
 
 sub epilogue {
    sub total {
@@ -388,22 +391,21 @@ sub epilogue {
    my $color = shift;
    my %users = @_;
 
-   my $header = "%7s %-16s %5s %5s %9s %10s\n";
-   my $format = "%7s %--16s %5d %5d %9.2f %10d\n";
-
    my $max_height = $jobs->getHeight() - 1;
 
    # Highlight user stats.
    use Env qw(LOGNAME);
 
-   # Highlight user stats.
-   my $noColor = Term::ANSIColor::color('reset');
 
    my @usernames = keys %users;
 
-   $users{running} = total(sub { my $a = shift; $a =~ m/r/; }, %users);
-   $users{qw}   = total(sub { my $a = shift; $a =~ m/^qw/; }, %users);
-   $users{Eqw}   = total(sub { my $a = shift; $a =~ m/Eqw/; }, %users);
+   foreach my $status (keys %all_states) {
+      $users{$status} = total(sub { my $a = shift; $a =~ m/^$status$/; }, %users);
+   }
+   #$users{running} = total(sub { my $a = shift; $a =~ m/^r/; }, %users);
+   #$users{qw}   = total(sub { my $a = shift; $a =~ m/^qw/; }, %users);
+   #$users{dr}   = total(sub { my $a = shift; $a =~ m/^dr/; }, %users);
+   #$users{Eqw}   = total(sub { my $a = shift; $a =~ m/Eqw/; }, %users);
    $users{TOTAL} = total(sub { my $a = shift; $a !~ m/Eqw/; }, %users);
 
    # Find out the group for each user, to print in the tally only
@@ -438,21 +440,43 @@ sub epilogue {
       map { [$users{$_}{group}, $_] }
       @usernames;
 
-   print "--------", "---" x $max_height, "-" x 105, "\n" unless($summaryOnly);
-   printf($header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
-   printf($header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 10);
-   my $print_TOTAL = 0;
-   foreach my $name (@usernames, "running", "qw", "TOTAL", "Eqw") {
-      printf($header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 10) if $name eq "running";
-      my %stats = %{$users{$name}};
-      $print_TOTAL = 1 if $name eq "qw" && $stats{job_count} != 0;
-      next if $name eq "qw" && $stats{job_count} == 0;
-      next if $name eq "TOTAL" && ! $print_TOTAL;
-      next if $name eq "Eqw" && $stats{job_count} == 0;
+   print "--------", "---" x $max_height, "-" x 100, "\n" unless($summaryOnly);
+
+   sub printDashes() {
+      printf($epilogue_header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 10);
+   }
+   # printSummaryLine($name, $color, %stats);
+   sub printSummaryLine {
+      my $format = "%7s %--16s %5d %5d %9.2f %10d\n";
+
+      my $name = shift;
+      my $color = shift;
+      my %stats = @_;
+      return if !$stats{job_count};
       print $color if $LOGNAME eq $name;
       printf($format, $name, $stats{group}, $stats{job_count}, $stats{cpus}, $stats{mem}, $stats{h_rt});
-      print "$noColor";
+      print Term::ANSIColor::color('reset');
    }
+
+   # print a summary line for each user
+   printf($epilogue_header, 'user', 'group', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
+   printDashes();
+   my $print_TOTAL = 0;
+   foreach my $name (@usernames) {
+      printSummaryLine($name, $color, %{$users{$name}});
+   }
+   printDashes();
+
+   # print a summary line for each status
+   printf($epilogue_header, 'status', '', '#jobs', 'cpus', 'mem (G)', 'max rt (H)');
+   printDashes();
+   foreach my $name (keys %all_states) {
+      printSummaryLine($name, "", %{$users{$name}});
+   }
+   printDashes();
+
+   # print a global total line
+   printSummaryLine("TOTAL", "", %{$users{TOTAL}});
 
    # For safety, let's make sure the color scheme is reseted before we exit.
    print Term::ANSIColor::color('reset');
