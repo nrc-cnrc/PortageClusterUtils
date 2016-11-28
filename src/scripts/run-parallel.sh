@@ -480,7 +480,7 @@ trap '
       done
    fi
    for x in ${LOGFILEPREFIX}log.worker*; do
-      if ! grep -q '============ Starting job' $x; then
+      if ! grep -q "============ Starting job" $x; then
          mkdir -p ~/.eqw-logs
          cp -p $x ~/.eqw-logs
       fi
