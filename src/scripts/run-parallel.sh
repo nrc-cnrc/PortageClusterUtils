@@ -479,6 +479,12 @@ trap '
          sleep 1
       done
    fi
+   for x in ${LOGFILEPREFIX}log.worker*; do
+      if ! grep -q '============ Starting job' $x; then
+         mkdir -p ~/.eqw-logs
+         cp -p $x ~/.eqw-logs
+      fi
+   done
    DID_SOME_LOG_OUTPUT=
    if [[ $DEBUG || ! $NORMAL_FINISH ]]; then
       for x in ${LOGFILEPREFIX}log.worker* ${LOGFILEPREFIX}psub-dummy-out.worker* $WORKDIR/err.worker-* $WORKDIR/mon.worker-*; do
