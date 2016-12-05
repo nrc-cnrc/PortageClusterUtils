@@ -613,6 +613,7 @@ if [[ $DEBUG ]]; then
    SAVE_ARGS = $SAVE_ARGS
    PSUBOPTS  = $PSUBOPTS
    QSUBOPTS  = $QSUBOPTS
+   OPT_J     = $OPT_J
    VERBOSE   = $VERBOSE
    DEBUG     = $DEBUG
    EXEC      = $EXEC
@@ -709,6 +710,7 @@ if [[ $CLUSTER ]]; then
 
       # Make the per-worker psub options visible to local workers via the same variable as psub
       export PSUB_RESOURCE_OPTIONS="$PSUBOPTS"
+      [[ $PSUB_OPT_J ]] && export PSUB_OPT_J=1
    fi
 
    if [[ -n "$PBS_JOBID" ]]; then
@@ -901,6 +903,12 @@ else
    [[ $CLUSTER ]] && WORKER_OTHER_OPT="$WORKER_OTHER_OPT $QUOTA"
 fi
 
+WORKER_ADJ_PSUB_OPT_J=
+WORKER_ADJ_PSUB_OPT_J_ESC=
+if [[ $PSUB_OPT_J || $OPT_J ]]; then
+   WORKER_ADJ_PSUB_OPT_J="export PSUB_OPT_J=1 &&"
+   WORKER_ADJ_PSUB_OPT_J_ESC="export PSUB_OPT_J=1 \&\&"
+fi
 
 if [[ $CLUSTER ]]; then
    cat /dev/null > $PSUB_CMD_FILE
@@ -914,9 +922,9 @@ if [[ $CLUSTER ]]; then
    echo -n "" -N $WORKER_NAME-__WORKER__ID__ >> $PSUB_CMD_FILE
    echo -n "" -o ${LOGFILEPREFIX}psub-dummy-out.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
    echo -n "" -e ${LOGFILEPREFIX}log.worker-__WORKER__ID__ >> $PSUB_CMD_FILE
-   echo -n "" $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
+   echo -n "" $WORKER_ADJ_PSUB_OPT_J_ESC $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \\\> $WORKDIR/out.worker-__WORKER__ID__ 2\\\> $WORKDIR/err.worker-__WORKER__ID__ \>\> $WORKER_JOBIDS >> $PSUB_CMD_FILE
 else
-   echo $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
+   echo $WORKER_ADJ_PSUB_OPT_J_ESC $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT \> $WORKDIR/out.worker-__WORKER__ID__ 2\> $WORKDIR/err.worker-__WORKER__ID__ \& > $PSUB_CMD_FILE
 fi
 echo $NUM > $WORKDIR/next_worker_id
 
@@ -930,7 +938,7 @@ gen_worker_cmd() {
    local MONOPT="-mon $WORKDIR/mon.worker-$i"
    [[ $WORKER_SUBST ]] && SUBST_OPT="-subst $WORKER_SUBST/$i" || SUBST_OPT=
    [[ ! $USER_WORKER_CMD ]] && WORKER_OTHER_OPT="$SUBST_OPT $QUOTA $primary" || WORKER_OTHER_OPT=
-   echo "$WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT > $OUT 2> $ERR"
+   echo "$WORKER_ADJ_PSUB_OPT_J $WORKER_CMD_PRE $MONOPT $WORKER_CMD_POST $WORKER_OTHER_OPT > $OUT 2> $ERR"
 }
 
 # start local worker(s) locally, if not disabled.
