@@ -155,11 +155,17 @@ sub createJobList {
             $res_cpus = 0;
          }
 
-         my $res_mem = 0;
+         my $res_mem_str = "";
          if ($description =~ m/.*res_mem=(\d+).*/s) {
-            $res_mem = $1 / 1024;
-            $users{$user}{mem} += $res_mem * $slots;
-            $users{$user}{states}{$state}{mem} += $res_mem * $slots;
+            my $res_mem_m = $1;
+            my $res_mem_g = $res_mem_m / 1024;
+            if ($res_mem_m < 1000) {
+               $res_mem_str = sprintf("%3dM", $res_mem_m);
+            } else {
+               $res_mem_str = sprintf("%3dG", ($res_mem_m + 512) / 1024);
+            }
+            $users{$user}{mem} += $res_mem_g * $slots;
+            $users{$user}{states}{$state}{mem} += $res_mem_g * $slots;
          }
          else {
             warn "Warning: Unable to match for res_mem in ", $description
@@ -171,14 +177,20 @@ sub createJobList {
          }
 
          # Some job may not have h_rt set.
-         my $h_rt = 0;
+         my $h_rt_str = "";
          if ($description =~ m/.*h_rt=(\d+).*/s) {
+            my $h_rt = 0;
             $h_rt = $1;
-            if ($h_rt >= 10000000) {
-               $h_rt = "inf";
-            }
-            else {
+            if ($h_rt < 7200) {
+               $h_rt_str = sprintf("%3dm", $h_rt / 60);
                $h_rt /= 3600;
+            } else {
+               if ($h_rt >= 10000000) {
+                  $h_rt = "inf";
+               } else {
+                  $h_rt /= 3600;
+               }
+               $h_rt_str = sprintf("%4d", $h_rt);
             }
             $users{$user}{h_rt} = max($users{$user}{h_rt}, $h_rt);
             $users{$user}{states}{$state}{h_rt} = max($users{$user}{h_rt}, $h_rt);
@@ -196,14 +208,14 @@ sub createJobList {
          }
 
          # Let's create a node for that job.
-         my $label = sprintf("%-8d %.3f %-10s %-7s %2d %3dG %4d %-3s %s %s %23s %3s   %s",
+         my $label = sprintf("%-8d %.3f %-10s %-7s %2d %4s %4s %-3s %s %s %23s %3s   %s",
             $id,
             $prior,
             $name,
             $user,
             $res_cpus,
-            $res_mem,
-            $h_rt,
+            $res_mem_str,
+            $h_rt_str,
             $state,
             $date,
             $time,
@@ -345,7 +357,7 @@ sub displayJobs {
 }
 
 
-my $epilogue_header = "%7s %-16s %5s %5s %9s %10s\n";
+my $epilogue_header = "%7s %-16s %5s %5s %9s %12s\n";
 
 sub epilogue {
    sub total {
@@ -443,11 +455,11 @@ sub epilogue {
    print "--------", "---" x $max_height, "-" x 100, "\n" unless($summaryOnly);
 
    sub printDashes() {
-      printf($epilogue_header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 10);
+      printf($epilogue_header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 12);
    }
    # printSummaryLine($name, $color, %stats);
    sub printSummaryLine {
-      my $format = "%7s %--16s %5d %5d %9.2f %10d\n";
+      my $format = "%7s %--16s %5d %5d %9.2f %12.2f\n";
 
       my $name = shift;
       my $color = shift;
