@@ -39,11 +39,13 @@ Options:
 
   -u(ser) USER  Filter jobs for USER [None]
   -P REGEX      Filter jobs based on a regular expression [None]
-  -l(ocaltime)  Convert time from UTC to local time [don't convert time]
   -g(roup) DEPT/DIV  Filter jobs for users that from division DIV of department
                 DEPT. The user list will be taken from ${home_root}DEPT/DIV.
                 E.g.: -g nrc/ict
-  -s(ummray)    Simply output the summary without the tree. [Don't]
+  -loc(altime)  Convert time from UTC to local time [don't convert time]
+  -lon(gnames) WIDTH  Display WIDTH characters for the name field.
+                [without option: 10; option without WIDTH: 15]
+  -s(ummary)    Simply output the summary without the tree. [Don't]
 
   -j(obst) CMD  Use CMD as command to get job status [jobst]
                 e.g. use '-jobst cat' to test on input from STDIN
@@ -61,14 +63,16 @@ use Getopt::Long;
 # abbreviations for all options.
 my $verbose = 1;
 my $jobStreamCommand = "jobst -r";
+my $name_width = 10;
 GetOptions(
    "user=s"    => \my $user,
    "P=s"       => \my $regex,
    "jobst=s"   => \$jobStreamCommand,
    "group=s"   => \my $group,
    "summary"   => \my $summaryOnly,
-
    localtime   => \my $localtime,
+   "longnames:i" => \$name_width,
+
    help        => sub { usage },
    verbose     => sub { ++$verbose },
    quiet       => sub { $verbose = 0 },
@@ -81,12 +85,15 @@ if ($group) {
       or die "Can't find group $group - no root home $home_root$group.";
 }
 
+$name_width = 15 if $name_width == 0;
+$name_width = 6 if $name_width < 7;    # minimum name width is 7.
+
 sub max ($$) { $_[$_[0] < $_[1]] }
 
 my %all_states;
 
 ########################################
-# Populate the tree with qstat info.
+# Populate the tree with jobst info.
 sub createJobList {
    use Tree::Simple;
 
@@ -114,6 +121,15 @@ sub createJobList {
          $line =~ s/^\s*//;
          $line =~ s/\s*$//;
          my ($id, $prior, $name, $user, $state, $date, $time, $queue, $slots, $a) = split(/\s+/, $line, 10);
+         # retrieve full job name, if needed.
+         if ($name_width > 10) {
+            if ($description =~ m/.*Full jobname:\s+([^\n]*\S).*/s) {
+               my $full_name = $1;
+               $name = substr($full_name, 0, $name_width)
+            }
+         } elsif ($name_width < 10) {
+            $name = substr($name, 0, $name_width)
+         }
          $state = "UNK" unless($state ne "");
          $all_states{$state} += 1;
          if (!$a && $queue =~ /^\d+$/) {
@@ -208,9 +224,10 @@ sub createJobList {
          }
 
          # Let's create a node for that job.
-         my $label = sprintf("%-8d %.3f %-10s %-7s %2d %4s %4s %-3s %s %s %23s %3s   %s",
+         my $label = sprintf("%-8d %.3f %-*s %-7s %2d %4s %4s %-3s %s %s %23s %3s   %s",
             $id,
             $prior,
+            $name_width,
             $name,
             $user,
             $res_cpus,
@@ -298,7 +315,7 @@ sub getColors {
 
 
 ########################################
-# Display that job tree.
+# Display a job tree.
 sub displayJobs {
    my $jobs = shift;
    my @colors = @_;
@@ -346,8 +363,10 @@ sub displayJobs {
    $Data::TreeDumper::Displayaddress    = 0;
 
    # Let's display the header
-   print "   job-ID" . "   " x $max_height . "prior   name      user  cpus mem time st    submit/start at            queue          slots ja-task-ID\n";
-   print "--------" . "---" x $max_height . " ----- ---------- ------- -- ---- ---- --- ------------------- ----------------------- ----- ----------";
+   print "   job-ID" . "   " x $max_height . "prior    name" . " " x ($name_width-7)
+         . "  user  cpus mem time st    submit/start at            queue          slots ja-task-ID\n";
+   print "--------" . "---" x $max_height . " ----- -------" . "-" x ($name_width-7)
+         . " ------- -- ---- ---- --- ------------------- ----------------------- ----- ----------";
    print DumpTree($jobs,
       '',
       COLOR_LEVELS => [\@colors, ''],
@@ -452,11 +471,12 @@ sub epilogue {
       map { [$users{$_}{group}, $_] }
       @usernames;
 
-   print "--------", "---" x $max_height, "-" x 100, "\n" unless($summaryOnly);
+   print "--------", "---" x $max_height, "-" x (90+$name_width), "\n" unless($summaryOnly);
 
    sub printDashes() {
       printf($epilogue_header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 12);
    }
+
    # printSummaryLine($name, $color, %stats);
    sub printSummaryLine {
       my $format = "%7s %--16s %5d %5d %9.2f %12.2f\n";
