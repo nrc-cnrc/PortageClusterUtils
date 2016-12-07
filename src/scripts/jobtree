@@ -376,7 +376,7 @@ sub displayJobs {
 }
 
 
-my $epilogue_header = "%7s %-16s %5s %5s %9s %12s\n";
+my $epilogue_header = "%7s %-20s %5s %5s %9s %12s\n";
 
 sub epilogue {
    sub total {
@@ -474,12 +474,12 @@ sub epilogue {
    print "--------", "---" x $max_height, "-" x (90+$name_width), "\n" unless($summaryOnly);
 
    sub printDashes() {
-      printf($epilogue_header, '-' x 7, '-' x 16, '-' x 5, '-' x 5, '-' x 9, '-' x 12);
+      printf($epilogue_header, '-' x 7, '-' x 20, '-' x 5, '-' x 5, '-' x 9, '-' x 12);
    }
 
    # printSummaryLine($name, $color, %stats);
    sub printSummaryLine {
-      my $format = "%7s %--16s %5d %5d %9.2f %12.2f\n";
+      my $format = "%7s %--20s %5d %5d %9.2f %12.2f\n";
 
       my $name = shift;
       my $color = shift;
