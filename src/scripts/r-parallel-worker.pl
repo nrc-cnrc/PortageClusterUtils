@@ -61,9 +61,9 @@ if($help ne ''){
 
 my $me = `uname -n`;
 chomp $me;
+$me =~ s/(.)\..*/\1/; # Remove domain qualifier - unqualified host name is enough info
 $me .= ":" . ($ENV{PBS_JOBID} || $ENV{GECOSHEP_JOB_ID} || "");
 my $need_sleep = ($me =~ /balzac/);
-$me =~ s/balzac.iit.nrc.ca/balzac/;
 
 if ( $primary ) { $me = "Primary $me"; }
 
