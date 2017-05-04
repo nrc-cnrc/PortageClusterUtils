@@ -650,10 +650,11 @@ fi
 if [[ $CLUSTER ]]; then
    MY_HOST=`hostname`
 
-   if (( $NUM == 1 )); then
-      echo "Shielding from Eqw jobs by submitting two workers instead of just one" >&2
-      NUM=2;
-   fi
+   # This is no longer needed, but I'm keeping the code here in case we need it again later.
+   #if (( $NUM == 1 )); then
+   #   echo "Shielding from Eqw jobs by submitting two workers instead of just one" >&2
+   #   NUM=2;
+   #fi
 
    # The child's options are first any resource option given to the psub
    # instance that called this script, but any specificed with -psub or
