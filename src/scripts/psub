@@ -782,11 +782,13 @@ if [[ $NOT_REALLY ]]; then
 fi
 
 JOBID=`$QSUB_CMD $TMPSCRIPT`
-echo $JOBID
+SAVE_JOBID=$JOBID
 # To work around issues with jobsub directing error messages to stdout, we
 # assume the last line of output is our jobname and strip preceding text.
 JOBID=$(cat <<<"$JOBID" | tail -1)
 JOBID=${JOBID%%[ ./]*}
+[[ $SAVE_JOBID != $JOBID ]] && echo $SAVE_JOBID >&2
+echo $JOBID
 
 if [[ ! $NOSCRIPT ]]; then
    JOBSCRIPT=$NAME.j${JOBID:-0}
