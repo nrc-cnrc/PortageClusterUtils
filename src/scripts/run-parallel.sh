@@ -296,6 +296,11 @@ while (( $# > 0 )); do
                    test -n "$DEBUG" && echo "  <D> all: $*" >&2
                    PSUBOPTS="$PSUBOPTS $RP_PSUB_OPTS";
                    echo "$*" >> $JOBSET_FILENAME;
+
+                   if [[ $RP_PSUB_OPTS =~ '-N ([^ ][^ ]*)' ]]; then
+                      JOB_NAME="${BASH_REMATCH[1]}"
+                   fi
+
                    break;;
    -highmem)       PSUBOPTS="$PSUBOPTS -2";;
    -nohighmem)     PSUBOPTS="$PSUBOPTS -1";;

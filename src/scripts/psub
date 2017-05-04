@@ -422,9 +422,11 @@ fi
 
 # Make sure $NAME is not longer that 15 characters, and starts with a letter
 # GPSC Note: name length is not limited, but the name must still start with a letter
+# Also, / is not allowed in $NAME
 NAME=`echo $NAME | perl -e '
    $_ = <>;
    chomp;
+   s#/#_#;
    s/^([^a-z])/J$1/i;
    print substr($_, 0, 15);
 '`
