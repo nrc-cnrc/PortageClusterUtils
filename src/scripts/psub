@@ -199,9 +199,11 @@ while [ $# -gt 0 ]; do
                     NAME=$2;
                     shift;;
    -[1-9]|-[1-9][0-9])
-                    if [[ $GPSC ]]; then
-                       echo "Warning: -# is deprecated on gpsc: use -cpus and -mem instead." >&2;
-                    fi
+                    # This is mostly just an message we systematically ignore - but leave it here
+                    # commented out for when we work on optimizing frameworks that still use -#.
+                    #if [[ $GPSC ]]; then
+                    #   echo "Warning: -# is deprecated on gpsc: use -cpus and -mem instead." >&2;
+                    #fi
                     CPU_COUNT=$((0 - $1))
                     VMEM_LIMIT_MB=$((VMEM_LIMIT_MB_PER_CPU * $((0 - $1))))
                     MEM_OPTION_MB=
