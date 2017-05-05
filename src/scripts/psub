@@ -785,7 +785,9 @@ if [[ $NOT_REALLY ]]; then
    exit
 fi
 
-JOBID=`$QSUB_CMD $TMPSCRIPT`
+START=`date`
+# Note: we explicitly delete the warning about -N being set twice, because we really, really don't care!
+JOBID=`$QSUB_CMD $TMPSCRIPT | grep -v '^warning: "-N" option has already been set, overriding previous setting$'`
 SAVE_JOBID=$JOBID
 # To work around issues with jobsub directing error messages to stdout, we
 # assume the last line of output is our jobname and strip preceding text.
