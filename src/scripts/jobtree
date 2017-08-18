@@ -17,6 +17,8 @@ use warnings;
 
 my $home_root="/fs/vnas_H";
 my $home_root2="/fs/vnas/H";
+my $home_root3="/fs/home/fs1/";
+my @home_roots=qw(/fs/vnas_H /fs/vnas/H /fs/home/fs1/);
 
 sub usage {
    local $, = "\n";
@@ -81,8 +83,11 @@ GetOptions(
 
 $jobStreamCommand .= " -u $user" if(defined($user));
 if ($group) {
-   -d "$home_root$group" or -d "$home_root2$group"
-      or die "Can't find group $group - no root home $home_root$group.";
+   my $found = 0;
+   foreach (@home_roots) {
+      $found = 1 if -d "$_$group";
+   }
+   $found or die "Can't find group $group under root homes @home_roots";
 }
 
 $name_width = 15 if $name_width == 0;
@@ -142,7 +147,6 @@ sub createJobList {
             $slots = 1;
          }
          $a = "" unless defined $a;
-
 
          if ($group) {
             next unless -d "$home_root$group/$user" || -d "$home_root2$group/$user";
@@ -441,26 +445,19 @@ sub epilogue {
 
    # Find out the group for each user, to print in the tally only
    foreach my $name (@usernames) {
-      my @home_dir = glob "$home_root*/*/$name $home_root2*/$name";
-      print STDERR "HOME_DIR=@home_dir\n" if ($debug);
-      if (@home_dir && $home_dir[0] =~ m#$home_root(.*/.*)/$name#) {
+      my $home_link = `ls -l /home/$name`;
+      print STDERR "HOME_LINK=$home_link\n" if ($debug);
+      if ($home_link =~ m#$home_root(.*?)/+$name#) {
          $users{$name}{group} = $1;
       }
-      elsif (@home_dir && $home_dir[0] =~ m#$home_root2(.*)/$name#) {
+      elsif ($home_link =~ m#$home_root2(.*?)/+$name#) {
+         $users{$name}{group} = $1;
+      }
+      elsif ($home_link =~ m#$home_root3(.*?)/+$name#) {
          $users{$name}{group} = $1;
       }
       else {
-         my $home_link = `ls -l /home/$name`;
-         print STDERR "HOME_LINK=$home_link\n" if ($debug);
-         if ($home_link =~ m#$home_root(.*/.*)/$name#) {
-            $users{$name}{group} = $1;
-         }
-         elsif ($home_link =~ m#$home_root2(.*)/$name#) {
-            $users{$name}{group} = $1;
-         }
-         else {
-            $users{$name}{group} = "";
-         }
+         $users{$name}{group} = "";
       }
    }
 
