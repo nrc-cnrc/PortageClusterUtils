@@ -466,16 +466,25 @@ function write_gpsc_script {
 
    # The CUDA driver allocates a lot of virtual memory.  According to the
    # internet it is something like ram + gpu_cores x some memory.  It is not
-   # clear how to calculate how much virtual memory the CUDA driver will need
-   # thus a first guestimate is 90G.
-   [[ $REQUIRES_GPU ]] &&  VMEM_LIMIT_MB=$((90 * 1024 + VMEM_LIMIT_MB))
+   # clear how to calculate how much virtual memory the CUDA driver will need.
+   # For K80s with the MPS server, at least 400G extra is needed.
+   [[ $REQUIRES_GPU ]] &&  VMEM_LIMIT_MB=$((400 * 1024 + VMEM_LIMIT_MB))
 
    # We set the ulimit -v 10MB lower than res_mem because it applies per process, not
    # globally. Those 10MB are for manager scripts and such
    # Known limitation: this won't catch memory problems when the user has multiple memory
    # consuming processes in one job. Those will still most likely get bus errors.
    # Also, the ulimit is not increased by -j, only by -mem and -memmap.
-   VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
+   #
+   # For GPU jobs, we simply set VMEM_ULIMIT_KB to unlimited because the GPU
+   # requires an excessive amount of VMEM. There are too many influences, such
+   # as type of GPU (ram, # cores, etc.), whether the MPS server is running,
+   # etc., which makes it difficult to determine an acceptable limit.
+   if [[ $REQUIRES_GPU ]]; then
+      VMEM_ULIMIT_KB="unlimited"
+   else
+      VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
+   fi
 
    QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
 
