@@ -485,9 +485,11 @@ trap '
       done
    fi
    for x in ${LOGFILEPREFIX}log.worker*; do
-      if ! grep -q "============ Starting job" $x; then
-         mkdir -p ~/.eqw-logs
-         cp -p $x ~/.eqw-logs
+      if [[ -f $x ]]; then
+         if ! grep -q "============ Starting job" $x; then
+            mkdir -p ~/.eqw-logs
+            cp -p $x ~/.eqw-logs
+         fi
       fi
    done
    DID_SOME_LOG_OUTPUT=
