@@ -469,10 +469,10 @@ trap '
       kill $DAEMON_PID
    fi
    if [[ $WORKERS ]]; then
-      CLEAN_UP_MAX_DELAY=20
+      CLEAN_UP_MAX_DELAY=7    # 7x3=21s
       if [[ $CLUSTER_TYPE == jobsub ]]; then
          WORKER_SPECS=`echo $WORKERS | tr " " ","`
-         FIND_JOB_CMD="jobst -j $WORKER_SPECS >& /dev/null"
+         FIND_JOB_CMD="jobst -j $WORKER_SPECS 2> /dev/null | grep \"^[0-9]\" >& /dev/null"
       else
          FIND_JOB_CMD="qstat $WORKERS 2> /dev/null | grep \" [RQE] \" >& /dev/null"
       fi
@@ -481,7 +481,7 @@ trap '
       while eval $FIND_JOB_CMD; do
          if [[ $CLEAN_UP_MAX_DELAY = 0 ]]; then break; fi
          CLEAN_UP_MAX_DELAY=$((CLEAN_UP_MAX_DELAY - 1))
-         sleep 1
+         sleep 3
       done
    fi
    for x in ${LOGFILEPREFIX}log.worker*; do
@@ -1050,23 +1050,23 @@ if [[ $CLUSTER ]]; then
    if [[ $WORKERS ]]; then
       if [[ $CLUSTER_TYPE == jobsub ]]; then
          WORKER_SPECS=`echo $WORKERS | tr " " ","`
-         FIND_JOB_CMD="jobst -j $WORKER_SPECS >& /dev/null"
+         FIND_JOB_CMD="jobst -j $WORKER_SPECS 2> /dev/null | grep \"^[0-9]\" >& /dev/null"
       else
          FIND_JOB_CMD="qstat $WORKERS 2> /dev/null | grep \" [RQE] \" >& /dev/null"
       fi
       [[ $DEBUG_TRAP ]] && echo "FIND_JOB_CMD=$FIND_JOB_CMD" >&2
-      for (( i = 0; i < 20; ++i )); do
+      for (( i = 0; i < 7; ++i )); do # 7x3=21 seconds
          if eval $FIND_JOB_CMD; then
             #echo Some workers are still running >&2
-            sleep 1
+            sleep 3
             [[ $DEBUG_TRAP ]] && echo . >&2
          else
             #echo Workers are done, we can safely exit >&2
             break
          fi
 
-         if [[ $i = 8 ]]; then
-            # After 8 seconds, kill remaining psubed workers (which may not
+         if [[ $i = 3 ]]; then
+            # After 9 seconds, kill remaining psubed workers (which may not
             # have been launched yet) to clean things up.  (Ignore errors)
             [[ $DEBUG_TRAP ]] && echo $QDEL $WORKERS >&2
             $QDEL $WORKERS >& /dev/null
