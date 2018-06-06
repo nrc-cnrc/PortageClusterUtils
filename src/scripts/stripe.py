@@ -11,6 +11,8 @@
 # Copyright 2011, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2011, Her Majesty in Right of Canada
 
+from __future__ import print_function
+
 import sys
 import gzip
 import glob
@@ -66,31 +68,31 @@ jndex = index + 1
 if len(all_indices) == 2:
    jndex = int(all_indices[1])
 elif len(all_indices) > 2:
-   print >> sys.stderr, "Indices format is -i i:j where [i,j) where 0 <= i < j <= m."
+   print("Indices format is -i i:j where [i,j) where 0 <= i < j <= m.", file=sys.stderr)
    sys.exit(1)
 # validate the index range.
 if not (0 <= index < jndex <= opts.modulo):
-   print >> sys.stderr, "Indices format is -i i:j where [i,j) where 0 <= i < j <= m."
+   print("Indices format is -i i:j where [i,j) where 0 <= i < j <= m.", file=sys.stderr)
    sys.exit(1)
 
 if opts.debug:
-   print >> sys.stderr, "index %d, jndex %d" % (index, jndex)
+   print("index %d, jndex %d" % (index, jndex), file=sys.stderr)
 
 if opts.verbose:
-   print "options are:", opts
-   print "positional args are:", args
+   print("options are:", opts)
+   print("positional args are:", args)
 
 
 def myopen(filename, mode='r'):
    "This function will try to open transparently compress files or not."
-   if opts.debug: print >> sys.stderr, "myopen: ", filename, " in ", mode, " mode"
+   if opts.debug: print("myopen: ", filename, " in ", mode, " mode", file=sys.stderr)
    if filename == "-":
       if mode == 'r':
          theFile = sys.stdin
       elif mode == 'w':
          theFile = sys.stdout
       else:
-         print >> sys.stderr, "Unsupported mode."
+         print("Unsupported mode.", file=sys.stderr)
          sys.exit(1)
    elif filename[-3:] == ".gz":
       theFile = gzip.open(filename, mode+'b')
@@ -103,7 +105,7 @@ def rebuild():
    "This function will unstripe the output of a previous usage of stripe.py."
    def myOpenRead(filename):
       "Trying out a function closure."
-      if opts.debug: print >> sys.stderr, "myOpenRead: ", filename
+      if opts.debug: print("myOpenRead: ", filename, file=sys.stderr)
       return myopen(filename, "r")
 
    # Open files from a pattern.
@@ -118,39 +120,39 @@ def rebuild():
          inputfilenames = args
 
    if len(inputfilenames) <= 0:
-      print >> sys.stderr, "Cannot find any file with ", inputfilenames
+      print("Cannot find any file with ", inputfilenames, file=sys.stderr)
       sys.exit(1)
 
-   if opts.verbose: print >> sys.stderr, "Rebuilding output from ", repr(inputfilenames)
+   if opts.verbose: print("Rebuilding output from ", repr(inputfilenames), file=sys.stderr)
 
    # What if the user provided use we more files than the os allows us to have opened at once?
    try:
       inputfiles = map(myOpenRead, inputfilenames)
    except IOError:
-      print >> sys.stderr, "You provided %d files to merge but the os doesn't allow that many file to be opened at once." % len(inputfilenames)
+      print("You provided %d files to merge but the os doesn't allow that many file to be opened at once." % len(inputfilenames), file=sys.stderr)
       sys.exit(1)
 
-   if opts.debug: print >> sys.stderr, inputfiles
+   if opts.debug: print(inputfiles, file=sys.stderr)
 
    cpt = 0
    M = len(inputfiles)
    while True:
       if M == 0: break
       index = cpt % M
-      if opts.debug: print >> sys.stderr, "\t", repr(index)
+      if opts.debug: print("\t", repr(index), file=sys.stderr)
       file = inputfiles[index]
       line = file.readline()
       if line == "":
          inputfiles.pop(index)
          M -= 1
       else:
-         print >> sys.stdout, line,
+         print(line, end="")
       cpt += 1
 
 
 if opts.rebuild:
    if index + 1 != jndex:
-      print >> sys.stderr, "Not implemented yet!  You can only merge if you used -i without a range."
+      print("Not implemented yet!  You can only merge if you used -i without a range.", file=sys.stderr)
       sys.exit(1)
    rebuild()
 else:
@@ -165,8 +167,8 @@ else:
       # NOTE this is XOR
       if (opts.complement) ^ (index <= step < jndex):
          if (opts.numbered):
-            print >> outfile, repr(cpt), "\t",
-         print >> outfile, line,
+            print(repr(cpt), end="\t", file=outfile)
+         print(line, end='', file=outfile)
       cpt += 1
 
 
