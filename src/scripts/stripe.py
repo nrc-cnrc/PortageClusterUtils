@@ -106,7 +106,7 @@ def rebuild():
    def myOpenRead(filename):
       "Trying out a function closure."
       if opts.debug: print("myOpenRead: ", filename, file=sys.stderr)
-      return myopen(filename, "r")
+      return myopen(filename, 'rb')
 
    # Open files from a pattern.
    inputfilenames = args
@@ -127,12 +127,17 @@ def rebuild():
 
    # What if the user provided use we more files than the os allows us to have opened at once?
    try:
-      inputfiles = map(myOpenRead, inputfilenames)
+      inputfiles = list(map(myOpenRead, inputfilenames))
    except IOError:
       print("You provided %d files to merge but the os doesn't allow that many file to be opened at once." % len(inputfilenames), file=sys.stderr)
       sys.exit(1)
 
    if opts.debug: print(inputfiles, file=sys.stderr)
+
+   if sys.version_info >= (3, 0):
+      outfile = sys.stdout.buffer
+   else:
+      outfile = sys.stdout
 
    cpt = 0
    M = len(inputfiles)
@@ -140,13 +145,13 @@ def rebuild():
       if M == 0: break
       index = cpt % M
       if opts.debug: print("\t", repr(index), file=sys.stderr)
-      file = inputfiles[index]
-      line = file.readline()
-      if line == "":
+      inputfile = inputfiles[index]
+      line = inputfile.readline()
+      if line == b'':
          inputfiles.pop(index)
          M -= 1
       else:
-         print(line, end="")
+         outfile.write(line)
       cpt += 1
 
 
@@ -158,8 +163,12 @@ if opts.rebuild:
 else:
    # Performing a split
    # NOTE: look at import fileinput for line in fileinput.input(filenames): process(line)  to process all lines from a list of filenames.
-   infile  = myopen(args[0], 'r') if len(args) >= 1 else sys.stdin
-   outfile = myopen(args[1], 'w') if len(args) == 2 else sys.stdout
+   if sys.version_info >= (3, 0):
+      infile  = myopen(args[0], 'rb') if len(args) >= 1 else sys.stdin.buffer
+      outfile = myopen(args[1], 'wb') if len(args) == 2 else sys.stdout.buffer
+   else:
+      infile  = myopen(args[0], 'rb') if len(args) >= 1 else sys.stdin
+      outfile = myopen(args[1], 'wb') if len(args) == 2 else sys.stdout
 
    cpt = 0
    for line in infile:
@@ -167,8 +176,9 @@ else:
       # NOTE this is XOR
       if (opts.complement) ^ (index <= step < jndex):
          if (opts.numbered):
-            print(repr(cpt), end="\t", file=outfile)
-         print(line, end='', file=outfile)
+            outfile.write(repr(cpt))
+            outfile.write('\t')
+         outfile.write(line)
       cpt += 1
 
 
