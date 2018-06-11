@@ -430,7 +430,7 @@ open(MERGE_CMD_FILE, ">$merge_cmd_file") or die "Error: Unable to open merge com
 foreach my $m (@MERGES) {
    my $dir = "$workdir/" . $basename{$m};
    my $sub_cmd;
-   my $find_files = "set -o pipefail; find $dir -maxdepth 1 -type f | sort | xargs";
+   my $find_files = "set -o pipefail; cd $dir && ls -v | xargs";
    if ($m =~ m#/dev/stdout#) {
       $sub_cmd = "$MERGE_PGM";
    }
@@ -443,9 +443,10 @@ foreach my $m (@MERGES) {
       if ($m =~ m/(\.[^.]+)$/) {
          $writer = $WRITERS{$1} || "cat";
       }
+      $m="../../$m" unless ($m =~ m#^/#);
       $sub_cmd = "$MERGE_PGM | $writer > $m";
    }
-   print MERGE_CMD_FILE "test ! -d $dir || { { $debug_cmd $find_files $sub_cmd; } && mv $dir $dir.done; }\n";
+   print MERGE_CMD_FILE "test ! -d $dir || { { $debug_cmd $find_files $sub_cmd && cd ../..; } && mv $dir $dir.done; }\n";
 }
 close(MERGE_CMD_FILE) or die "Error: Unable to close merge command file!";
 
