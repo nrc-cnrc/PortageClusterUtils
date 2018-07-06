@@ -71,7 +71,8 @@ Options:
   -m <Z>  merge additional output file Z where Z in cmd_args.
   -stripe Each job get lines l%N==i and also prevents creating temporary chunk
           files.  Only works correctly for jobs where each line of input
-          creates one line of output.
+          creates one line of output.  The inputs cannot be/must not be read
+          more than once by cmd.
   -merge  merge command [cat]
   -nolocal  Run run-parallel.sh -nolocal
   -psub <O> Passes additional options to run-parallel.sh -psub.
@@ -103,6 +104,12 @@ Good examples:
     -m src_out \\
     -m tgt_out \\
     'filter_training_corpus src_in tgt_in src_out tgt_out 100 9'
+
+  $0 \\
+    -n 2 \\
+    -s infile \\
+    -m outfile \\
+    \"gen_feature_values NgramFF lmfile infile infile > outfile\"
 
   To illustrate the -merge option, here is an example that does an inventory
   count of characters in a corpus:
@@ -232,16 +239,16 @@ my $CMD = join " ", @ARGV;
 die "Error: -w W must be a positive value." unless (not defined($W) or $W > 0);
 
 # By default, look for input redirection
-if ($CMD =~ /<(\s*)([^\( >]+)($|\s*|\))/) {
-   my $split = $2;
+if ($CMD =~ /<(?:\s*)([^\( >]+)(?=$|\s*|\))/) {
+   my $split = $1;
    verbose(1, "Adding $split to splits");
    push @SPLITS, $split;
 }
 
 # Check if the user provided an output.
 my $merge = "";
-if ($CMD =~ /[^2]>(\s*)([^ <]+)($|\s*|\))/) {
-   $merge = $2;
+if ($CMD =~ /[^2]>(?:\s*)([^ <]+)(?=$|\s*|\))/) {
+   $merge = $1;
 }
 else {
    # If no output is given then the user must want to have its output to stdout.
@@ -252,8 +259,8 @@ verbose(1, "Adding $merge to merge");
 push @MERGES, $merge;
 
 # Check if the user provided an error output.
-if ($CMD =~ /2>(\s*)([^ <]+)($|\s*)/) {
-   $merge = $2;
+if ($CMD =~ /2>(?:\s*)([^ <]+)(?=$|\s*)/) {
+   $merge = $1;
 }
 else {
    # If no err output is given then the user must want to have its output to stderr.
@@ -376,7 +383,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    # For each occurence of a file to merge, replace it by a chunk.
    foreach my $m (@MERGES) {
       my $file = "$workdir/" . $basename{$m} . "/$index";
-      unless ($SUB_CMD =~ s/(^|\s|>)\Q$m\E($|\s|\))/$1$file$2/) {
+      unless ($SUB_CMD =~ s/(^|\s|>)\Q$m\E(?=$|\s|\))/$1$file/) {
          die "Error: Unable to match $m and $file";
       }
    }
@@ -389,7 +396,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
          # NOTE: doing zcat file.gz | stripe.py is much much faster than
          # stripe.py file.gz.  Seems like the python's implementation of gzip is
          # quite slow.
-         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s|\))/$1<($reader $s | stripe.py -i $i -m $N)$2/) {
+         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E(?=$|\s|\))/$1<($reader $s | stripe.py -i $i -m $N)/g) {
             die "Error: Unable to match $s";
          }
       }
@@ -403,7 +410,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       foreach my $s (@SPLITS) {
          my $file = "$workdir/" . $basename{$s} . "/$index";
          push(@done, $file);
-         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E($|\s|\))/$1$file$2/) {
+         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E(?=$|\s|\))/$1$file/g) {
             die "Error: Unable to match $s and $file";
          }
       }
@@ -432,8 +439,10 @@ foreach my $m (@MERGES) {
       $sub_cmd = "cat 1>&2";
    }
    else {
-      $m =~ m/(\.[^.]+)$/;
-      my $writer = $WRITERS{$1} || "cat";
+      my $writer = "cat";
+      if ($m =~ m/(\.[^.]+)$/) {
+         $writer = $WRITERS{$1} || "cat";
+      }
       $sub_cmd = "$MERGE_PGM | $writer > $m";
    }
    print MERGE_CMD_FILE "test ! -d $dir || { { $debug_cmd $find_files $sub_cmd; } && mv $dir $dir.done; }\n";
