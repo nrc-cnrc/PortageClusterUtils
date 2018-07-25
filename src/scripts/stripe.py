@@ -79,8 +79,8 @@ if opts.debug:
    print("index %d, jndex %d" % (index, jndex), file=sys.stderr)
 
 if opts.verbose:
-   print("options are:", opts)
-   print("positional args are:", args)
+   print("options are:", opts, file=sys.stderr)
+   print("positional args are:", args, file=sys.stderr)
 
 
 def myopen(filename, mode='r'):
