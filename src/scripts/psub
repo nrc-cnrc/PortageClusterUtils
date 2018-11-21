@@ -443,9 +443,9 @@ function write_gpsc_script {
       export JOBCTL_CELL=$JOBCTL_CELL
    fi
 
-   # PSUB_RES_IMAGE is set in profile.d/portage in order to have
+   # PSUB_RES_IMAGE is set in portage/profile.d in order to have
    # control of the image at the project-level.
-   local RES_IMAGE=${PSUB_RES_IMAGE:-nrc_all_default_centos-6.7-amd64_latest}
+   local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-6-amd64_latest}
 
    TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
    TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
@@ -533,6 +533,10 @@ cat <<==EOF== > $TMPSCRIPT
 `env | egrep '^(PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|JOBCTL_CELL)=' | sed -e 's/^/export /'`
 $NOCLUSTER_OPTION
 
+# Export PSUB_RES_IMAGE so that children will use the same OS res_image.
+# This is particularly important if the -i flag was used to specify an alternate image.
+export PSUB_RES_IMAGE=$RES_IMAGE
+
 # Set the number of allowed openmp threads based on the number of cpus.
 export OMP_NUM_THREADS=$CPU_COUNT
 
@@ -560,6 +564,7 @@ if [[ ! \$PSUB_NO_DEBUG ]]; then
    ls -l /space/project/portage
    ls -l /space/group/nrc_ict/pkgs/
    echo
+   lsb_release -a
    lscpu
    head -25 /proc/cpuinfo | grep "model name"
    echo END DEBUGGING
