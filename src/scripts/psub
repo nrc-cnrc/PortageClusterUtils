@@ -53,6 +53,10 @@ Options:
                  export JOBCTL_CELL=gpsc2.science.gc.ca
 
   General options:
+  -uc            As in usage CPU, keep track of memory and process usage using
+                 process-memory-usage.pl.
+  -ug            As in usage GPU, keep track of GPU memory and process usage
+                 using nvidia-smi.
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
                  mapped IO.  Balzac note: use a value less than or equal to the
                  total size of files you will open using memory mapped IO,
@@ -181,6 +185,8 @@ JOB_ARRAY=
 OPT_J=1
 REQUIRES_GPU=
 NOCLUSTER_OPTION=
+USAGE_CPU=
+USAGE_GPU=
 
 PSUB_RESOURCE_OPTIONS=
 
@@ -219,6 +225,8 @@ while [ $# -gt 0 ]; do
                     PSUB_RESOURCE_OPTIONS="$PSUB_RESOURCE_OPTIONS $1 $2"
                     MEM_OPTION_MB=$VMEM_LIMIT_MB
                     shift;;
+   -uc)             USAGE_CPU=1;;
+   -ug)             USAGE_GPU=1;;
    -memmap)         arg_check 1 $# $!
                     arg_check_pos_int $2 $1
                     MEMMAP_GB=$2
@@ -526,6 +534,8 @@ cat <<==EOF== > $TMPSCRIPT
 ## Additional user-specified qsub parameters
 #$ $QSPARAMS
 
+export JOB_NAME=$NAME
+
 # User's environment.
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
@@ -575,7 +585,20 @@ fi >&2
 # Preserve the calling working directory
 cd $HERE || { ! echo "Error: Cannot change directory to $HERE" >&2; exit; }
 
-#process-memory-usage.pl $(($MEMORY_POLLING_DELAY*60)) \$\$ >&2 &
+if [[ -n "$USAGE_CPU" ]]; then
+   process-memory-usage.pl -s 3 $(($MEMORY_POLLING_DELAY*60)) \$\$ &> $NAME.c\$JOB_ID &
+   readonly pmu_pid=\$!
+fi
+
+if [[ -n "$REQUIRES_GPU" && -n "$USAGE_GPU" ]]; then
+   nvidia-smi \
+      --id=0 \
+      --loop=10 \
+      --query-gpu=utilization.gpu,utilization.memory,memory.used,memory.free,memory.total,driver_version \
+      --format=csv \
+      &> $NAME.g\$JOB_ID &
+   readonly nvidia_pid=\$!
+fi
 
 # Display the exact start time
 echo ============ Starting job \$GECOSHEP_JOB_ID on \`date\` on node \`hostname\` >&2
@@ -590,6 +613,10 @@ trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caugh
 # User command
 $COMMAND
 RC=\$?
+
+# Stop monitoring
+[[ -n "\$pmu_pid\$nvidia_pid " ]] && kill -9 \$pmu_pid \$nvidia_pid
+
 
 # Display the exact end time
 echo ============ Finished job \$GECOSHEP_JOB_ID on \`date\` with rc=\$RC >&2
