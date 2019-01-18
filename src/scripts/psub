@@ -615,7 +615,7 @@ $COMMAND
 RC=\$?
 
 # Stop monitoring
-[[ -n "\$pmu_pid\$nvidia_pid " ]] && kill -9 \$pmu_pid \$nvidia_pid
+[[ -n "\$pmu_pid\$nvidia_pid" ]] && kill -9 \$pmu_pid \$nvidia_pid
 
 
 # Display the exact end time
