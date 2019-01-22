@@ -580,6 +580,20 @@ if [[ ! \$PSUB_NO_DEBUG ]]; then
    echo END DEBUGGING
    echo; echo; echo; echo
 fi >&2
+
+# GPU
+if [[ -n "$REQUIRES_GPU" ]]; then
+   hostname;
+   uname -a;
+   # What GPU id is assigned to this job.
+   grep CUDA /etc/rc.local;
+   eval \$(grep CUDA /etc/rc.local)
+   #nvidia-smi -L
+   nvidia-smi -L | sed -E '/'$(tr "," "\|" <<< \$CUDA_VISIBLE_DEVICES)'/ s/^/   /'
+   #nvidia-smi -i \$CUDA_VISIBLE_DEVICES
+   nvidia-smi
+   pgrep --list-name nvidia;
+fi | sed 's/^/   /' >&2
 # DEBUGGING
 
 # Preserve the calling working directory
