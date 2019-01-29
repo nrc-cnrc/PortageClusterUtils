@@ -589,7 +589,7 @@ if [[ -n "$REQUIRES_GPU" ]]; then
    grep CUDA /etc/rc.local;
    eval \$(grep CUDA /etc/rc.local)
    #nvidia-smi -L
-   nvidia-smi -L | sed -E '/'$(tr "," "\|" <<< \$CUDA_VISIBLE_DEVICES)'/ s/^/   /'
+   nvidia-smi -L | sed -E '/'\$(tr "," "\|" <<< \$CUDA_VISIBLE_DEVICES)'/ s/^/   /'
    #nvidia-smi -i \$CUDA_VISIBLE_DEVICES
    nvidia-smi
    pgrep --list-name nvidia;
