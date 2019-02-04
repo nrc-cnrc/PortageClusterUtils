@@ -592,7 +592,7 @@ if [[ -n "$REQUIRES_GPU" ]]; then
    nvidia-smi -L | sed -E '/'\$(tr "," "\|" <<< \$CUDA_VISIBLE_DEVICES)'/ s/^/   /'
    #nvidia-smi -i \$CUDA_VISIBLE_DEVICES
    nvidia-smi
-   pgrep --list-name nvidia;
+   pgrep -l nvidia;
 fi | sed 's/^/   /' >&2
 # DEBUGGING
 
