@@ -605,8 +605,11 @@ if [[ -n "$USAGE_CPU" ]]; then
 fi
 
 if [[ -n "$REQUIRES_GPU" && -n "$USAGE_GPU" ]]; then
+   # Humm looks like we need to re-eval to get CUDA_VISIBLE_DEVICES?!
+   eval \$(grep CUDA /etc/rc.local)
+   echo "CUDA_VISIBLE_DEVICES: \$CUDA_VISIBLE_DEVICES" >&2
    nvidia-smi \
-      --id=0 \
+      --id=\$CUDA_VISIBLE_DEVICES \
       --loop=10 \
       --query-gpu=utilization.gpu,utilization.memory,memory.used,memory.free,memory.total,driver_version \
       --format=csv \
