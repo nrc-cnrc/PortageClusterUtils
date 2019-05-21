@@ -77,3 +77,51 @@ psub.jobctl_cell.run-parallel:  psub.jobctl_cell.run-parallel.cmds
 	|| ! echo "Error: workers should run on gpsc2.science.gc.ca" >&2
 	${RM} workers.[joe]*
 
+
+
+
+.PHONY: psub.project
+all: psub.project
+
+.PHONY: psub.project.cli_user_define
+psub.project:  psub.project.none
+psub.project.none: export PSUB_PROJECT_NAME:=
+psub.project.none:
+	${PSUB} \
+		-n \
+		'sleep 10' \
+	| grep -c '^#$$ -P' 2> /dev/null \
+	| grep 0 \
+	|| ! echo "Error: Project Name should empty" >&2
+
+.PHONY: psub.project.default
+psub.project:  psub.project.default
+psub.project.default: export PSUB_PROJECT_NAME:=project_default_tag
+psub.project.default:
+	${PSUB} \
+		-n \
+		'sleep 10' \
+	| grep --quiet '^#$$ -P project_default_tag' 2> /dev/null \
+	|| ! echo "Error: Project Name it should be teh default project name." >&2
+
+# Has to be done in the .bashrc of the user.
+#.PHONY: psub.project.override
+#psub.project:  psub.project.override
+#psub.project.override: export PSUB_PROJECT_NAME:=project_default_tag
+#psub.project.override: export PSUB_PROJECT_NAME_OVERRIDE:=project_name_overridden
+#psub.project.override:
+#	${PSUB} \
+#		-n \
+#		'sleep 10' \
+#	| grep --quiet '^#$$ -P project_name_overridden' 2> /dev/null \
+#	|| ! echo "Error: Project Name not Overridden" >&2
+
+.PHONY: psub.project.cli_user_define
+psub.project:  psub.project.cli_user_define
+psub.project.cli_user_define:
+	${PSUB} \
+		-n \
+		-Q this_is_my_project_tag \
+		'sleep 10' \
+	| grep --quiet '^#$$ -P this_is_my_project_tag' 2> /dev/null \
+	|| ! echo "Error: Project Name not the one from the CLI." >&2

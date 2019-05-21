@@ -42,6 +42,7 @@ Options:
                  assumed but user can specify G for GB or M for MB. [6G]
   -gpu           Ask for a node with a GPU.
   -i RES_IMAGE   Change the container's image [\$ENV{PSUB_RES_IMAGE}]
+  -Q PROJECT     Project's name for fairshare scheduling [\$ENV{PSUB_PROJECT_NAME}]
   -pe ENVIRONMENT Change the parallel environment [dev]
   -pepp          Change parallel processes [1]
   -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]
@@ -245,6 +246,9 @@ while [ $# -gt 0 ]; do
                     [[ $CPU_COUNT ]] || CPU_COUNT=4;;
    -i)              arg_check 1 $# $!;
                     PSUB_RES_IMAGE=$2;
+                    shift;;
+   -Q)              arg_check 1 $# $!;
+                    PSUB_PROJECT_NAME=$2;
                     shift;;
    -pe)             arg_check 1 $# $!;
                     PARALLEL_ENVIRONMENT=$2;
@@ -455,6 +459,10 @@ function write_gpsc_script {
    # control of the image at the project-level.
    local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-6-amd64_latest}
 
+   # PSUB_PROJECT_NAME is set in portage/profile.d in order to have
+   # control of the project for faireshare at the project-level.
+   local PROJECT_NAME=$PSUB_PROJECT_NAME
+
    TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
    TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
    trap "rm -f $TMPSCRIPT; exit" 0 2 3 13 14 15
@@ -521,6 +529,7 @@ cat <<==EOF== > $TMPSCRIPT
 #$ -S /bin/bash
 #$ -M $USER
 #$ -notify
+#$ ${PROJECT_NAME:+-P $PROJECT_NAME}
 
 ## User provided from the command line.
 ## Job Array:
