@@ -193,6 +193,7 @@ PSUB_RESOURCE_OPTIONS=
 
 ### GPSC
 PARALLEL_ENVIRONMENT=dev
+PE_EXPLICIT=
 # NOTE, PE_PARALLEL_PROCESSES should always be 1.
 PE_PARALLEL_PROCESSES=1
 RUNTIME_MINUTES=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-((24*60))} # default: one day in minutes (24 x 60 = 1440).
@@ -252,6 +253,7 @@ while [ $# -gt 0 ]; do
                     shift;;
    -pe)             arg_check 1 $# $!;
                     PARALLEL_ENVIRONMENT=$2;
+                    PE_EXPLICIT=1;
                     shift;;
    -pepp)           arg_check 1 $# $!;
                     PE_PARALLEL_PROCESSES=$2;
@@ -469,6 +471,17 @@ function write_gpsc_script {
 
    # Calculate the total required value of res_mem
    TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
+   
+   # Adjust the default PE if memory requirements are too big.
+   if [[ ! $PE_EXPLICIT && $PARALLEL_ENVIRONMENT = dev ]]; then
+      if [[ $TOTAL_RES_MEM_MB -gt 980000 ]]; then
+         PARALLEL_ENVIRONMENT=dev-sln
+      elif [[ $TOTAL_RES_MEM_MB -gt 100000 ]]; then
+         PARALLEL_ENVIRONMENT=dev-ln
+      fi
+      #echo "TOTAL_RES_MEM_MB = $TOTAL_RES_MEM_MB" >&2
+      #echo "PARALLEL_ENVIRONMENT = $PARALLEL_ENVIRONMENT" >&2
+   fi
 
    # The job's actual number of CPUs requested is $
    TOTAL_CPU_COUNT=$((OPT_J * CPU_COUNT))
