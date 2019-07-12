@@ -304,11 +304,11 @@ die "Error: You must provide an input file." unless(scalar(@SPLITS) gt 0);
 # Check if all SPLITS and all MERGES are arguments of the command.
 foreach my $s (@SPLITS) {
    # Escape the input since it might have some control characters.
-   die "Error: Not an argument of command: $s" unless $CMD =~ /(^|\s|<)\Q$s\E($|\s|\))/;
+   die "Error: Not an argument of command: $s" unless $CMD =~ /(^|\s|<|=)\Q$s\E($|\s|\))/;
 }
 foreach my $m (@MERGES) {
    # Escape the input since it might have some control characters.
-   die "Error: Not an argument of command: $m" unless $CMD =~ /(^|\s|>)\Q$m\E($|\s|\))/;
+   die "Error: Not an argument of command: $m" unless $CMD =~ /(^|\s|>|=)\Q$m\E($|\s|\))/;
 }
 
 
@@ -383,7 +383,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    # For each occurence of a file to merge, replace it by a chunk.
    foreach my $m (@MERGES) {
       my $file = "$workdir/" . $basename{$m} . "/$index";
-      unless ($SUB_CMD =~ s/(^|\s|>)\Q$m\E(?=$|\s|\))/$1$file/) {
+      unless ($SUB_CMD =~ s/(^|\s|>|=)\Q$m\E(?=$|\s|\))/$1$file/) {
          die "Error: Unable to match $m and $file";
       }
    }
@@ -396,7 +396,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
          # NOTE: doing zcat file.gz | stripe.py is much much faster than
          # stripe.py file.gz.  Seems like the python's implementation of gzip is
          # quite slow.
-         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E(?=$|\s|\))/$1<($reader $s | stripe.py -i $i -m $N)/g) {
+         unless ($SUB_CMD =~ s/(^|\s|<|=)\Q$s\E(?=$|\s|\))/$1<($reader $s | stripe.py -i $i -m $N)/g) {
             die "Error: Unable to match $s";
          }
       }
@@ -410,7 +410,7 @@ for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
       foreach my $s (@SPLITS) {
          my $file = "$workdir/" . $basename{$s} . "/$index";
          push(@done, $file);
-         unless ($SUB_CMD =~ s/(^|\s|<)\Q$s\E(?=$|\s|\))/$1$file/g) {
+         unless ($SUB_CMD =~ s/(^|\s|<|=)\Q$s\E(?=$|\s|\))/$1$file/g) {
             die "Error: Unable to match $s and $file";
          }
       }
