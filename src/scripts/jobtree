@@ -11,9 +11,16 @@
 # Copyright 2015, Sa Majeste la Reine du Chef du Canada /
 # Copyright 2015, Her Majesty in Right of Canada
 
+# /fs/ssm/main/base/20190814/all/bin/jobst --format json -f | jq '.[] | select(has("parallel_environment.nslots") | not)' | less
+# ./jobtree -jobst /fs/ssm/main/base/20190814/all/bin/jobst -u sam037
+# ./jobtree -jobst /fs/ssm/main/base/20190814/all/bin/jobst -g nrc_ict
+# ./jobtree -jobst /fs/ssm/main/base/20180528/all/bin/jobst -u sam037
+# ./jobtree -jobst /fs/ssm/main/base/20180528/all/bin/jobst -g nrc/ict
 
 use strict;
 use warnings;
+use JSON;
+use Time::Piece;
 
 my $home_root="/fs/vnas_H";
 my $home_root2="/fs/vnas/H";
@@ -41,9 +48,9 @@ Options:
 
   -u(ser) USER  Filter jobs for USER [None]
   -P REGEX      Filter jobs based on a regular expression [None]
-  -g(roup) DEPT/DIV  Filter jobs for users that from division DIV of department
-                DEPT. The user list will be taken from ${home_root}DEPT/DIV.
-                E.g.: -g nrc/ict
+  -g(roup) group  Filter jobs for users that are from a particular group.
+                The user list will be taken from `id -nG`
+                E.g.: -g nrc_ict
   -loc(altime)  Convert time from UTC to local time [don't convert time]
   -lon(gnames) WIDTH  Display WIDTH characters for the name field.
                 [without option: 10; option without WIDTH: 15]
@@ -64,12 +71,12 @@ use Getopt::Long;
 # Note to programmer: Getopt::Long automatically accepts unambiguous
 # abbreviations for all options.
 my $verbose = 1;
-my $jobStreamCommand = "jobst -r";
+my $jobst = "jobst";
 my $name_width = 10;
 GetOptions(
    "user=s"    => \my $user,
    "P=s"       => \my $regex,
-   "jobst=s"   => \$jobStreamCommand,
+   "jobst=s"   => \$jobst,
    "group=s"   => \my $group,
    "summary"   => \my $summaryOnly,
    localtime   => \my $localtime,
@@ -81,36 +88,159 @@ GetOptions(
    debug       => \my $debug,
 ) or usage;
 
-$jobStreamCommand .= " -u $user" if(defined($user));
-if ($group) {
-   my $found = 0;
-   foreach (@home_roots) {
-      $found = 1 if -d "$_$group";
-   }
-   $found or die "Can't find group $group under root homes @home_roots";
-}
-
 $name_width = 15 if $name_width == 0;
 $name_width = 6 if $name_width < 7;    # minimum name width is 7.
 
+my %all_states;
+
+
 sub max ($$) { $_[$_[0] < $_[1]] }
 
-my %all_states;
+
+sub standardizeJob {
+   my ($job) = @_;
+
+   $job->{res_mem_g} = $job->{res_mem_m} / 1024;
+   if ($job->{res_mem_m} < 1000) {
+      $job->{res_mem_str} = sprintf("%3dM", $job->{res_mem_m});
+   }
+   else {
+      $job->{res_mem_str} = sprintf("%3dG", ($job->{res_mem_m} + 512) / 1024);
+   }
+
+   if ($job->{h_rt} < 7200) {
+      $job->{h_rt_str} = sprintf("%3dm", $job->{h_rt} / 60);
+      $job->{h_rt} /= 3600;
+   }
+   else {
+      if ($job->{h_rt} >= 10000000) {
+         $job->{h_rt} = "inf";
+      }
+      else {
+         $job->{h_rt} /= 3600;
+      }
+      $job->{h_rt_str} = sprintf("%4d", $job->{h_rt});
+   }
+
+   # Drop .science.gc.ca from the queue's name.
+   $job->{queue} =~ s/\.sci.+?$//;
+
+   if (defined($localtime)) {
+      my $utc_date = "$job->{date} $job->{time} GMT";
+      print STDERR "date=", $job->{date}, ", time=", $job->{time}, "\n" if ($debug);
+      print STDERR $utc_date, "\n" if ($debug);
+      my $datetime = Time::Piece->strptime($utc_date, "%F %T %Z");
+      print STDERR "datetime=", $datetime, "\n" if ($debug);
+      $job->{date} = $datetime->strftime("%F");
+      $job->{time} = $datetime->strftime("%T");
+      print STDERR "date=", $job->{date}, ", time=", $job->{time}, "\n" if ($debug);
+   }
+}
+
+
+sub addUser {
+   my ($job, $users) = @_;
+
+   my $user = $job->{user};
+   my $state = $job->{state};
+
+   unless (defined($users->{$user})) {
+      $users->{$user} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
+   }
+
+   unless (defined($users->{$user}{states}{$state})) {
+      $users->{$user}{states}{$state} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
+   }
+
+   $users->{$user}{job_count} += 1;
+   $users->{$user}{states}{$state}{job_count} += 1;
+
+   $users->{$user}{cpus} += $job->{res_cpus} * $job->{slots};
+   $users->{$user}{states}{$state}{cpus} += $job->{res_cpus} * $job->{slots};
+
+   $users->{$user}{mem} += $job->{res_mem_g} * $job->{slots};
+   $users->{$user}{states}{$state}{mem} += $job->{res_mem_g} * $job->{slots};
+
+   $users->{$user}{h_rt} = max($users->{$user}{h_rt}, $job->{h_rt});
+   $users->{$user}{states}{$state}{h_rt} = max($users->{$user}{h_rt}, $job->{h_rt});
+}
+
+
+sub addNode {
+   my ($job, $jobs, $tree) = @_;
+
+   # Let's create a node for that job.
+   my $label = sprintf("%-8d %.3f %-*s %-7s %2d %4s %4s %-3s %s %s %23s %3s   %s",
+      $job->{id},
+      $job->{prior},
+      $name_width,
+      $job->{name},
+      $job->{user},
+      $job->{res_cpus},
+      $job->{res_mem_str},
+      $job->{h_rt_str},
+      $job->{state},
+      $job->{date},
+      $job->{time},
+      $job->{queue},
+      $job->{slots},
+      $job->{a});
+   $label =~ s/ *$//;
+   my $sub_tree = Tree::Simple->new($label);
+   $jobs->{$job->{id}} = $sub_tree;
+
+   # Does this job a sub job of another master job.
+   # j13343w-0 dictated by run-parallel.sh's $WORKER_NAME
+   print STDERR "id=", $job->{id}, ", name=", $job->{name}, "\n" if ($debug);
+   if ($job->{name} =~ /^j(\d+)(w-\d+)?/) {
+      my $parent = $1;
+      print STDERR "parent=", $parent, "\n" if ($debug);
+      if (exists($jobs->{$parent})) {
+         print STDERR "  parent job exists.\n" if ($debug);
+         $jobs->{$parent}->addChild($sub_tree);
+      }
+      else {
+         # Humm! looks like we should have found a parent for this job.  May
+         # be it's a orphan job or our regex is missing some cases.
+         #warn "Unknown parent job: $line\n";
+         # Though we haven't found a parent let's add it as a root, so we don't lose it...
+         $tree->addChild($sub_tree);
+         print STDERR "  parent job DOES NOT exist.\n" if ($debug);
+      }
+   }
+   else {
+      # This job doesn't have a master parent job thus it belongs at the
+      # root of the tree.
+      $tree->addChild($sub_tree);
+   }
+}
+
 
 ########################################
 # Populate the tree with jobst info.
 sub createJobList {
    use Tree::Simple;
 
+   if ($group) {
+      my $found = 0;
+      foreach (@home_roots) {
+         $found = 1 if -d "$_$group";
+      }
+      $found or die "Can't find group $group under root homes @home_roots";
+   }
+
    # make a tree root.
    my $tree = Tree::Simple->new("0", Tree::Simple->ROOT);
 
    # This is a flat map to quickly access job's sub tree.
    my %jobs;
-   my $splitByJob = 'sed "/^\s*[0-9]\+ / s/^/\n/"';
    my %users;
+
+   my $splitByJob = 'sed "/^\s*[0-9]\+ / s/^/\n/"';
    local $/ = "\n\n";
-   open IN, "$jobStreamCommand | $splitByJob |" or die "Can't call jobst $!";
+   my $jobst_cmd = "$jobst -r";
+   $jobst_cmd .= " -u $user" if(defined($user));
+   open IN, "$jobst_cmd | $splitByJob |" or die "Can't call jobst $!";
    while (my $line = <IN>) {
       # Skip the header
       if ($line =~ /^\s*[0-9]+/) {
@@ -146,46 +276,45 @@ sub createJobList {
             print STDERR "Weird slots: $slots; setting to 1\n";
             $slots = 1;
          }
+
          $a = "" unless defined $a;
+         if ($description =~ m/res_gpus?=[1-9]/) {
+            $a .= " GPU";
+         }
+
 
          if ($group) {
             next unless -d "$home_root$group/$user" || -d "$home_root2$group/$user";
          }
 
-         unless (defined($users{$user})) {
-            $users{$user} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
-         }
+         my %job = (
+            id => $id,
+            prior => $prior,
+            name => $name,
+            user => $user,
+            res_cpus => 0,
+            res_mem_str => undef,
+            res_mem_m => 0,
+            h_rt_str => undef,
+            h_rt => 0,
+            state => $state,
+            date => Time::Piece->strptime($date, "%m/%d/%Y")->strftime("%F"),
+            time => $time,
+            queue => $queue,
+            slots => $slots,
+            a => $a,
+         );
 
-         unless (defined($users{$user}{states}{$state})) {
-            $users{$user}{states}{$state} = { job_count => 0, cpus => 0, mem => 0, h_rt => 0};
-         }
-
-         $users{$user}{job_count} += 1;
-         $users{$user}{states}{$state}{job_count} += 1;
-
-         my $res_cpus = 0;
          if ($description =~ m/.*res_cpus=(\d+).*/s) {
-            $res_cpus = $1;
-            $users{$user}{cpus} += $res_cpus * $slots;
-            $users{$user}{states}{$state}{cpus} += $res_cpus * $slots;
+            $job{res_cpus} = $1;
          }
          else {
             warn "Warning: Unable to match for res_cpus", $description
                if $verbose > 1;
-            $res_cpus = 0;
          }
 
-         my $res_mem_str = "";
          if ($description =~ m/.*res_mem=(\d+).*/s) {
-            my $res_mem_m = $1;
-            my $res_mem_g = $res_mem_m / 1024;
-            if ($res_mem_m < 1000) {
-               $res_mem_str = sprintf("%3dM", $res_mem_m);
-            } else {
-               $res_mem_str = sprintf("%3dG", ($res_mem_m + 512) / 1024);
-            }
-            $users{$user}{mem} += $res_mem_g * $slots;
-            $users{$user}{states}{$state}{mem} += $res_mem_g * $slots;
+            $job{res_mem_m} = $1;
          }
          else {
             warn "Warning: Unable to match for res_mem in ", $description
@@ -199,78 +328,14 @@ sub createJobList {
          # Some job may not have h_rt set.
          my $h_rt_str = "";
          if ($description =~ m/.*h_rt=(\d+).*/s) {
-            my $h_rt = 0;
-            $h_rt = $1;
-            if ($h_rt < 7200) {
-               $h_rt_str = sprintf("%3dm", $h_rt / 60);
-               $h_rt /= 3600;
-            } else {
-               if ($h_rt >= 10000000) {
-                  $h_rt = "inf";
-               } else {
-                  $h_rt /= 3600;
-               }
-               $h_rt_str = sprintf("%4d", $h_rt);
-            }
-            $users{$user}{h_rt} = max($users{$user}{h_rt}, $h_rt);
-            $users{$user}{states}{$state}{h_rt} = max($users{$user}{h_rt}, $h_rt);
+            $job{h_rt} = $1;
          }
 
-         # Drop .science.gc.ca from the queue's name.
-         $queue =~ s/\.sci.+?$//;
+         standardizeJob(\%job);
 
-         if (defined($localtime)) {
-            print STDERR "date=", $date, ", time=", $time, "\n" if ($debug);
-            my $datetime = `date -d "${date} ${time}UTC" +"%Y-%m-%d %H:%M:%S"`;
-            print STDERR "datetime=", $datetime, "\n" if ($debug);
-            ($date, $time) = split(' ',$datetime);
-            print STDERR "date=", $date, ", time=", $time, "\n" if ($debug);
-         }
+         addUser(\%job, \%users);
 
-         # Let's create a node for that job.
-         my $label = sprintf("%-8d %.3f %-*s %-7s %2d %4s %4s %-3s %s %s %23s %3s   %s",
-            $id,
-            $prior,
-            $name_width,
-            $name,
-            $user,
-            $res_cpus,
-            $res_mem_str,
-            $h_rt_str,
-            $state,
-            $date,
-            $time,
-            $queue,
-            $slots,
-            $a);
-         $label =~ s/ *$//;
-         my $sub_tree = Tree::Simple->new($label);
-         $jobs{$id} = $sub_tree;
-
-         # Does this job a sub job of another master job.
-         # j13343w-0 dictated by run-parallel.sh's $WORKER_NAME
-         print STDERR "id=", $id, ", name=", $name, "\n" if ($debug);
-         if ($name =~ /^j(\d+)(w-\d+)?/) {
-            my $parent = $1;
-            print STDERR "parent=", $parent, "\n" if ($debug);
-            if (exists($jobs{$parent})) {
-               print STDERR "  parent job exists.\n" if ($debug);
-               $jobs{$parent}->addChild($sub_tree);
-            }
-            else {
-               # Humm! looks like we should have found a parent for this job.  May
-               # be it's a orphan job or our regex is missing some cases.
-               #warn "Unknown parent job: $line\n";
-               # Though we haven't found a parent let's add it as a root, so we don't lose it...
-               $tree->addChild($sub_tree);
-               print STDERR "  parent job DOES NOT exist.\n" if ($debug);
-            }
-         }
-         else {
-            # This job doesn't have a master parent job thus it belongs at the
-            # root of the tree.
-            $tree->addChild($sub_tree);
-         }
+         addNode(\%job, \%jobs, $tree);
       }
    }
    close(IN) or die "Problem with the input stream.";
@@ -281,6 +346,113 @@ sub createJobList {
    print STDERR "Height: " . $tree->getHeight() . "\n" if ($debug);
    print STDERR "Depth: " . $tree->getDepth() . "\n" if ($debug);
    print STDERR "Width: " . $tree->getWidth() . "\n" if ($debug);
+
+   return $tree, %users;
+}
+
+
+sub createJobListJSON {
+   sub queueInfo {
+      #username=shpc001
+      #jobstate=r
+      #jobname=eccc-truehost
+      #groupname=ssc_hpcs
+      #jobid=15563
+      #queuename=dev-be
+      #--------
+
+      my %jobstates = ();
+      local $/ = "\n--------\n";
+      open IN, "$jobst --format kv |" or die "Can't call jobst $!";
+      while (my $line = <IN>) {
+         my $jobid = $1 if ($line =~ /jobid=(\d+)/);
+         my $jobstate = $1 if ($line =~ /jobstate=(\w+)/);
+         my $queuename = $1 if ($line =~ /queuename=([^\n]+)/);
+         $queuename ||= '';
+         print "AAA", $jobid, $jobstate, $queuename, "\n" if ($debug);
+         $jobstates{$jobid} = { jobid => $jobid, jobstate => $jobstate, queuename => $queuename };
+      }
+      return %jobstates;
+   }
+
+   sub queueInfoJSON {
+      my %jobstates = ();
+      my $jobst_cmd = "$jobst --format json";
+      my $jobst_output = `$jobst_cmd`;
+      my $jobst_json = decode_json $jobst_output;
+      foreach my $node (@$jobst_json) {
+         $jobstates{$node->{jobid}} = $node;
+         $jobstates{$node->{jobid}}{queuename} ||= '';
+      }
+      return %jobstates;
+   }
+
+   use Tree::Simple;
+
+   # make a tree root.
+   my $tree = Tree::Simple->new("0", Tree::Simple->ROOT);
+
+   # This is a flat map to quickly access job's sub tree.
+   my %jobs;
+   my %users;
+
+   my %jobstates = queueInfoJSON;
+
+   my $jobst_cmd = "$jobst -f --format json";
+   $jobst_cmd .= " -u $user" if(defined($user));
+   $jobst_cmd .= " -g $group" if(defined($group));  # Doesn't look like this has any effect.
+   my $jobst_output = `$jobst_cmd`;
+   #print $jobst_output;
+   my $jobst_json = decode_json $jobst_output;
+   foreach my $node (@$jobst_json) {
+      my $user = $node->{owner};;
+      next if (defined($group) and exists($node->{group}) and $node->{group} ne $group);
+
+      # filter jobs based on a regular expression.
+      # NOTE: May be we should filter not on the full node but rather on the
+      # slim down node aka the fields that we care for?
+      if (defined($regex)) {
+         my $node_str = encode_json($node);
+         next if ($node_str !~ m/$regex/);
+      }
+
+      # Looks like we are sometimes missing some key/value.
+      $node->{"parallel_environment.nslots"} ||= 0;
+      $node->{"hard_resource_list.res_cpus"} ||= 0;
+      $node->{"hard_resource_list.res_mem"} ||= 0;
+      $node->{"hard_resource_list.h_rt"} ||= 0;
+
+      my $t = Time::Piece->strptime($node->{submission_time}, "%a %b %e %T %Y");
+      my %job = (
+         id => $node->{job_number},
+         prior => 0, # undef
+         name => substr($node->{job_name}, 0, $name_width),
+         user => $user,
+         res_cpus => $node->{"hard_resource_list.res_cpus"},
+         res_mem_str => undef,
+         res_mem_m => $node->{"hard_resource_list.res_mem"},
+         h_rt_str => undef,
+         h_rt => $node->{"hard_resource_list.h_rt"},
+         state => $jobstates{$node->{job_number}}{jobstate},
+         date => $t->strftime("%F"),
+         time => $t->strftime("%T"),
+         queue => $jobstates{$node->{job_number}}{queuename},
+         slots => $node->{"parallel_environment.nslots"},
+         a => exists($node->{"hard_resource_list.res_gpus"}) ? "GPU" : '',
+      );
+      $all_states{$job{state}} += 1;
+      $job{slots} = 1 unless defined $job{slots};
+      if ($job{slots} !~ /^\d+$/) {
+         print STDERR "Weird slots: ", $job{slots}, "; setting to 1\n";
+         $job{slots} = 1;
+      }
+
+      standardizeJob(\%job);
+
+      addUser(\%job, \%users);
+
+      addNode(\%job, \%jobs, $tree);
+   }
 
    return $tree, %users;
 }
@@ -512,7 +684,19 @@ sub epilogue {
 }
 
 
-my ($jobs, %users) = createJobList;
+
+# Select the proper parse based on jobst's version.
+# This is a crude way of doing this since there is no --version for jobst.
+my $jobst_help = `$jobst -h`;
+my $joblist = undef;
+if ($jobst_help =~ m/json/) {
+   $joblist = \&createJobListJSON;
+}
+else {
+   $joblist = \&createJobList;
+}
+my ($jobs, %users) = &$joblist;
+
 my @colors = getColors;
 displayJobs($jobs, @colors) unless($summaryOnly);
 epilogue($jobs, $colors[1], %users);
