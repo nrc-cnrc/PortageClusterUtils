@@ -64,7 +64,7 @@ use Getopt::Long;
 # Note to programmer: Getopt::Long automatically accepts unambiguous
 # abbreviations for all options.
 my $verbose = 1;
-my $jobStreamCommand = "jobst -r";
+my $jobStreamCommand = "/fs/ssm/main/base/20180528/all/bin/jobst -r";
 my $name_width = 10;
 GetOptions(
    "user=s"    => \my $user,
@@ -110,6 +110,7 @@ sub createJobList {
    my $splitByJob = 'sed "/^\s*[0-9]\+ / s/^/\n/"';
    my %users;
    local $/ = "\n\n";
+   print "$jobStreamCommand\n" if $debug;
    open IN, "$jobStreamCommand | $splitByJob |" or die "Can't call jobst $!";
    while (my $line = <IN>) {
       # Skip the header
