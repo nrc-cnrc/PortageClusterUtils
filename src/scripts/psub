@@ -515,7 +515,7 @@ function write_gpsc_script {
       VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
    fi
 
-   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
+   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL} ${NAME:+-N $NAME}"
 
 cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
