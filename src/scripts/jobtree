@@ -382,7 +382,7 @@ sub createJobListJSON {
       my $jobst_json = decode_json $jobst_output;
       foreach my $node (@$jobst_json) {
          $jobstates{$node->{jobid}} = $node;
-         $jobstates{$node->{jobid}}{queuename} ||= '';
+         $jobstates{$node->{jobid}}{queuename} //= 'UNK';
       }
       return %jobstates;
    }
@@ -433,10 +433,10 @@ sub createJobListJSON {
          res_mem_m => $node->{"hard_resource_list.res_mem"},
          h_rt_str => undef,
          h_rt => $node->{"hard_resource_list.h_rt"},
-         state => $jobstates{$node->{job_number}}{jobstate},
+         state => $jobstates{$node->{job_number}}{jobstate} // 'UNK',
          date => $t->strftime("%F"),
          time => $t->strftime("%T"),
-         queue => $jobstates{$node->{job_number}}{queuename},
+         queue => $jobstates{$node->{job_number}}{queuename} // 'UNK',
          slots => $node->{"parallel_environment.nslots"},
          a => exists($node->{"hard_resource_list.res_gpus"}) ? "GPU" : '',
       );
