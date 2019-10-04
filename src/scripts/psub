@@ -437,13 +437,14 @@ fi
 # Make sure $NAME is not longer that 15 characters, and starts with a letter
 # GPSC Note: name length is not limited, but the name must still start with a letter
 # Also, / is not allowed in $NAME
-NAME=`echo $NAME | perl -e '
+NAME=`echo "$NAME" | perl -e '
    $_ = <>;
    chomp;
    s#/#_#;
    s/^([^a-z])/J$1/i;
    print substr($_, 0, 15);
 '`
+#printf -v NAME '%q' "$NAME"    # Escape $NAME for reuse as shell input
 
 ###############################################################################
 ###########################   GPSC SPECIFIC STUFF   ###########################
@@ -515,12 +516,12 @@ function write_gpsc_script {
       VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
    fi
 
-   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL} ${NAME:+-N $NAME}"
+   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL} ${NAME:+-N \"$NAME\"}"
 
 cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
 #
-#$ -N $NAME
+#$ -N "$NAME"
 #
 # Combines STDERR & STDOUT to STDOUT
 #####$ -j y
@@ -556,7 +557,7 @@ cat <<==EOF== > $TMPSCRIPT
 ## Additional user-specified qsub parameters
 #$ $QSPARAMS
 
-export JOB_NAME=$NAME
+export JOB_NAME="$NAME"
 
 # User's environment.
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
@@ -622,7 +623,7 @@ fi | sed 's/^/   /' >&2
 cd $HERE || { ! echo "Error: Cannot change directory to $HERE" >&2; exit; }
 
 if [[ -n "$USAGE_CPU" ]]; then
-   process-memory-usage.pl -s 3 $(($MEMORY_POLLING_DELAY*60)) \$\$ &> $NAME.c\$JOB_ID &
+   process-memory-usage.pl -s 3 $(($MEMORY_POLLING_DELAY*60)) \$\$ &> "$NAME".c\$JOB_ID &
    readonly pmu_pid=\$!
 fi
 
@@ -635,7 +636,7 @@ if [[ -n "$REQUIRES_GPU" && -n "$USAGE_GPU" ]]; then
       --loop=10 \
       --query-gpu=utilization.gpu,utilization.memory,memory.used,memory.free,memory.total,driver_version \
       --format=csv \
-      &> $NAME.g\$JOB_ID &
+      &> "$NAME".g\$JOB_ID &
    readonly nvidia_pid=\$!
 fi
 
@@ -854,8 +855,8 @@ fi
 chmod +x $TMPSCRIPT
 
 if [[ $VERBOSE ]]; then
-   cat $TMPSCRIPT
-   echo ""
+   cat $TMPSCRIPT >&2
+   echo "" >&2
 fi
 
 if [[ $NOT_REALLY ]]; then
@@ -868,6 +869,7 @@ fi
 START=`date`
 # Note: we explicitly delete the warning about -N being set twice, because we really, really don't care!
 JOBID=`$QSUB_CMD $TMPSCRIPT | grep -v '^warning: "-N" option has already been set, overriding previous setting$'`
+QSUB_RC=$?
 SAVE_JOBID=$JOBID
 # To work around issues with jobsub directing error messages to stdout, we
 # assume the last line of output is our jobname and strip preceding text.
@@ -877,12 +879,16 @@ JOBID=${JOBID%%[ ./]*}
 echo $JOBID
 
 if [[ ! $NOSCRIPT ]]; then
-   JOBSCRIPT=$NAME.j${JOBID:-0}
-   cp $TMPSCRIPT $JOBSCRIPT
+   JOBSCRIPT="$NAME".j${JOBID:-0}
+   cp "$TMPSCRIPT" "$JOBSCRIPT"
    # mktemp doesn't give any group permissions, so we need to set appropriate
    # group read/execute permissions on the jobfile: union of its original perms
    # and the group read/execute perms of the current directory.
-   chmod $(printf %o $(( 0$(stat -c %a .) & 0050 | 0$(stat -c %a $JOBSCRIPT) )) ) $JOBSCRIPT
+   chmod $(printf %o $(( 0$(stat -c %a .) & 0050 | 0$(stat -c %a "$JOBSCRIPT") )) ) "$JOBSCRIPT"
+fi
+
+if [[ $QSUB_RC != 0 ]]; then
+   error_exit "Job submission failed (possibly an invalid jobname specified to -N):" "$QSUB_CMD $TMPSCRIPT"
 fi
 
 [[ $BALZAC ]] && sleep 1 # give TORQUE a chance to breathe when many jobs are submitted

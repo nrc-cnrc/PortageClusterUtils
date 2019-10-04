@@ -1025,9 +1025,9 @@ if (( $NUM > $FIRST_PSUB )); then
          DUMMY_OUT=${LOGFILEPREFIX}psub-dummy-out.worker-$i
 
          if (( $VERBOSE > 2 )); then
-            echo "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG "$WORKER_CMD" >&2
+            echo "${SUBMIT_CMD[@]}" -N \"$WORKER_NAME-$i\" -o $DUMMY_OUT -e $LOG "$WORKER_CMD" >&2
          fi
-         "${SUBMIT_CMD[@]}" -N $WORKER_NAME-$i -o $DUMMY_OUT -e $LOG "$WORKER_CMD" >> $WORKER_JOBIDS ||
+         "${SUBMIT_CMD[@]}" -N "$WORKER_NAME-$i" -o $DUMMY_OUT -e $LOG "$WORKER_CMD" >> $WORKER_JOBIDS ||
             error_exit "Error launching worker $i using psub"
          # PBS doesn't like having too many qsubs at once, let's give it a
          # chance to breathe between each worker submission
