@@ -11,11 +11,6 @@
 
 BINSCRIPTS = \
         analyze \
-        cvs-attic-list.sh \
-        cvs-cat-all-revisions.sh \
-        cvs-diff-all-revisions.sh \
-        cvs-log-sort.pl \
-        cvs-status-summary.pl \
         jobsig.pl \
         jobtree \
         on-cluster.sh \
