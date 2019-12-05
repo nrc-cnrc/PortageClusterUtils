@@ -448,7 +448,7 @@ foreach my $m (@MERGES) {
       $m="../../$m" unless ($m =~ m#^/#);
       $sub_cmd = "$MERGE_PGM | $writer > $m";
    }
-   print MERGE_CMD_FILE "test ! -d $dir || { { $debug_cmd $find_files $sub_cmd && cd ../..; } && mv $dir $dir.done; }\n";
+   print MERGE_CMD_FILE "test ! -d $dir || { ( $debug_cmd $find_files $sub_cmd; ) && mv $dir $dir.done; }\n";
 }
 close(MERGE_CMD_FILE) or die "Error: Unable to close merge command file!";
 
