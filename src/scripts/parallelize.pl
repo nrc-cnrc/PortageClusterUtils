@@ -126,6 +126,8 @@ BAD examples:
    exit $_ ? 1 : 0;
 }
 
+my $split_suffix_length = 4;
+
 my $debug_cmd = "";
 
 use Getopt::Long;
@@ -352,7 +354,7 @@ unless ($use_stripe_splitting) {
       }
 
       verbose(1, "Splitting $s in $N chunks of ~$NUM_LINE lines in $dir");
-      my $rc = system("$debug_cmd $reader $s | split -a 4 -d -l $NUM_LINE - $dir/");
+      my $rc = system("$debug_cmd $reader $s | split -a $split_suffix_length -d -l $NUM_LINE - $dir/");
       die "Error: Error splitting $s\n" unless($rc eq 0);
 
       # Calculates the total number of jobs to create which can be different from
@@ -430,7 +432,7 @@ open(MERGE_CMD_FILE, ">$merge_cmd_file") or die "Error: Unable to open merge com
 foreach my $m (@MERGES) {
    my $dir = "$workdir/" . $basename{$m};
    my $sub_cmd;
-   my $find_files = "set -o pipefail; cd $dir && ls -v | xargs";
+   my $find_files = "set -o pipefail; cd $dir && ls -v " . '?' x $split_suffix_length . " | xargs";
    if ($m =~ m#/dev/stdout#) {
       $sub_cmd = "$MERGE_PGM";
    }
