@@ -46,9 +46,12 @@ Options:
   -pe ENVIRONMENT Change the parallel environment [dev]
   -pepp          Change parallel processes [1]
   -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]
+                 The runtime can also use of the following units: s, m, h, d,
+                 e.g., -rt 4d will request 4 days of runtime.
                  Default can be changed by setting the enviornment variable
                  PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES, e.g. for ten days:
                  export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=\$((10*24*60))
+                 or export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=10d
   -c CELL        Specify the cell you want your jobs to run in [gpsc1.science.gc.ca]
                  Default can be changed by setting the enviornment variable.
                  export JOBCTL_CELL=gpsc2.science.gc.ca
@@ -196,7 +199,7 @@ PARALLEL_ENVIRONMENT=dev
 PE_EXPLICIT=
 # NOTE, PE_PARALLEL_PROCESSES should always be 1.
 PE_PARALLEL_PROCESSES=1
-RUNTIME_MINUTES=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-((24*60))} # default: one day in minutes (24 x 60 = 1440).
+RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-((24*60))} # default: one day in minutes (24 x 60 = 1440).
 
 NODES=
 while [ $# -gt 0 ]; do
@@ -259,7 +262,7 @@ while [ $# -gt 0 ]; do
                     PE_PARALLEL_PROCESSES=$2;
                     shift;;
    -rt)             arg_check 1 $# $!;
-                    RUNTIME_MINUTES=$2;
+                    RUNTIME_SPECS=$2;
                     PSUB_RESOURCE_OPTIONS="$PSUB_RESOURCE_OPTIONS $1 $2"
                     shift;;
    -c)              arg_check 1 $# $!;
@@ -488,7 +491,20 @@ function write_gpsc_script {
    TOTAL_CPU_COUNT=$((OPT_J * CPU_COUNT))
 
    # Runtime is in seconds.
-   local RUNTIME_SECONDS=$((RUNTIME_MINUTES * 60))
+   local RUNTIME_SECONDS=""
+   if [[ $RUNTIME_SPECS =~ ^([0-9]+)s$ ]]; then
+      RUNTIME_SECONDS=${BASH_REMATCH[1]}
+   elif [[ $RUNTIME_SPECS =~ ^([0-9]+)m$ ]]; then
+      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 60))
+   elif [[ $RUNTIME_SPECS =~ ^([0-9]+)h$ ]]; then
+      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 60 * 60))
+   elif [[ $RUNTIME_SPECS =~ ^([0-9]+)d$ ]]; then
+      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 24 * 60 * 60))
+   elif [[ $RUNTIME_SPECS =~ ^([0-9]+)$ ]]; then
+      RUNTIME_SECONDS=$((RUNTIME_SPECS * 60))
+   else
+      error_exit "Bad -rt value: $RUNTIME_SPECS; must be digits with optional d, h, m or s unit, e.g., 2h."
+   fi
 
    local HERE=`pwd`
    ERR_FILE=${ERR_FILE:-$HERE}
