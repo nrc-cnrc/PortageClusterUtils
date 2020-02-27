@@ -437,16 +437,23 @@ if [[ ! $NAME ]]; then
    NAME=`basename $PROG_NAME`
 fi
 
-# Make sure $NAME is not longer that 15 characters, and starts with a letter
+if [[ $GPSC ]]; then
+   MAX_NAME_LENGTH=30
+else
+   MAX_NAME_LENGTH=15
+fi
+
+# Make sure $NAME is not longer that 15 characters (30 on GPSC), and starts with a letter
 # GPSC Note: name length is not limited, but the name must still start with a letter
 # Also, / is not allowed in $NAME
-NAME=`echo "$NAME" | perl -e '
-   $_ = <>;
+NAME=`echo "$NAME" | perl -e "
+   \\$_ = <>;
    chomp;
    s#/#_#;
-   s/^([^a-z])/J$1/i;
-   print substr($_, 0, 15);
-'`
+   s/^([^a-z])/J\\$1/i;
+   print substr(\\$_, 0, $MAX_NAME_LENGTH);
+"`
+echo $NAME >&2
 #printf -v NAME '%q' "$NAME"    # Escape $NAME for reuse as shell input
 
 ###############################################################################
