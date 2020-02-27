@@ -453,7 +453,6 @@ NAME=`echo "$NAME" | perl -e "
    s/^([^a-z])/J\\$1/i;
    print substr(\\$_, 0, $MAX_NAME_LENGTH);
 "`
-echo $NAME >&2
 #printf -v NAME '%q' "$NAME"    # Escape $NAME for reuse as shell input
 
 ###############################################################################
