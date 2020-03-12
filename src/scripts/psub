@@ -679,6 +679,7 @@ RC=\$?
 # Stop monitoring
 [[ -n "\$pmu_pid\$nvidia_pid" ]] && kill -9 \$pmu_pid \$nvidia_pid
 
+echo "Peak memory: " \$(grep VmPeak /proc/\$PPID/status) >&2
 
 # Display the exact end time
 echo ============ Finished job \$GECOSHEP_JOB_ID on \`date\` with rc=\$RC >&2
