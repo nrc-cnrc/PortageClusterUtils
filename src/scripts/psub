@@ -488,6 +488,8 @@ function write_gpsc_script {
          PARALLEL_ENVIRONMENT=dev-sln
       elif [[ $TOTAL_RES_MEM_MB -gt 100000 ]]; then
          PARALLEL_ENVIRONMENT=dev-ln
+      elif [[ $PSUB_DEFAULT_PE ]]; then
+         PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
       fi
       #echo "TOTAL_RES_MEM_MB = $TOTAL_RES_MEM_MB" >&2
       #echo "PARALLEL_ENVIRONMENT = $PARALLEL_ENVIRONMENT" >&2
@@ -585,7 +587,7 @@ export JOB_NAME="$NAME"
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
 `env | egrep '^(LANG|LC_[A-Z]+)=' | sed -e 's/^/export /'`
-`env | egrep '^(PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|JOBCTL_CELL)=' | sed -e 's/^/export /'`
+`env | egrep '^(PSUB_DEFAULT_PE|PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|JOBCTL_CELL)=' | sed -e 's/^/export /'`
 $NOCLUSTER_OPTION
 
 # Export PSUB_RES_IMAGE so that children will use the same OS res_image.
