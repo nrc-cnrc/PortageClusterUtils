@@ -717,6 +717,9 @@ echo ============ Finished job \$JOB_ID on \`date\` with rc=\$RC >&2
 echo jobst -f -j \$JOB_ID >&2
 jobst -f -j \$JOB_ID >&2
 
+# Generate usage information required by KITS for GPSC Migration UAT
+source /fs/ssm/nrc/local/bin/uat-job-usage.sh
+
 # qsub command executed
 # $SUBMIT_CMD $TMPSCRIPT
 
