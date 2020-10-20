@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # @file
 # @brief Daemon to monitor run-parallel.sh that maximizes cluster usage.
 #
