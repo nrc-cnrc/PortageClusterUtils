@@ -102,6 +102,7 @@ Options:
                  the jobs (in GB on Balzac, in MB on the GPSC).
   -require-cpus  Displays, without executing, how many CPUs are required, if
                  specified explicitely; otherwise, has not output.
+  -jobgen        Use jobgen to submit the job
 
 Further notes:
 
@@ -192,6 +193,8 @@ REQUIRES_GPU=
 NOCLUSTER_OPTION=
 USAGE_CPU=
 USAGE_GPU=
+USE_JOBGEN=
+JOIN_OUT_ERR=
 
 PSUB_RESOURCE_OPTIONS=
 
@@ -244,7 +247,6 @@ while [ $# -gt 0 ]; do
                     shift;;
    -gpu)            REQUIRES_GPU=1
                     PARALLEL_ENVIRONMENT="gpu"
-                    RESOURCES="${RESOURCES:+$RESOURCES,}res_gpus=1"
                     ;;
    -I)              INTMODE=1;
                     NOSCRIPT=1;
@@ -289,7 +291,7 @@ while [ $# -gt 0 ]; do
    -qsparams)       arg_check 1 $# $!;
                     QSPARAMS=$2;
                     shift;;
-   -join)           QSPARAMS="-j y";;
+   -join)           JOIN_OUT_ERR=1;;
    -noc|-nocluster) NOCLUSTER_OPTION="export PORTAGE_NOCLUSTER=1";;
    -p)              arg_check 1 $# $!;
                     PRIORITY="$1 $2";
@@ -301,6 +303,7 @@ while [ $# -gt 0 ]; do
    -f)              FORCE=1;;
    -require)        REQUIREMENTS=1;;
    -require-cpus)   CPU_REQUIREMENTS=1;;
+   -jobgen)         USE_JOBGEN=1;;
    --)              shift; break;;
    -*)              error_exit "Unknown options $1.";;
    *)               break;;
@@ -424,7 +427,7 @@ else
    PROG_NAME=`echo "$COMMAND" | perl -e '
       $_ = <>;
       chomp;
-      # Use STDIN as the job name of the command seems empty
+      # Use STDIN as the job name if the command seems empty
       $_ or $_ = "STDIN";
       @tokens = split;
       print $tokens[0];
@@ -480,6 +483,10 @@ function write_gpsc_script {
    TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
    TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
    trap "rm -f $TMPSCRIPT; exit" 0 2 3 13 14 15
+   if [[ $USE_JOBGEN ]]; then
+      mv $TMPSCRIPT $TMPSCRIPT.jgen
+      TMPSCRIPT=$TMPSCRIPT.jgen
+   fi
 
    # Calculate the total required value of res_mem
    TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
@@ -542,15 +549,56 @@ function write_gpsc_script {
       VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
    fi
 
-   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL} ${NAME:+-N \"$NAME\"}"
+   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
 
-cat <<==EOF== > $TMPSCRIPT
+if [[ $USE_JOBGEN ]]; then
+   cat <<==EOF== > $TMPSCRIPT
+#!/bin/bash
+#
+# psub-generated-script.jgen
+#
+#JGEN -r name=$NAME
+#
+#${JOIN_OUT_ERR:+JGEN -r joinouterr=y}
+#$ -terse
+#$ -r no
+#JGEN -r queue=$PARALLEL_ENVIRONMENT
+#JGEN -c nslots=1
+#JGEN -c ncores=$TOTAL_CPU_COUNT
+#JGEN -c memory=${TOTAL_RES_MEM_MB}M
+#JGEN -r wallclock=$RUNTIME_SECONDS
+#JGEN -c image=$RES_IMAGE
+#JGEN -r outpath=$OUT_FILE
+#JGEN -r errpath=$ERR_FILE
+#$ -S /bin/bash
+#$ -M $USER
+#$ -notify
+#${PROJECT_NAME:+JGEN -r project=$PROJECT_NAME}
+#${REQUIRES_GPU:+JGEN -c ngpus=1}
+
+## User provided from the command line.
+## Job Array:
+#$ $JOB_ARRAY
+## Priority:
+#$ $PRIORITY
+## Resources:
+#$ ${RESOURCES:+-l $RESOURCES}
+## Nodes:
+#$ ${NODES:+-l nodes=$NODES}
+## Additional user-specified qsub parameters
+#$ $QSPARAMS
+
+. jobsetup.sh >&2
+
+==EOF==
+else
+   cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
 #
 #$ -N "$NAME"
 #
-# Combines STDERR & STDOUT to STDOUT
-#####$ -j y
+# Combines STDERR & STDOUT to STDOUT, if requested
+#${JOIN_OUT_ERR:+$ -j y}
 
 ## Simply output the jobid.
 #$ -terse
@@ -570,6 +618,7 @@ cat <<==EOF== > $TMPSCRIPT
 #$ -M $USER
 #$ -notify
 #$ ${PROJECT_NAME:+-P $PROJECT_NAME}
+#${REQUIRES_GPU:+$ -l res_gpus=1}
 
 ## User provided from the command line.
 ## Job Array:
@@ -583,6 +632,10 @@ cat <<==EOF== > $TMPSCRIPT
 ## Additional user-specified qsub parameters
 #$ $QSPARAMS
 
+==EOF==
+fi
+
+cat <<==EOF== >> $TMPSCRIPT
 export JOB_NAME="$NAME"
 
 # User's environment.
@@ -786,6 +839,7 @@ ulimit -s 100000"
 
    # qsub options we always use: -r n: not rerunable; -N $NAME: name the job
    QSUB_CMD="qsub -r n -N $NAME $PRIORITY $JOB_ARRAY $QSPARAMS"
+   test -n "$JOIN_OUT_ERR" && QSUB_CMD="$QSUB_CMD -j y"
    test -n "$RESOURCES" && QSUB_CMD="$QSUB_CMD -l$RESOURCES"
    if [[ $INTMODE ]]; then
       QSUB_CMD="$QSUB_CMD -I"
