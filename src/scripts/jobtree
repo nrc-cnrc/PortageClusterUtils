@@ -238,7 +238,7 @@ sub createJobList {
 
    my $splitByJob = 'sed "/^\s*[0-9]\+ / s/^/\n/"';
    local $/ = "\n\n";
-   my $jobst_cmd = "$jobst -r";
+   my $jobst_cmd = ($jobst eq "cat" ? $jobst : "$jobst -r");
    $jobst_cmd .= " -u $user" if(defined($user));
    open IN, "$jobst_cmd | $splitByJob |" or die "Can't call jobst $!";
    while (my $line = <IN>) {
@@ -687,7 +687,7 @@ sub epilogue {
 
 # Select the proper parse based on jobst's version.
 # This is a crude way of doing this since there is no --version for jobst.
-my $jobst_help = `$jobst -h`;
+my $jobst_help = ($jobst eq "cat") ? "" : `$jobst -h`;
 my $joblist = undef;
 if ($jobst_help =~ m/json/) {
    $joblist = \&createJobListJSON;
