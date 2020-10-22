@@ -498,10 +498,10 @@ function write_gpsc_script {
    # If the PE was not specified using -pe, set it based on resources requested
    if [[ ! $PARALLEL_ENVIRONMENT ]]; then
       if [[ $NGPUS ]]; then
-         if [[ $NGPUS == 1 ]]; then
+         if [[ $USE_JOBGEN ]]; then
             PARALLEL_ENVIRONMENT=gpu-k80
          else
-            PARALLEL_ENVIRONMENT=gpu-v100
+            PARALLEL_ENVIRONMENT=gpu
          fi
       elif [[ $TOTAL_RES_MEM_MB -gt 980000 ]]; then
          PARALLEL_ENVIRONMENT=dev-sln
