@@ -104,7 +104,7 @@ Options:
                  the jobs (in GB on Balzac, in MB on the GPSC).
   -require-cpus  Displays, without executing, how many CPUs are required, if
                  specified explicitely; otherwise, has not output.
-  -jobgen        Use jobgen to submit the job
+  -jg|-jobgen    Use jobgen to submit the job
 
 Further notes:
 
@@ -307,7 +307,7 @@ while [ $# -gt 0 ]; do
    -f)              FORCE=1;;
    -require)        REQUIREMENTS=1;;
    -require-cpus)   CPU_REQUIREMENTS=1;;
-   -jobgen)         USE_JOBGEN=1;;
+   -jg|-jobgen)     USE_JOBGEN=1;;
    --)              shift; break;;
    -*)              error_exit "Unknown options $1.";;
    *)               break;;
@@ -498,7 +498,11 @@ function write_gpsc_script {
    # If the PE was not specified using -pe, set it based on resources requested
    if [[ ! $PARALLEL_ENVIRONMENT ]]; then
       if [[ $NGPUS ]]; then
-         PARALLEL_ENVIRONMENT=gpu
+         if [[ $NGPUS == 1 ]]; then
+            PARALLEL_ENVIRONMENT=gpu-k80
+         else
+            PARALLEL_ENVIRONMENT=gpu-v100
+         fi
       elif [[ $TOTAL_RES_MEM_MB -gt 980000 ]]; then
          PARALLEL_ENVIRONMENT=dev-sln
       elif [[ $TOTAL_RES_MEM_MB -gt 100000 ]]; then
@@ -580,7 +584,7 @@ if [[ $USE_JOBGEN ]]; then
 #JGEN -r errpath=$ERR_FILE
 #JGEN -r shell=/bin/bash
 #JGEN -r mail=$USER
-#$ -notify
+#JGEN -r mailopts=
 #${PROJECT_NAME:+JGEN -r project=$PROJECT_NAME}
 #${NGPUS:+JGEN -c ngpus=$NGPUS}
 
@@ -978,7 +982,11 @@ if [[ ! $NOSCRIPT ]]; then
 fi
 
 if [[ $QSUB_RC != 0 ]]; then
-   error_exit "Job submission failed (possibly an invalid jobname specified to -N):" "$QSUB_CMD $TMPSCRIPT"
+   if [[ $USE_JOBGEN ]]; then
+      error_exit "Job submission failed (resources requested might not exist, look for a jobgen error message above):" "QSUB_CMD $TMPSCRIPT"
+   else
+      error_exit "Job submission failed:" "$QSUB_CMD $TMPSCRIPT"
+   fi
 fi
 
 [[ $BALZAC ]] && sleep 1 # give TORQUE a chance to breathe when many jobs are submitted
