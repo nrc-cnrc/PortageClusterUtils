@@ -37,14 +37,16 @@ Options:
   -#             use # CPUs on a node thus getting access to more memory.
 
   GPSC options:
+  -#             shortcut option: # cpus with 6*# GB memory
   -cpus C        Specify the required number of cpus. [1]
   -mem M         Specify the required amount of memory.  By default, GB are
                  assumed but user can specify G for GB or M for MB. [6G]
-  -gpu           Ask for a node with a GPU.
+  -gpu           Ask for a node with a GPU. Equivalent to -gpus 1
+  -gpus G        Ask for G GPUs.
   -i RES_IMAGE   Change the container's image [\$ENV{PSUB_RES_IMAGE}]
   -Q PROJECT     Project's name for fairshare scheduling [\$ENV{PSUB_PROJECT_NAME}]
-  -pe ENVIRONMENT Change the parallel environment [dev]
-  -pepp          Change parallel processes [1]
+  -pe ENVIRONMENT Change the parallel environment (i.e., the queue) [dev]
+  -pepp          Change parallel processes (i.e., number of slots) [1]
   -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]
                  The runtime can also use of the following units: s, m, h, d,
                  e.g., -rt 4d will request 4 days of runtime.
@@ -189,7 +191,7 @@ MEMORY_POLLING_DELAY=6
 PRIORITY=
 JOB_ARRAY=
 OPT_J=1
-REQUIRES_GPU=
+NGPUS=
 NOCLUSTER_OPTION=
 USAGE_CPU=
 USAGE_GPU=
@@ -199,9 +201,9 @@ JOIN_OUT_ERR=
 PSUB_RESOURCE_OPTIONS=
 
 ### GPSC
-PARALLEL_ENVIRONMENT=dev
-PE_EXPLICIT=
-# NOTE, PE_PARALLEL_PROCESSES should always be 1.
+PARALLEL_ENVIRONMENT=
+# NOTE, PE_PARALLEL_PROCESSES should always be 1, unless using MPI or other
+# mechanisms that take advantage of multiple slots in one job, i.e., multiple nodes.
 PE_PARALLEL_PROCESSES=1
 RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: one day in minutes (24 x 60 = 1440).
 
@@ -245,9 +247,12 @@ while [ $# -gt 0 ]; do
                     arg_check_pos_int $2 $1
                     OPT_J=$2
                     shift;;
-   -gpu)            REQUIRES_GPU=1
-                    PARALLEL_ENVIRONMENT="gpu"
+   -gpu)            NGPUS=1
                     ;;
+   -gpus)           arg_check 1 $# $!
+                    arg_check_pos_int $2 $1
+                    NGPUS=$2
+                    shift;;
    -I)              INTMODE=1;
                     NOSCRIPT=1;
                     [[ $CPU_COUNT ]] || CPU_COUNT=4;;
@@ -259,7 +264,6 @@ while [ $# -gt 0 ]; do
                     shift;;
    -pe)             arg_check 1 $# $!;
                     PARALLEL_ENVIRONMENT=$2;
-                    PE_EXPLICIT=1;
                     shift;;
    -pepp)           arg_check 1 $# $!;
                     PE_PARALLEL_PROCESSES=$2;
@@ -491,14 +495,18 @@ function write_gpsc_script {
    # Calculate the total required value of res_mem
    TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
    
-   # Adjust the default PE if memory requirements are too big.
-   if [[ ! $PE_EXPLICIT && $PARALLEL_ENVIRONMENT = dev ]]; then
-      if [[ $TOTAL_RES_MEM_MB -gt 980000 ]]; then
+   # If the PE was not specified using -pe, set it based on resources requested
+   if [[ ! $PARALLEL_ENVIRONMENT ]]; then
+      if [[ $NGPUS ]]; then
+         PARALLEL_ENVIRONMENT=gpu
+      elif [[ $TOTAL_RES_MEM_MB -gt 980000 ]]; then
          PARALLEL_ENVIRONMENT=dev-sln
       elif [[ $TOTAL_RES_MEM_MB -gt 100000 ]]; then
          PARALLEL_ENVIRONMENT=dev-ln
       elif [[ $PSUB_DEFAULT_PE ]]; then
          PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
+      else
+         PARALLEL_ENVIRONMENT=dev
       fi
       #echo "TOTAL_RES_MEM_MB = $TOTAL_RES_MEM_MB" >&2
       #echo "PARALLEL_ENVIRONMENT = $PARALLEL_ENVIRONMENT" >&2
@@ -531,7 +539,7 @@ function write_gpsc_script {
    # internet it is something like ram + gpu_cores x some memory.  It is not
    # clear how to calculate how much virtual memory the CUDA driver will need.
    # For K80s with the MPS server, at least 400G extra is needed.
-   [[ $REQUIRES_GPU ]] &&  VMEM_LIMIT_MB=$((400 * 1024 + VMEM_LIMIT_MB))
+   [[ $NGPUS ]] &&  VMEM_LIMIT_MB=$((400 * 1024 + VMEM_LIMIT_MB))
 
    # We set the ulimit -v 10MB lower than res_mem because it applies per process, not
    # globally. Those 10MB are for manager scripts and such
@@ -543,7 +551,7 @@ function write_gpsc_script {
    # requires an excessive amount of VMEM. There are too many influences, such
    # as type of GPU (ram, # cores, etc.), whether the MPS server is running,
    # etc., which makes it difficult to determine an acceptable limit.
-   if [[ $REQUIRES_GPU ]]; then
+   if [[ $NGPUS ]]; then
       VMEM_ULIMIT_KB="unlimited"
    else
       VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
@@ -561,7 +569,7 @@ if [[ $USE_JOBGEN ]]; then
 #
 #${JOIN_OUT_ERR:+JGEN -r joinouterr=y}
 #$ -terse
-#$ -r no
+#JGEN -r rerun=false
 #JGEN -r queue=$PARALLEL_ENVIRONMENT
 #JGEN -c nslots=1
 #JGEN -c ncores=$TOTAL_CPU_COUNT
@@ -570,11 +578,11 @@ if [[ $USE_JOBGEN ]]; then
 #JGEN -c image=$RES_IMAGE
 #JGEN -r outpath=$OUT_FILE
 #JGEN -r errpath=$ERR_FILE
-#$ -S /bin/bash
-#$ -M $USER
+#JGEN -r shell=/bin/bash
+#JGEN -r mail=$USER
 #$ -notify
 #${PROJECT_NAME:+JGEN -r project=$PROJECT_NAME}
-#${REQUIRES_GPU:+JGEN -c ngpus=1}
+#${NGPUS:+JGEN -c ngpus=$NGPUS}
 
 ## User provided from the command line.
 ## Job Array:
@@ -618,7 +626,7 @@ else
 #$ -M $USER
 #$ -notify
 #$ ${PROJECT_NAME:+-P $PROJECT_NAME}
-#${REQUIRES_GPU:+$ -l res_gpus=1}
+#${NGPUS:+$ -l res_gpus=$NGPUS}
 
 ## User provided from the command line.
 ## Job Array:
@@ -684,7 +692,7 @@ if [[ ! \$PSUB_NO_DEBUG ]]; then
 fi >&2
 
 # GPU
-if [[ -n "$REQUIRES_GPU" ]]; then
+if [[ -n "$NGPUS" ]]; then
    hostname;
    uname -a;
    # What GPU id is assigned to this job.
@@ -706,7 +714,7 @@ if [[ -n "$USAGE_CPU" ]]; then
    readonly pmu_pid=\$!
 fi
 
-if [[ -n "$REQUIRES_GPU" && -n "$USAGE_GPU" ]]; then
+if [[ -n "$NGPUS" && -n "$USAGE_GPU" ]]; then
    # Humm looks like we need to re-eval to get CUDA_VISIBLE_DEVICES?!
    eval \$(grep CUDA /etc/rc.local)
    echo "CUDA_VISIBLE_DEVICES: \$CUDA_VISIBLE_DEVICES" >&2
