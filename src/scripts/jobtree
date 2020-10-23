@@ -108,18 +108,20 @@ sub standardizeJob {
       $job->{res_mem_str} = sprintf("%3dG", ($job->{res_mem_m} + 512) / 1024);
    }
 
-   if ($job->{h_rt} < 7200) {
+   if ($job->{h_rt} < 7200) { # if rt < 2h
       $job->{h_rt_str} = sprintf("%3dm", $job->{h_rt} / 60);
       $job->{h_rt} /= 3600;
    }
+   elsif ($job->{h_rt} >= 10000000) { # if rt >= 115d
+      $job->{h_rt_str} = $job->{h_rt} = "inf";
+   }
+   elsif ($job->{h_rt} >= 3600 * 24 * 7) {
+      $job->{h_rt} /= 3600;
+      $job->{h_rt_str} = sprintf("%3dd", $job->{h_rt} / 24);
+   }
    else {
-      if ($job->{h_rt} >= 10000000) {
-         $job->{h_rt} = "inf";
-      }
-      else {
-         $job->{h_rt} /= 3600;
-      }
-      $job->{h_rt_str} = sprintf("%4d", $job->{h_rt});
+      $job->{h_rt} /= 3600;
+      $job->{h_rt_str} = sprintf("%3dh", $job->{h_rt});
    }
 
    # Drop .science.gc.ca from the queue's name.
