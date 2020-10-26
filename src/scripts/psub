@@ -149,11 +149,11 @@ arg_check() {
 normalizeMemoryRequirement() {
    local MEM_AMOUNT=$1
    if [[ $MEM_AMOUNT ]]; then
-      if [[ $MEM_AMOUNT =~ G$ ]]; then
-         MEM_AMOUNT=${MEM_AMOUNT%%G};
+      if [[ $MEM_AMOUNT =~ [gG]$ ]]; then
+         MEM_AMOUNT=${MEM_AMOUNT%%[gG]};
          MEM_AMOUNT=$(($MEM_AMOUNT * 1024));
-      elif [[ $MEM_AMOUNT =~ M$ ]]; then
-         MEM_AMOUNT=${MEM_AMOUNT%%M};
+      elif [[ $MEM_AMOUNT =~ [mM]$ ]]; then
+         MEM_AMOUNT=${MEM_AMOUNT%%[mM]};
       else
          MEM_AMOUNT=$(($MEM_AMOUNT * 1024));
       fi
