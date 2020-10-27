@@ -104,7 +104,7 @@ Options:
                  the jobs (in GB on Balzac, in MB on the GPSC).
   -require-cpus  Displays, without executing, how many CPUs are required, if
                  specified explicitely; otherwise, has not output.
-  -jg|-jobgen    Use jobgen to submit the job
+  (-no)-jg|(-no)-jobgen    (Don't) use jobgen to submit the job [do]
 
 Further notes:
 
@@ -195,7 +195,7 @@ NGPUS=
 NOCLUSTER_OPTION=
 USAGE_CPU=
 USAGE_GPU=
-USE_JOBGEN=
+USE_JOBGEN=1
 JOIN_OUT_ERR=
 
 PSUB_RESOURCE_OPTIONS=
@@ -308,6 +308,7 @@ while [ $# -gt 0 ]; do
    -require)        REQUIREMENTS=1;;
    -require-cpus)   CPU_REQUIREMENTS=1;;
    -jg|-jobgen)     USE_JOBGEN=1;;
+   -no-jg|-no-jobgen) USE_JOBGEN=;;
    --)              shift; break;;
    -*)              error_exit "Unknown options $1.";;
    *)               break;;
@@ -480,11 +481,11 @@ function write_gpsc_script {
 
    TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
    TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
-   trap "rm -f $TMPSCRIPT; exit" 0 2 3 13 14 15
    if [[ $USE_JOBGEN ]]; then
       mv $TMPSCRIPT $TMPSCRIPT.jgen
       TMPSCRIPT=$TMPSCRIPT.jgen
    fi
+   trap "rm -f $TMPSCRIPT; exit" 0 2 3 13 14 15
 
    # Calculate the total required value of res_mem
    TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
