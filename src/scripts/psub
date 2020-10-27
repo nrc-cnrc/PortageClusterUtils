@@ -273,7 +273,7 @@ while [ $# -gt 0 ]; do
                     PSUB_RESOURCE_OPTIONS="$PSUB_RESOURCE_OPTIONS $1 $2"
                     shift;;
    -c)              arg_check 1 $# $!;
-                    JOBCTL_CELL=$2;
+                    export JOBCTL_CELL=$2;
                     shift;;
    -e)              arg_check 1 $# $!;
                     ERR_FILE=$2;
@@ -470,12 +470,6 @@ NAME=`echo "$NAME" | perl -e "
 # This function handles the stuff that is specific to the GPSC. (And maybe other
 # clusters using jobsub?)
 function write_gpsc_script {
-   if [[ -z "$JOBCTL_CELL" ]];
-   then
-      # Covers the case where JOBCTL_CELL=X psub cmds
-      export JOBCTL_CELL=$JOBCTL_CELL
-   fi
-
    # PSUB_RES_IMAGE is set in portage/profile.d in order to have
    # control of the image at the project-level.
    local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-6-amd64_latest}
@@ -497,20 +491,24 @@ function write_gpsc_script {
    
    # If the PE was not specified using -pe, set it based on resources requested
    if [[ ! $PARALLEL_ENVIRONMENT ]]; then
-      if [[ $NGPUS ]]; then
-         if [[ $USE_JOBGEN ]]; then
-            PARALLEL_ENVIRONMENT=gpu-k80
+      if [[ $JOBCTL_CELL =~ gpsc1 ]]; then
+         if [[ $NGPUS ]]; then
+            if [[ $USE_JOBGEN ]]; then
+               PARALLEL_ENVIRONMENT=gpu-k80
+            else
+               PARALLEL_ENVIRONMENT=gpu
+            fi
+         elif [[ $TOTAL_RES_MEM_MB -gt 980000 || $CPU_COUNT -gt 40 ]]; then
+            PARALLEL_ENVIRONMENT=dev-sln
+         elif [[ $TOTAL_RES_MEM_MB -gt 100000 || $CPU_COUNT -gt 16 ]]; then
+            PARALLEL_ENVIRONMENT=dev-ln
+         elif [[ $PSUB_DEFAULT_PE ]]; then
+            PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
          else
-            PARALLEL_ENVIRONMENT=gpu
+            PARALLEL_ENVIRONMENT=dev
          fi
-      elif [[ $TOTAL_RES_MEM_MB -gt 980000 ]]; then
-         PARALLEL_ENVIRONMENT=dev-sln
-      elif [[ $TOTAL_RES_MEM_MB -gt 100000 ]]; then
-         PARALLEL_ENVIRONMENT=dev-ln
-      elif [[ $PSUB_DEFAULT_PE ]]; then
-         PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
       else
-         PARALLEL_ENVIRONMENT=dev
+         PARALLEL_ENVIRONMENT=${PSUB_DEFAULT_PE:-dev}
       fi
       #echo "TOTAL_RES_MEM_MB = $TOTAL_RES_MEM_MB" >&2
       #echo "PARALLEL_ENVIRONMENT = $PARALLEL_ENVIRONMENT" >&2
