@@ -631,6 +631,9 @@ sub epilogue {
       elsif ($home_link =~ m#$home_root3(.*?)/+$name#) {
          $users{$name}{group} = $1;
       }
+      elsif ($home_link =~ m#/fs/(.*?)/+$name#) {
+         $users{$name}{group} = $1;
+      }
       else {
          $users{$name}{group} = "";
       }
