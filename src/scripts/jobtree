@@ -442,6 +442,7 @@ sub createJobListJSON {
          slots => $node->{"parallel_environment.nslots"},
          a => exists($node->{"hard_resource_list.res_gpus"}) ? "GPU" : '',
       );
+      $job{'res_mem_m'} =~ s/m$//i;
       $all_states{$job{state}} += 1;
       $job{slots} = 1 unless defined $job{slots};
       if ($job{slots} !~ /^\d+$/) {
