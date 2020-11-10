@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # @file psub
-# @brief Wrapper for qsub with simplified interface and other options to
-# support integration in Portage scripts.
+# @brief Wrapper for job submission with simplified interface and other options
+# to support integration in Portage scripts.
 #
-# Wrapper for qsub intended to do, by default, what we usually want, and to
-# simplify options we often use.  This script is intended to contain all the
-# local peculiarities of the clusters we use.  Other sites using Portage or
+# Wrapper for job submissions intended to do, by default, what we usually want,
+# and to simplify options we often use.  This script is intended to contain all
+# the local peculiarities of the clusters we use.  Other sites using Portage or
 # PORTAGEshared may need to adapt this script to their own cluster environment.
 # Look for "CUSTOMIZE HERE" below for spots where we expect you might need to
 # adapt things.
@@ -16,8 +16,8 @@
 # Traitement multilingue de textes / Multilingual Text Processing
 # Tech. de l'information et des communications / Information and Communications Tech.
 # Conseil national de recherches Canada / National Research Council Canada
-# Copyright 2006 - 2016, Sa Majeste la Reine du Chef du Canada /
-# Copyright 2006 - 2016, Her Majesty in Right of Canada
+# Copyright 2006 - 2020, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2006 - 2020, Her Majesty in Right of Canada
 
 usage() {
    for msg in "$@"; do
@@ -27,26 +27,34 @@ usage() {
 
 Usage: psub [options] <command line>
 
-  Wrap <command line> into a PBS script and qsub it.
+  Wrap <command line> into a job script and submit it.
   Caveat: <command line> will be interpreted again in the resulting script,
   so quote or escape any quotes, dollar sign or backslash you need preserved.
 
 Options:
 
-  Balzac options:
-  -#             use # CPUs on a node thus getting access to more memory.
-
   GPSC options:
-  -#             shortcut option: # cpus with 6*# GB memory
-  -cpus C        Specify the required number of cpus. [1]
-  -mem M         Specify the required amount of memory.  By default, GB are
-                 assumed but user can specify G for GB or M for MB. [6G]
   -gpu           Ask for a node with a GPU. Equivalent to -gpus 1
   -gpus G        Ask for G GPUs.
   -i RES_IMAGE   Change the container's image [\$ENV{PSUB_RES_IMAGE}]
   -Q PROJECT     Project's name for fairshare scheduling [\$ENV{PSUB_PROJECT_NAME}]
   -pe ENVIRONMENT Change the parallel environment (i.e., the queue) [dev]
   -pepp          Change parallel processes (i.e., number of slots) [1]
+  -c CELL        Specify the cell you want your jobs to run in [gpsc1.science.gc.ca]
+                 Default can be changed by setting the enviornment variable.
+                 export JOBCTL_CELL=gpsc2.science.gc.ca
+
+  General resource options:
+  -cpus C        Specify the required number of cpus. [1]
+  -mem M         Specify the required amount of memory.  By default, GB are
+                 assumed but user can specify G for GB or M for MB. [6G]
+  -#             shortcut option: # cpus with 6*# GB memory
+  -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
+                 mapped IO.
+  -j J           use -j J if you intend to run J processes in the same job, each
+                 needing C cpus, M RAM and SIZE GB of shared memory-mapped data.
+                 Your job will have J*M+SIZE RAM and J*C cpus, but a ulimit of
+                 M+SIZE VMEM and OMP_NUM_THREADS=C for each process. [1]
   -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]
                  The runtime can also use of the following units: s, m, h, d,
                  e.g., -rt 4d will request 4 days of runtime.
@@ -54,41 +62,24 @@ Options:
                  PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES, e.g. for ten days:
                  export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=\$((10*24*60))
                  or export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=10d
-  -c CELL        Specify the cell you want your jobs to run in [gpsc1.science.gc.ca]
-                 Default can be changed by setting the enviornment variable.
-                 export JOBCTL_CELL=gpsc2.science.gc.ca
 
-  General options:
-  -uc            As in usage CPU, keep track of memory and process usage using
-                 process-memory-usage.pl.
-  -ug            As in usage GPU, keep track of GPU memory and process usage
-                 using nvidia-smi.
-  -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
-                 mapped IO.  Balzac note: use a value less than or equal to the
-                 total size of files you will open using memory mapped IO,
-                 otherwise you risk bringing down a node. [0]
-  -j J           use -j J if you intend to run J processes in the same job, each
-                 needing C cpus, M RAM and SIZE GB of shared memory-mapped data.
-                 Your job will have J*M+SIZE RAM and J*C cpus, but a ulimit of
-                 M+SIZE VMEM and OMP_NUM_THREADS=C for each process. [1]
   Note:
   Scripts run by psub can find out the values of the -cpus, -mem, and -memmap
   options in environment variable PSUB_RESOURCE_OPTIONS, while the -j value can
   be found in PSUB_OPT_J.
 
+  Other options:
   -h(elp)        print this help message
-  -v(erbose)     print the qsub script before submitting it
+  -v(erbose)     print the job script before submitting it
   -N JOB_NAME    specify job name
   -e ERR_FILE    stderr destination
   -o OUT_FILE    stdout destination
   -join          join stderr with stdout in one file
   -noscript      don't write out the script
-  -l RES=VAL[,RES2=VAL2[,...]]  resources for job (see man pbs_resources)
+  -l RES=VAL[,RES2=VAL2[,...]]  request specific resources for job
                  (separate multiple resources with commas, or repeat -l)
-  -nodes PROPERTIES  properties the node should have; separate multiple
-                 properties with colons, e.g., -nodes c2:blz0:big
-                 (equivalent to -l nodes=PROPERTIES)
-  -qsparams QSUB_PARAMETERS  additional qsub parameters
+  -qsparams QSUB_PARAMETERS  additional low-level job submission parameters
+                 passed directly to underlying job submission tool
   -p PRIORITY    set the job priority; queued jobs with higher priority
                  should start first. 0 = normal, >0 = high, <0 = low.
                  Only use > 0 for short, urgent jobs. [0]
@@ -98,20 +89,17 @@ Options:
   -n             "not really" (dump the PBS script, but don't submit it)
   -f             force submission even if errors are detected
   -I             enter interactive mode thus getting a prompt to a node
+  -uc            As in usage CPU, keep track of memory and process usage using
+                 process-memory-usage.pl.
   -P PERIOD      Log memory usage of process tree every PERIOD minutes. [6]
                  (implies -uc)
+  -ug            As in usage GPU, keep track of GPU memory and process usage
+                 using nvidia-smi.
   -require       Displays, without executing, how much vmem is required to run
-                 the jobs (in GB on Balzac, in MB on the GPSC).
+                 the jobs, in MB.
   -require-cpus  Displays, without executing, how many CPUs are required, if
                  specified explicitely; otherwise, has not output.
   (-no)-jg|(-no)-jobgen    (Don't) use jobgen to submit the job [do]
-
-Further notes:
-
-  -on Venus, to enable node borrowing, use "-l ckpt=1".
-  -on Venus, to request a minimum amount of memory, use, e.g., "-l mem=1800m"
-  -on Balzac, for temporary storage on local disks, use $TMPDIR.  Use
-   "-nodes bigtmp" if you want lots of local temp storage.
 
 ==EOF==
 
@@ -162,23 +150,12 @@ normalizeMemoryRequirement() {
 }
 
 # Determine what cluster / cluster type we're on
-if uname -n | egrep -q 'balzac|blz'; then
-   NODES=notest
-   BALZAC=1
-elif uname -n | egrep -q 'venus|vns'; then
-   VENUS=1
-elif [[ `on-cluster.sh -type` == jobsub ]]; then
+if [[ `on-cluster.sh -type` == jobsub ]]; then
    GPSC=1
 else
    # Set your cluster's flag here, to customize to your environment
    true
 fi
-
-### Balzac
-# Set some virtual memory constant per cpu.
-BALZAC_VMEM_LIMIT_GB_PER_CPU=7
-BALZAC_VMEM_HARD_LIMIT_GB_PER_CPU=6
-BALZAC_RAM_MB_PER_CPU=$((4*1024))
 
 ### GPSC
 # Note: a be node has 100000M of ram and 16 cores thus ~6GB of ram per core
@@ -187,7 +164,9 @@ VMEM_LIMIT_MB_PER_CPU=6144   # 6 GB
 PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
 CPU_COUNT=
 VMEM_LIMIT_MB=
+MEM_OPTION_MB=
 MEMORY_POLLING_DELAY=6
+MEMMAP_GB=
 PRIORITY=
 JOB_ARRAY=
 OPT_J=1
@@ -197,8 +176,17 @@ USAGE_CPU=
 USAGE_GPU=
 USE_JOBGEN=1
 JOIN_OUT_ERR=
-
 PSUB_RESOURCE_OPTIONS=
+RESOURCES=
+INTMODE=
+NOSCRIPT=
+ERR_FILE=
+OUT_FILE=
+QSPARAMS=
+NOT_REALLY=
+FORCE=
+REQUIREMENTS=
+CPU_REQUIREMENTS=
 
 ### GPSC
 PARALLEL_ENVIRONMENT=
@@ -207,7 +195,6 @@ PARALLEL_ENVIRONMENT=
 PE_PARALLEL_PROCESSES=1
 RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: one day in minutes (24 x 60 = 1440).
 
-NODES=
 while [ $# -gt 0 ]; do
    case "$1" in
    -h|-help)        usage;;
@@ -289,9 +276,6 @@ while [ $# -gt 0 ]; do
    -l)              arg_check 1 $# $!;
                     RESOURCES="${RESOURCES:+$RESOURCES,}$2";
                     shift;;
-   -nodes)          arg_check 1 $# $!;
-                    NODES="${NODES:+$NODES,}$2";
-                    shift;;
    -qsparams)       arg_check 1 $# $!;
                     QSPARAMS=$2;
                     shift;;
@@ -316,14 +300,6 @@ while [ $# -gt 0 ]; do
    shift
 done
 
-if [[ $BALZAC && $MEM_OPTION_MB ]]; then
-   CALC_CPUS=$(( (MEM_OPTION_MB - 1) / BALZAC_RAM_MB_PER_CPU + 1 ))
-   if [[ ! $CPU_COUNT || $CPU_COUNT -lt $CALC_CPUS ]]; then
-      CPU_COUNT=$CALC_CPUS
-      [[ $DEBUG_PSUB_RES ]] && echo "-mem ${MEM_OPTION_MB}M => CPU_COUNT=$CPU_COUNT"
-   fi
-fi
-
 if [[ ! $CPU_COUNT ]]; then
    USING_DEFAULT_CPU_COUNT=1
    CPU_COUNT=1
@@ -333,23 +309,10 @@ fi
 
 COMMAND="$*"
 
-# Output the requirements of memory (in GB for Balzac, MB for GPSC) or cpus as
-# a simple count.
+# Output the requirements of memory (in MB) or cpus as a simple count.
 function requirements {
-   # Must be done before any qsub dependency
    if [[ $REQUIREMENTS ]]; then
-      if [[ $BALZAC ]]; then
-         VMEM_HARD_LIMIT_GB=$(($BALZAC_VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
-         # -memmap adds extra virtual memory
-         if [[ $MEMMAP_GB ]]; then
-            VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP_GB))
-         fi
-         echo $VMEM_HARD_LIMIT_GB
-      elif [[ $GPSC ]]; then
-         echo $((VMEM_LIMIT_MB + MEMMAP_GB * 1024))
-      else
-         echo 0
-      fi
+      echo $((VMEM_LIMIT_MB + MEMMAP_GB * 1024))
       exit
    elif [[ $CPU_REQUIREMENTS ]]; then
       if [[ ! $USING_DEFAULT_CPU_COUNT ]]; then
@@ -399,30 +362,16 @@ requirements
 
 # In interactive mode we need to reserve an entire node
 if [[ $INTMODE ]]; then
-   if [[ $BALZAC ]]; then
-      # Don't allow part of a 2 CPU node, but do allow part of a fat node.
-      if [ $CPU_COUNT = 3 ]; then
-         CPU_COUNT=4
-      elif [ $CPU_COUNT = 1 ]; then
-         CPU_COUNT=2
-      fi
-   elif [[ $VENUS ]]; then
-      CPU_COUNT=2
-   elif [[ $GPSC ]]; then
+   if [[ $GPSC ]]; then
       error_exit "-I is not supported (yet?) on the GPSC"
    else
-      # CUSTOMIZE HERE if you want to tune psub to your own cluster.
+      # CUSTOMIZE HERE if you want to tune psub -I to your own cluster.
       true
    fi
 fi
 
 if [[ ! $COMMAND && ! $INTMODE ]]; then
    error_exit "Missing command, nothing to run!"
-fi
-
-# -memmap is only implemented for Balzac, warn if used elsewhere
-if [[ $MEMMAP_GB && ! $BALZAC && ! $GPSC ]]; then
-   echo Warning: -memmap option only implemented for Balzac and GPSC at this point.
 fi
 
 if [ $INTMODE ]; then
@@ -466,11 +415,11 @@ NAME=`echo "$NAME" | perl -e "
 #printf -v NAME '%q' "$NAME"    # Escape $NAME for reuse as shell input
 
 ###############################################################################
-###########################   GPSC SPECIFIC STUFF   ###########################
+###########################   WRITE THE SCRIPT      ###########################
 ###############################################################################
-# This function handles the stuff that is specific to the GPSC. (And maybe other
-# clusters using jobsub?)
-function write_gpsc_script {
+# This function write the job submission script. It is currently very specific
+# to the GPSC, but we hope it should not be too hard to adapt to other clusters.
+function write_job_script {
    # PSUB_RES_IMAGE is set in portage/profile.d in order to have
    # control of the image at the project-level.
    local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-6-amd64_latest}
@@ -560,13 +509,12 @@ function write_gpsc_script {
       VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
    fi
 
-   QSUB_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
+   SUBMIT_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
 
 if [[ $USE_JOBGEN ]]; then
    cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
-#
-# psub-generated-script.jgen
+# psub-generated script, submitted with a .jgen extension
 #
 #JGEN -r name=$NAME
 #
@@ -594,9 +542,7 @@ if [[ $USE_JOBGEN ]]; then
 #$ $PRIORITY
 ## Resources:
 #$ ${RESOURCES:+-l $RESOURCES}
-## Nodes:
-#$ ${NODES:+-l nodes=$NODES}
-## Additional user-specified qsub parameters
+## Additional user-specified job submission parameters
 #$ $QSPARAMS
 
 . jobsetup.sh >&2
@@ -617,7 +563,6 @@ else
 ## Identifies the ability of a job to be rerun or not.
 #$ -r no
 
-## Run exactly one process under dev.
 #$ -pe $PARALLEL_ENVIRONMENT  $PE_PARALLEL_PROCESSES
 #$ -l res_cpus=$TOTAL_CPU_COUNT
 #$ -l res_mem=$TOTAL_RES_MEM_MB
@@ -638,9 +583,7 @@ else
 #$ $PRIORITY
 ## Resources:
 #$ ${RESOURCES:+-l $RESOURCES}
-## Nodes:
-#$ ${NODES:+-l nodes=$NODES}
-## Additional user-specified qsub parameters
+## Additional user-specified job submission parameters
 #$ $QSPARAMS
 
 ==EOF==
@@ -757,7 +700,7 @@ echo jobst -f -j \$JOB_ID >&2
 jobst -f -j \$JOB_ID >&2
 
 # qsub command executed
-# $QSUB_CMD $TMPSCRIPT
+# $SUBMIT_CMD $TMPSCRIPT
 
 # original psub command given by user (with quotes and \\ removed)
 # $PSUB_CMD
@@ -765,184 +708,7 @@ jobst -f -j \$JOB_ID >&2
 }
 
 
-###############################################################################
-#########################   LOGIC FOR QSUB CLUSTERS   #########################
-###############################################################################
-# The following is intended to work on clusters that use qsub, but was only
-# tested on NRC's two such cluster, Balzac and Venus.
-function write_qsub_script {
-   if [[ $BALZAC ]]; then
-      if [[ $CPU_COUNT -gt 1 || $OPT_J -gt 1 ]]; then
-         PPN_NODES="1:ppn="$(($CPU_COUNT*$OPT_J))
-      fi
-      VMEM_LIMIT_GB=$(($BALZAC_VMEM_LIMIT_GB_PER_CPU * $CPU_COUNT * $OPT_J))
-      VMEM_HARD_LIMIT_GB=$(($BALZAC_VMEM_HARD_LIMIT_GB_PER_CPU * $CPU_COUNT))
-      # -memmap adds extra virtual memory
-      if [[ $MEMMAP_GB ]]; then
-         VMEM_LIMIT_GB=$((VMEM_LIMIT_GB + MEMMAP_GB))
-         VMEM_HARD_LIMIT_GB=$((VMEM_HARD_LIMIT_GB + MEMMAP_GB))
-      fi
-      VMEM_HARD_LIMIT_KB=$((VMEM_HARD_LIMIT_GB * 1024 * 1024))
-
-      if [ -n "$INTMODE" ]; then
-         # We are in interactive mode thus we need to make sure we reserved the
-         # entire node
-         if [ $EXPLICIT_NODES ]; then
-            true # the user provided an explicit -nodes specification, don't override
-         elif [ $CPU_COUNT -gt 4 ]; then
-            true # >4 CPUs can only go to a fat node, no need for explicit request
-         elif [ $CPU_COUNT -gt 2 ]; then
-            PPN_NODES="${PPN_NODES}:c4"
-         else
-            PPN_NODES="${PPN_NODES}:c2"
-         fi
-      fi
-      if echo $RESOURCES | grep -q vmem=; then
-         # User manually specified vmem, do not alter it
-         true
-      else
-         if [[ $RESOURCES ]]; then
-            RESOURCES="${RESOURCES},vmem=${VMEM_LIMIT_GB}g"
-         else
-            RESOURCES="vmem=${VMEM_LIMIT_GB}g"
-         fi
-      fi
-
-      VMEM_LIMIT_SCRIPT_BLOCK="
-# Memory use limited to $VMEM_HARD_LIMIT_GB GB to avoid system crashes.
-# Use a larger -N value if this limit doesn't leave enough memory for your job,
-# or -memmap if you are using memory-mapped IO.
-ulimit -v $VMEM_HARD_LIMIT_KB"
-
-      SOFTSTACK_LIMIT_SCRIPT_BLOCK="
-# OpenMP requires lower Soft stack size in order to fit all threads' stack in
-# memory.
-ulimit -s 100000"
-
-   else
-      # CUSTOMIZE HERE if you want to tune psub to your own cluster.
-
-      if [ $CPU_COUNT -gt 1 ]; then
-         PPN_NODES="1:ppn=$CPU_COUNT"
-      fi
-   fi
-
-   if [[ $PPN_NODES && $NODES ]]; then
-      NODES="$PPN_NODES:$NODES"
-   elif [[ $PPN_NODES ]]; then
-      NODES="$PPN_NODES$NODES"
-   fi
-
-   if [[ $NODES ]]; then
-      if [[ $RESOURCES =~ "(.*nodes=)(.*)" ]]; then
-         RESOURCES=${BASH_REMATCH[1]}$NODES:${BASH_REMATCH[2]}
-      elif [[ $RESOURCES ]]; then
-         RESOURCES=$RESOURCES,nodes=$NODES
-      else
-         RESOURCES=nodes=$NODES
-      fi
-   fi
-
-   # X forwarding doesn't work well with screen.
-   if [[ $TERM != screen && $DISPLAY ]]; then
-      X_DISPLAY=-X
-   fi
-
-   # qsub options we always use: -r n: not rerunable; -N $NAME: name the job
-   QSUB_CMD="qsub -r n -N $NAME $PRIORITY $JOB_ARRAY $QSPARAMS"
-   test -n "$JOIN_OUT_ERR" && QSUB_CMD="$QSUB_CMD -j y"
-   test -n "$RESOURCES" && QSUB_CMD="$QSUB_CMD -l$RESOURCES"
-   if [[ $INTMODE ]]; then
-      QSUB_CMD="$QSUB_CMD -I"
-      test -n "$BALZAC" && QSUB_CMD="$QSUB_CMD $X_DISPLAY -d `pwd`"
-      echo "Entering interactive mode."
-      echo "Warning: you will get a fresh login environment.  Any variables set in the"
-      echo "parent shell will not be propagated, only those in your login scripts."
-
-      if [ $NOT_REALLY ]; then
-         echo $QSUB_CMD
-      else
-         $QSUB_CMD
-      fi
-      exit
-   fi
-
-   test -n "$ERR_FILE" && QSUB_CMD="$QSUB_CMD -e $ERR_FILE"
-   test -n "$OUT_FILE" && QSUB_CMD="$QSUB_CMD -o $OUT_FILE"
-
-   if [ $BALZAC ]; then
-      TMPDIR_SETUP='# On Balzac, $TMPDIR typically has 9GB, use -nodes bigtmp to get more space.'
-   elif [ $VENUS ]; then
-      TMPDIR_SETUP='# On Venus, $TMPDIR points to the PBS allocated scratch dir'
-   else
-      TMPDIR_SETUP='# Unknown TMPDIR configuration for this system'
-   fi
-
-   TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
-   TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
-   trap "rm -f $TMPSCRIPT; exit" 0 2 3 13 14 15
-
-   cat <<==EOF== > $TMPSCRIPT
-#!/bin/bash
-
-# Preserve important parts of the calling environment
-export PATH=\$PBS_O_PATH
-`env | egrep '^PORTAGE' | sed -e 's/^/export /'`
-`env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|MADA_HOME)=' | sed -e 's/^/export /'`
-$NOCLUSTER_OPTION
-
-# Preserve the calling working directory
-cd \$PBS_O_WORKDIR || exit
-$VMEM_LIMIT_SCRIPT_BLOCK
-$SOFTSTACK_LIMIT_SCRIPT_BLOCK
-
-# Set the number of allowed openmp threads based on the number of cpus.
-export OMP_NUM_THREADS=$CPU_COUNT
-
-# Tell children what resources this job was submitted with
-export PSUB_RESOURCE_OPTIONS="$PSUB_RESOURCE_OPTIONS"
-export PSUB_OPT_J=$OPT_J
-
-# \$TMPDIR is scratch space on the local node; deleted after job ends.
-$TMPDIR_SETUP
-
-# Periodically monitor the memory usage of the process tree, since PBS does not
-# do so reliably.
-process-memory-usage.pl $(($MEMORY_POLLING_DELAY*60)) \$\$ >&2 &
-
-# Display the exact start time
-echo ============ Starting job \$PBS_JOBID on \`date\` on node \`hostname\` >&2
-
-# Trap kill signals
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGINT, aborting." >&2; exit 2' 2
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGQUIT, aborting." >&2; exit 3' 3
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR1, aborting." >&2; exit 10' 10
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR2, aborting." >&2; exit 12' 12
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGTERM, aborting." >&2; exit 15' 15
-
-# User command
-$COMMAND
-RC=\$?
-
-# Display the exact end time
-echo ============ Finished job \$PBS_JOBID on \`date\` with rc=\$RC >&2
-
-# Display resources used on stderr when the user command has completed
-qstat -f \$PBS_JOBID | egrep '\b(Job Id|resources_used|comment)\b' >&2
-
-# qsub command executed
-# $QSUB_CMD $TMPSCRIPT
-
-# original psub command given by user (with quotes and \\ removed)
-# $PSUB_CMD
-==EOF==
-}
-
-if [[ $GPSC ]]; then
-   write_gpsc_script
-else
-   write_qsub_script
-fi
+write_job_script
 
 # On some clusters, the script has to be executable
 chmod +x $TMPSCRIPT
@@ -961,7 +727,7 @@ fi
 
 START=`date`
 # Note: we explicitly delete the warning about -N being set twice, because we really, really don't care!
-JOBID=`$QSUB_CMD $TMPSCRIPT | grep -v '^warning: "-N" option has already been set, overriding previous setting$'`
+JOBID=`$SUBMIT_CMD $TMPSCRIPT | grep -v '^warning: "-N" option has already been set, overriding previous setting$'`
 QSUB_RC=$?
 SAVE_JOBID=$JOBID
 # To work around issues with jobsub directing error messages to stdout, we
@@ -982,12 +748,10 @@ fi
 
 if [[ $QSUB_RC != 0 ]]; then
    if [[ $USE_JOBGEN ]]; then
-      error_exit "Job submission failed (resources requested might not exist, look for a jobgen error message above):" "QSUB_CMD $TMPSCRIPT"
+      error_exit "Job submission failed (resources requested might not exist, look for a jobgen error message above):" "SUBMIT_CMD $TMPSCRIPT"
    else
-      error_exit "Job submission failed:" "$QSUB_CMD $TMPSCRIPT"
+      error_exit "Job submission failed:" "$SUBMIT_CMD $TMPSCRIPT"
    fi
 fi
-
-[[ $BALZAC ]] && sleep 1 # give TORQUE a chance to breathe when many jobs are submitted
 
 exit 0
