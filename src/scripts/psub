@@ -519,7 +519,6 @@ if [[ $USE_JOBGEN ]]; then
 #JGEN -r name=$NAME
 #
 #${JOIN_OUT_ERR:+JGEN -r joinouterr=y}
-#$ -terse
 #JGEN -r rerun=false
 #JGEN -r queue=$PARALLEL_ENVIRONMENT
 #JGEN -c nslots=1
@@ -733,7 +732,11 @@ SAVE_JOBID=$JOBID
 # To work around issues with jobsub directing error messages to stdout, we
 # assume the last line of output is our jobname and strip preceding text.
 JOBID=$(cat <<<"$JOBID" | tail -1)
-JOBID=${JOBID%%[ ./]*}
+if [[ $JOBID =~ ([0-9]+) ]]; then
+    JOBID=${BASH_REMATCH[1]}
+else
+    JOBID=Unknown
+fi
 [[ $SAVE_JOBID != $JOBID ]] && echo $SAVE_JOBID >&2
 echo $JOBID
 
