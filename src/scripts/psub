@@ -195,6 +195,13 @@ PARALLEL_ENVIRONMENT=
 PE_PARALLEL_PROCESSES=1
 RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: one day in minutes (24 x 60 = 1440).
 
+# TODO find a generic test for this rather than hard-coding the cell name(s)!
+if [[ $JOBCTL_CELL =~ gpsc3 ]]; then
+   SCHEDULER=SLURM
+else
+   SCHEDULER=SGE
+fi
+
 while [ $# -gt 0 ]; do
    case "$1" in
    -h|-help)        usage;;
@@ -487,6 +494,11 @@ function write_job_script {
    ERR_FILE=${ERR_FILE:-$HERE}
    OUT_FILE=${OUT_FILE:-$HERE}
 
+   if [[ $SCHEDULER = SLURM ]]; then
+      ERR_FILE="$ERR_FILE/$NAME.e%j"
+      OUT_FILE="$OUT_FILE/$NAME.o%j"
+   fi
+
    # The CUDA driver allocates a lot of virtual memory.  According to the
    # internet it is something like ram + gpu_cores x some memory.  It is not
    # clear how to calculate how much virtual memory the CUDA driver will need.
@@ -588,6 +600,10 @@ else
 ==EOF==
 fi
 
+if [[ $SCHEDULER = SLURM ]]; then
+   echo "export JOB_ID=\$SLURM_JOB_ID" >> $TMPSCRIPT
+fi
+
 cat <<==EOF== >> $TMPSCRIPT
 export JOB_NAME="$NAME"
 
@@ -672,9 +688,6 @@ if [[ -n "$NGPUS" && -n "$USAGE_GPU" ]]; then
    readonly nvidia_pid=\$!
 fi
 
-# Display the exact start time
-echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` >&2
-
 # Trap kill signals
 trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGINT, aborting." >&2; exit 2' 2
 trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGQUIT, aborting." >&2; exit 3' 3
@@ -682,17 +695,18 @@ trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caugh
 trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR2, aborting." >&2; exit 12' 12
 trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGTERM, aborting." >&2; exit 15' 15
 
+# Display the exact start time
+echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` >&2
+
 # User command
 $COMMAND
 RC=\$?
 
-# Stop monitoring
-[[ -n "\$pmu_pid\$nvidia_pid" ]] && kill -9 \$pmu_pid \$nvidia_pid
-
-echo "Peak memory: " \$(grep VmPeak /proc/\$PPID/status) >&2
-
 # Display the exact end time
 echo ============ Finished job \$JOB_ID on \`date\` with rc=\$RC >&2
+
+# Stop monitoring
+[[ -n "\$pmu_pid\$nvidia_pid" ]] && kill -9 \$pmu_pid \$nvidia_pid
 
 # Display resources used on stderr when the user command has completed
 echo jobst -f -j \$JOB_ID >&2
