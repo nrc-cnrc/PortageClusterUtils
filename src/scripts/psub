@@ -494,9 +494,9 @@ function write_job_script {
    ERR_FILE=${ERR_FILE:-$HERE}
    OUT_FILE=${OUT_FILE:-$HERE}
 
-   if [[ $SCHEDULER = SLURM ]]; then
-      ERR_FILE="$ERR_FILE/$NAME.e%j"
-      OUT_FILE="$OUT_FILE/$NAME.o%j"
+   if [[ $SCHEDULER == SLURM ]]; then
+      if [[ -d $ERR_FILE ]]; then ERR_FILE="$ERR_FILE/$NAME.e%j"; fi
+      if [[ -d $OUT_FILE ]]; then OUT_FILE="$OUT_FILE/$NAME.o%j"; fi
    fi
 
    # The CUDA driver allocates a lot of virtual memory.  According to the
