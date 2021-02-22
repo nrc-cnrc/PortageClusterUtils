@@ -11,6 +11,7 @@
 
 BINSCRIPTS = \
         analyze \
+        analyze-run-parallel-log.pl \
         jobsig.pl \
         jobtree \
         on-cluster.sh \
