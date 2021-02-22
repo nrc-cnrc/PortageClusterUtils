@@ -101,7 +101,7 @@ psub.project.default:
 	${PSUB} \
 		-n \
 		'sleep 10' \
-	| grep --quiet '^#$$ -P project_default_tag' 2> /dev/null \
+	| grep --quiet '^#$$ -P project_default_tag\|^#JGEN -r project=project_default_tag' 2> /dev/null \
 	|| ! echo "Error: Project Name it should be teh default project name." >&2
 
 # Has to be done in the .bashrc of the user.
@@ -123,5 +123,5 @@ psub.project.cli_user_define:
 		-n \
 		-Q this_is_my_project_tag \
 		'sleep 10' \
-	| grep --quiet '^#$$ -P this_is_my_project_tag' 2> /dev/null \
+	| grep --quiet '^#$$ -P this_is_my_project_tag\|^#JGEN -r project=this_is_my_project_tag' 2> /dev/null \
 	|| ! echo "Error: Project Name not the one from the CLI." >&2
