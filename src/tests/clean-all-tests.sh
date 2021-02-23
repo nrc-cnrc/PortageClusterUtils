@@ -19,7 +19,7 @@ fi
 CLEAN_LOG=
 TEST_SUITES=$*
 if [[ ! $TEST_SUITES ]]; then
-   TEST_SUITES=`echo */Makefile */clean.sh | sed 's/\/[^ \/]*//g' | tr ' ' '\n' | sort -u`
+   TEST_SUITES=`echo */Makefile | sed 's/\/[^ \/]*//g' | tr ' ' '\n' | sort -u`
    CLEAN_LOG=1
 fi
 
@@ -31,13 +31,7 @@ for TEST_SUITE in $TEST_SUITES; do
    echo =======================================
    echo Cleaning $TEST_SUITE
    if cd -- $TEST_SUITE; then
-      if [[ -x ./clean.sh ]]; then
-         echo ./clean.sh
-         if ! ./clean.sh; then
-            echo FAILED to clean $TEST_SUITE: clean.sh returned $?
-            FAIL="$FAIL $TEST_SUITE"
-         fi
-      elif [[ ! -r ./Makefile ]]; then
+      if [[ ! -r ./Makefile ]]; then
          echo FAILED to clean $TEST_SUITE: can\'t find or execute ./Makefile
          FAIL="$FAIL $TEST_SUITE"
       else
@@ -48,7 +42,7 @@ for TEST_SUITE in $TEST_SUITES; do
          fi
       fi
 
-      echo "rm -f log.run-test run-parallel-logs-*"
+      echo "rm -f _log.run-test log.run-test run-parallel-logs-*"
       rm -f _log.run-test log.run-test run-parallel-logs-*
       cd ..
    else
@@ -60,8 +54,8 @@ done
 if [[ $CLEAN_LOG ]]; then
    echo ""
    echo =======================================
-   echo "rm -f .log.run-all-tests-parallel"
-   rm -f .log.run-all-tests-parallel
+   echo "rm -f .log.run-all-tests"
+   rm -f .log.run-all-tests
 fi
 
 echo ""
