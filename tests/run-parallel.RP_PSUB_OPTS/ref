@@ -1,0 +1,22 @@
+  <D> RP_PSUB_OPTS: 
+  <D> all: echo "FIRST"
+  <D> RP_PSUB_OPTS: 
+  <D> all: echo SECOND
+  <D> RP_PSUB_OPTS: -4
+  <D> all: RP_PSUB_OPTS=-4 cat Makefile.rp
+  <D> RP_PSUB_OPTS: -4 -N test
+  <D> all: RP_PSUB_OPTS="-4 -N test" cat Makefile.rp
+  <D> RP_PSUB_OPTS: -4 -N test \"allo\"
+  <D> all: RP_PSUB_OPTS="-4 -N test \"allo\"" cat Makefile.rp
+  <D> RP_PSUB_OPTS: -4
+  <D> all: RP_PSUB_OPTS=-4 cat Makefile.rp | LC_ALL=C sort
+  <D> RP_PSUB_OPTS: -4
+  <D> all: RP_PSUB_OPTS="-4" cat Makefile.rp | LC_ALL=C sort
+  <D> RP_PSUB_OPTS: -4
+  <D> all: RP_PSUB_OPTS="-4" cat Makefile.rp > delme
+  <D> RP_PSUB_OPTS: -4 -N \"dfa\"
+  <D> all: RP_PSUB_OPTS="-4 -N \"dfa\"" LC_ALL=C cat Makefile.rp > delme
+  <D> RP_PSUB_OPTS: -4 -N \"dfa\"
+  <D> all: RP_PSUB_OPTS='-4 -N \"dfa\"' LC_ALL=C cat Makefile.rp > delme
+  <D> RP_PSUB_OPTS: -4 -N "df a"
+  <D> all: RP_PSUB_OPTS='-4 -N "df a"' LC_ALL=C cat Makefile.rp > delme

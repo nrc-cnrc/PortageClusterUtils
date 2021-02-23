@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+# vim:noet:ts=3
+#
+# Makefile - Do the real work in this test suite.
+#
+# PROGRAMMER: Samuel Larkin
+#
+# Technologies langagieres interactives / Interactive Language Technologies
+# Inst. de technologie de l'information / Institute for Information Technology
+# Conseil national de recherches Canada / National Research Council Canada
+# Copyright 2008, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2008, Her Majesty in Right of Canada
+
+SHELL = run-parallel.sh -d -unit-test
+
+all:
+	echo "FIRST"
+	echo SECOND
+	RP_PSUB_OPTS=-4 cat Makefile.rp
+	RP_PSUB_OPTS="-4 -N test" cat Makefile.rp
+	RP_PSUB_OPTS="-4 -N test \"allo\"" cat Makefile.rp
+	RP_PSUB_OPTS=-4 cat Makefile.rp | LC_ALL=C sort
+	RP_PSUB_OPTS="-4" cat Makefile.rp | LC_ALL=C sort
+	RP_PSUB_OPTS="-4" cat Makefile.rp > delme
+	RP_PSUB_OPTS="-4 -N \"dfa\"" LC_ALL=C cat Makefile.rp > delme
+	RP_PSUB_OPTS='-4 -N \"dfa\"' LC_ALL=C cat Makefile.rp > delme
+	RP_PSUB_OPTS='-4 -N "df a"' LC_ALL=C cat Makefile.rp > delme
+
+env:
+	RP_PSUB_OPTS="-4 -N \"dfa\"" LC_ALL=sam env
