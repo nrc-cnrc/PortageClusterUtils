@@ -31,15 +31,6 @@ BINSCRIPTS = \
         sum.pl \
         which-test.sh
 
-# The following code is here to allow this Makefile to work within the Portage
-# compiling framework.  You can safely ignore this block if you're in a
-# different project, but please leave it as is.
-ifdef PORTAGE
--include ../build/Makefile.incl
-lib:
-	@true
-endif
-
 # Destination for installing the scripts: specific INSTALL_DIR=/install/path
 # to have all the scripts installed in directory /install/path/bin
 # Default installation destination is $(HOME)/bin
