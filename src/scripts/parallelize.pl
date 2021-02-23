@@ -123,7 +123,7 @@ BAD examples:
   Your output will be zipped twice.
 
 ";
-   exit $_ ? 1 : 0;
+   exit @_ ? 1 : 0;
 }
 
 my $split_suffix_length = 4;

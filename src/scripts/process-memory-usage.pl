@@ -36,7 +36,7 @@ Note:
   be caught and will cause the process to exit without any further output.
 
 ";
-   exit $_ ? 1 : 0;
+   exit @_ ? 1 : 0;
 }
 
 $SIG{USR1} = sub { exit(0); };
