@@ -18,16 +18,12 @@ SHELL := bash
 .SECONDARY:
 DEFAULT_GOAL := all
 PHONY: all
-all:  gitignore testSuite
+all:  testSuite
 
+TEMP_FILES=input*
+TEMP_DIRS=testcase* run-p.*
+include ../Makefile.incl
 
-PHONY: clean
-clean:
-	${RM} -fr input* testcase* run-p.*/
-
-PHONY: gitignore
-gitignore:
-	echo '.gitignore input* testcase* run-p.*' | tr ' ' '\n' > .gitignore
 
 .PHONY:  testSuite
 .PHONY:  inputs

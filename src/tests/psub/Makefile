@@ -8,6 +8,9 @@ vpath %.sh scripts/
 
 -include Makefile.params
 
+TEMP_FILES=test_noexecute.sh
+include ../Makefile.incl
+
 all:  testSuite
 
 .PHONY:  testSuite

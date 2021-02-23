@@ -1,0 +1,49 @@
+# Unit testing "library" makefile for targets shared by most test suites
+#
+# @author Eric Joanis
+#
+# Technologies langagieres interactives / Interactive Language Technologies
+# Technologies de l'information et des communications /
+#    Information and Communications Technologies
+# Conseil national de recherches Canada / National Research Council Canada
+# Copyright 2012, Sa Majeste la Reine du Chef du Canada
+# Copyright 2012, Her Majesty in Right of Canada
+
+# Use bash by default, never sh, or -- ack -- dash, which is what Ubuntu has for /bin/sh
+SHELL:=/bin/bash
+
+# In all test suites, "make all" should create the .gitignore file
+all: gitignore
+	@echo All tests PASSED.
+
+# Silence Copyright notices for all test suites
+export PORTAGE_INTERNAL_CALL=1
+
+# Having testsuite also depend on gitignore should get the .gitignore file
+# created earlier in the process
+testsuite: gitignore
+
+# The .gitignore file will include all files listed under TEMP_FILES and/or
+# TEMP_DIRS, as well as .gitignore itself.
+# We have an indirect target in case a particular suite wants to add commands
+# under the gitignore target itself.
+.PHONY: gitignore gitignore.temp_files_and_dirs
+gitignore: gitignore.temp_files_and_dirs
+gitignore.temp_files_and_dirs:
+	echo "${TEMP_FILES} ${TEMP_DIRS} core core.* .gitignore !src/* !ref/* !in/* !data/*" | tr ' ' '\n' > .gitignore
+
+# The "make clean" target in all test suites will remove files listed under
+# TEMP_FILES and/or TEMP_DIRS.
+# We have indirect targets in case a particular suite wants to add commands
+# under the clean target itself.
+.PHONY: clean clean.temp_files
+clean: clean.temp_files
+clean.temp_files:
+	${RM} ${TEMP_FILES} core core.* .gitignore
+
+ifdef TEMP_DIRS
+.PHONY: clean.temp_dirs
+clean: clean.temp_dirs
+clean.temp_dirs:
+	${RM} -r ${TEMP_DIRS}
+endif

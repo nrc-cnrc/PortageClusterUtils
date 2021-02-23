@@ -11,25 +11,14 @@ SHELL = bash
 all:  psub.jobctl_cell
 
 
-.PHONY: clean
-clean:
+include ../Makefile.incl
 
 
 .PHONY:  psub.jobctl_cell
-psub.jobctl_cell:  psub.jobctl_cell.default
 psub.jobctl_cell:  psub.jobctl_cell.c
 psub.jobctl_cell:  psub.jobctl_cell.export
 psub.jobctl_cell:  psub.jobctl_cell.cli
 psub.jobctl_cell:  psub.jobctl_cell.run-parallel
-
-
-# If we don't specify a jobctl_cell, by default, we should be running on
-# gpsc1.science.gc.ca.
-.PHONY:  psub.jobctl_cell.default
-psub.jobctl_cell.default:
-	${PSUB} -n sleep 10 \
-	| grep "export JOBCTL_CELL=gpsc1.science.gc.ca" \
-	|| ! echo "Error: we should be using the default cell." >&2
 
 
 # Let's change jobctl_cell by passing -c to psub.
