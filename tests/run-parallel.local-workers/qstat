@@ -1,0 +1,48 @@
+#!/bin/bash
+# qstat - Stub for qstat in this unit test suite.  The current dir (.) should
+#         be first on the PATH, so that this instance of qstat is used instead
+#         of the real one.
+#
+# PROGRAMMER: Eric Joanis
+#
+# Technologies langagieres interactives / Interactive Language Technologies
+# Inst. de technologie de l'information / Institute for Information Technology
+# Conseil national de recherches Canada / National Research Council Canada
+# Copyright 2009, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2009, Her Majesty in Right of Canada
+
+# Run in Bash 3.1 compatibility mode.
+shopt -s compat31 >& /dev/null || true
+
+if [[ $1 != -f || ! $2 ]]; then
+   echo "Usage: qstat -f PSEUDO_JOBID
+
+  This script is a stub for qstat -f, which outputs nodes and vmem
+  Resource_List lines as qstat would as request via PSEUDO_JOBID:
+  - If PSEUDO_JOBID includes the substring \"nCPU\" for some number n, a nodes
+    line will be produced, as if psub had been called with -n
+  - A vmem line is produced with the amount of memory determined via:
+      psub -require -n
+  - If PSEUDO_JOBID includes the substring \"mMEMMAP\" for some number m,
+    this command will be used to determine the VMEM amount:
+      psub -require -memmap m -n
+"
+   exit 1
+fi
+
+JOBID=$2
+
+echo Job Id: $JOBID
+
+if [[ $JOBID =~ '([0-9]+)CPU' ]]; then
+   echo "    Resource_List.nodes = 1:ppn=${BASH_REMATCH[1]}"
+   NCPUS=-${BASH_REMATCH[1]}
+fi
+
+if [[ $JOBID =~ '([0-9]+)MEMMAP' ]]; then
+   MEMMAP="-memmap ${BASH_REMATCH[1]}"
+fi
+
+VMEM=`psub -require $NCPUS $MEMMAP`
+echo "    Resource_List.vmem = ${VMEM}gb"
+

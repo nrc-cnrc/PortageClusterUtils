@@ -1,0 +1,38 @@
+#!/bin/bash
+# qstat - Stub for qsub in this unit test suite.  The current dir (.) should
+#         be first on the PATH, so that this instance of qsub is used instead
+#         of the real one.
+#
+# PROGRAMMER: Eric Joanis
+#
+# Technologies langagieres interactives / Interactive Language Technologies
+# Inst. de technologie de l'information / Institute for Information Technology
+# Conseil national de recherches Canada / National Research Council Canada
+# Copyright 2009, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2009, Her Majesty in Right of Canada
+
+# Run in Bash 3.1 compatibility mode.
+shopt -s compat31 >& /dev/null || true
+
+if [[ $1 != -f || ! $2 ]]; then
+   echo "Usage: qsub
+
+  Does nothing at all, but putting . on the PATH when running this test suite
+  will make it so that which-test.sh will always find it, and therefore
+  run-parallel.sh will think it's running on a cluster.
+"
+   exit 1
+fi
+
+JOBID=$2
+
+echo Job Id: $JOBID
+
+if [[ $JOBID =~ '([0-9]+)CPU' ]]; then
+   echo "    Resource_List.nodes = 1:ppn=${BASH_REMATCH[1]}"
+fi
+
+if [[ $JOBID =~ '([0-9]+)VMEM' ]]; then
+   echo "    Resource_List.vmem = ${BASH_REMATCH[1]}gb"
+fi
+
