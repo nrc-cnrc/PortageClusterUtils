@@ -213,7 +213,7 @@ warn()
 # node, 0 (true) otherwise, in which case we assume we're on a head/login node.
 on_head_node()
 {
-   if [[ $PBS_JOBID || $GECOSHEP_JOB_ID ]]; then
+   if [[ $JOB_ID ]]; then
       return 1
    else
       return 0
