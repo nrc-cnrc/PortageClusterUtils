@@ -92,6 +92,8 @@ else
    PIPE_LOG="cat"
 fi
 
+set -o pipefail
+
 {
    for TEST_SUITE in $TEST_SUITES; do
       echo ""
@@ -124,3 +126,5 @@ fi
       echo PASSED all test suites
    fi
 } | $PIPE_LOG
+
+exit $?
