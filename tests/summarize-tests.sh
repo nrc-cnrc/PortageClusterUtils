@@ -4,7 +4,7 @@ if [[ $# -gt 0 ]]; then
    RUN_TO_ANALYZE="$1"
    shift
 else
-   RUN_TO_ANALYZE="$(\ls .log.run-all-tests* | tail -1)"
+   RUN_TO_ANALYZE="$(\ls .logs/log.run-all-tests* | tail -1)"
 fi
 echo Summarizing $RUN_TO_ANALYZE
 

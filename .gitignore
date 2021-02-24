@@ -6,3 +6,4 @@ _log.cvs*
 run-p.*
 _log.run-test
 .log.run-all-tests*
+.logs
