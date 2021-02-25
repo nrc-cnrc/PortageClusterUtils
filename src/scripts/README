@@ -1,13 +1,17 @@
 Installation instructions
 -------------------------
 
-If you checked out IITSharedUtils on its own, run the following commands to
+If you checked out PortageClusterUtils on its own, run the following commands to
 install all the utilities in your $HOME/bin directory:
    make install
 
 If you want a custom installation path:
    make install INSTALL_DIR=/install/path
 In this case, make sure /install/path is on your path.
+
+Or, if you just want to activate the scripts from within your sandbox, add this
+line to your .profile or .bashrc:
+   source /path/to/PortageClusterUtils/SETUP.bash
 
 
 Catalog of files in this directory (run each script with -h for full documentation)
