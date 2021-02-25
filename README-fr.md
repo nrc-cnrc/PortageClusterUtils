@@ -1,7 +1,11 @@
+[English](README.md)
+
 # Utilitaires Portage pour grappes de calcul
 
-Ce repo ressemble des scripts qui servent à faciliter la parallélisation de
-tâches sur une grappe de calcul ou sur une machine multi-coeurs.
+Ce repo rassemble des scripts qui servent à faciliter la parallélisation de
+tâches sur une grappe de calcul ou sur une machine multi-coeurs. Ces scripts
+proviennent à l'origine du project de traduction automatique statistique
+Portage, mais ils ont été séparés ici parce qu'il sont d'utilité plus générale.
 
 ## Installation
 

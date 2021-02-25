@@ -1,7 +1,11 @@
+[Français](README-fr.md)
+
 # Portage Cluster Utilities
 
 This repo contains scripts that are used to facilitate parallelization of jobs
-on a cluster or on a multi-core machine.
+on a cluster or on a multi-core machine. These scripts were originally written
+as part of the Portage Statistical Machine Translation, but were extracted here
+because they are of more general interest.
 
 ## Installation
 
