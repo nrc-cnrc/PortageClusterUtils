@@ -15,7 +15,6 @@ Catalog of files in this directory (run each script with -h for full documentati
 
 File name             Programmer  Description
 ---------             ----------  -----------
-analyze                       EJ  Show information about all machines on the cluster
 parallelize.pl                SL  Generic parallelization tool for non-parallel commands.
 process-memory-usage.pl       SL  Tally the memory usage of a process tree.
 psub                          EJ  Simple but powerful qsub wrapper.
