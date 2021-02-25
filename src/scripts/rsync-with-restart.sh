@@ -14,7 +14,7 @@
 
 usage() {
    for msg in "$@"; do
-      echo $msg >&2
+      echo "$msg" >&2
    done
    cat <<==EOF== >&2
 
@@ -43,7 +43,11 @@ Options:
   -f(orce)   Run this script even if the destination directory exists
 ==EOF==
 
-   exit 1
+   if [[ $@ ]]; then
+      exit 1
+   else
+      exit 0
+   fi
 }
 
 while [[ $# -gt 0 ]]; do

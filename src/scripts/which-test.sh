@@ -36,9 +36,9 @@ usage() {
    cat $0 | grep "^##" | cut -c4-
 }
 
-[[ "$1" == "-h" ]] && usage
+[[ "$1" == "-h" ]] && usage && exit
 [[ "$1" == "-v" ]] && VERBOSE=1 && shift
-[[ $# -eq 0 ]] && usage
+[[ $# -eq 0 ]] && usage && exit 1
 
 # Hack: we detect that we're running on a cluster by looking for jobsub or qsub.
 # Defining the PORTAGE_NOCLUSTER environment variable to a non-empty string

@@ -56,7 +56,7 @@ $primary and $quota = 0;
 
 if($help ne ''){
     PrintHelp();
-    exit (-1);
+    exit (0);
 }
 
 my $me = `uname -n`;

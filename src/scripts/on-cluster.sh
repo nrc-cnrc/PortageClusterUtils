@@ -32,15 +32,22 @@
 
 
 usage() {
+   for msg in "$@"; do
+      echo "$msg" >&2
+   done
    cat $0 | grep "^##" | cut -c4-
-   exit 2
+   if [[ $@ ]]; then
+      exit 2
+   else
+      exit 0
+   fi
 }
 
-[[ $# -gt 1 ]] && echo $'Error: on-cluster.sh accepts only one argument or option.\n' >&2 && usage
+[[ $# -gt 1 ]] && usage $'Error: on-cluster.sh accepts only one argument or option.\n'
 [[ "$1" == "-h" ]] && usage
 [[ "$1" == "-v" ]] && VERBOSE=1 && shift
 [[ "$1" == "-type" ]] && PRINT_TYPE=1 && shift
-[[ $# -gt 0 ]] && echo "Error: superfluous argument or option: $*"$'\n' >&2 && usage
+[[ $# -gt 0 ]] && usage "Error: superfluous or unknown argument or option: $*"$'\n'
 
 # Hack: we detect that we're running on a cluster by looking for jobsub or qsub.
 # Defining the PORTAGE_NOCLUSTER environment variable to a non-empty string
