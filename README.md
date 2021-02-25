@@ -19,7 +19,7 @@ source /path/to/PortageClusterUtils/SETUP.bash
 
 ## Usage
 
-See src/scripts/README
+See [src/scripts/README](src/scripts/README)
 
 ## Copyright
 
@@ -31,4 +31,4 @@ Conseil national de recherches Canada / National Research Council Canada
 
 Copyright 2021, Sa Majesté la Reine du Chef du Canada / Her Majesty in Right of Canada
 
-Published under the MIT License (see LICENSE file)
+Published under the MIT License (see [LICENSE](LICENSE))
