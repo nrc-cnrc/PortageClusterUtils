@@ -22,9 +22,34 @@ ajouter ensuite cette ligne à votre .profile ou .bashrc:
 source /path/to/PortageClusterUtils/SETUP.bash
 ```
 
+Si vous préférez, vous pouvez aussi installer ces scripts à la destination de
+votre choix ainsi:
+
+```sh
+cd bin/
+make install INSTALL_DIR=/destination/de/votre/choix
+```
+
+ce qui copiera les scripts dans `/destination/de/votre/choix/bin/`.
+La destination par défaut est `$HOME/bin`.
+
 ## Utilisation (en anglais seulement)
 
-Voir [src/scripts/README](src/scripts/README)
+### Scripts principaux
+
+The outils principaux fournis par ce repo sont les suivants:
+
+ - parallelize.pl: paralléliser un programme de type pipeline.
+
+ - run-parallel.sh: exécuter un nombre de commandes indépendances en parallèle.
+
+ - psub: encapsuler les spécificité d'un cluster à l'autre à un seul endroit.
+
+Voir [Main Scripts (en anglais)](README.md#MainScripts) pour plus de détails.
+
+### Autres Scripts
+
+Voir [Other Scripts (en anglais)](README.md#OtherScripts) pour la liste.
 
 ## Copyright
 
