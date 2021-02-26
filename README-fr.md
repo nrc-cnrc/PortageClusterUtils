@@ -45,11 +45,11 @@ The outils principaux fournis par ce repo sont les suivants:
 
  - psub: encapsuler les spécificité d'un cluster à l'autre à un seul endroit.
 
-Voir [Main Scripts (en anglais)](README.md#MainScripts) pour plus de détails.
+Voir [Main Scripts (en anglais)](README.md#Main-Scripts) pour plus de détails.
 
 ### Autres Scripts
 
-Voir [Other Scripts (en anglais)](README.md#OtherScripts) pour la liste.
+Voir [Other Scripts (en anglais)](README.md#Other-Scripts) pour la liste.
 
 ## Copyright
 
