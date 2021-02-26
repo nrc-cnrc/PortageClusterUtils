@@ -21,4 +21,4 @@ if [[ -h $SOURCE ]]; then
 fi
 BASE_DIR="$( cd "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 echo "PortageClusterUtils path: $BASE_DIR" >&2
-export PATH=$BASE_DIR/src/scripts:$PATH
+export PATH=$BASE_DIR/bin:$PATH
