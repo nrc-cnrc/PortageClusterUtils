@@ -1,6 +1,6 @@
 # vim:noet:ts=3:nowrap:filetype=make
-# Makefile for IITSharedUtils
-# This makefile simply installs all script in the location of your choice.
+# Makefile for PortageClusterUtils
+# This makefile simply installs all scripts in the location of your choice.
 
 # Eric Joanis
 # Technologies langagieres interactives / Interactive Language Technologies
