@@ -10,7 +10,6 @@
 # Copyright 2009, Her Majesty in Right of Canada
 
 BINSCRIPTS = \
-        analyze \
         analyze-run-parallel-log.pl \
         jobsig.pl \
         jobtree \
