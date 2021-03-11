@@ -12,6 +12,7 @@ all:  psub.jobctl_cell
 
 
 include ../Makefile.incl
+TEMP_FILES=psub.jobctl_cell.run-parallel.cmds
 
 
 .PHONY:  psub.jobctl_cell

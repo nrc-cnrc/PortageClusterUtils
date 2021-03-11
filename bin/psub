@@ -195,13 +195,6 @@ PARALLEL_ENVIRONMENT=
 PE_PARALLEL_PROCESSES=1
 RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: one day in minutes (24 x 60 = 1440).
 
-# TODO find a generic test for this rather than hard-coding the cell name(s)!
-if [[ $JOBCTL_CELL =~ gpsc3 ]]; then
-   SCHEDULER=SLURM
-else
-   SCHEDULER=SGE
-fi
-
 while [ $# -gt 0 ]; do
    case "$1" in
    -h|-help)        usage;;
@@ -306,6 +299,13 @@ while [ $# -gt 0 ]; do
    esac
    shift
 done
+
+# TODO find a generic test for this rather than hard-coding the cell name(s)!
+if [[ $JOBCTL_CELL =~ gpsc3 ]]; then
+   SCHEDULER=SLURM
+else
+   SCHEDULER=SGE
+fi
 
 if [[ ! $CPU_COUNT ]]; then
    USING_DEFAULT_CPU_COUNT=1

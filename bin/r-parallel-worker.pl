@@ -62,7 +62,7 @@ if($help ne ''){
 my $me = `uname -n`;
 chomp $me;
 $me =~ s/(.)\..*/$1/; # Remove domain qualifier - unqualified host name is enough info
-$me .= ":" . ($ENV{PBS_JOBID} || $ENV{GECOSHEP_JOB_ID} || "");
+$me .= ":" . ($ENV{JOB_ID} || "");
 my $need_sleep = ($me =~ /balzac/);
 $me =~ s/(\d)\..*/$1/; # Remove domain qualifier from job number too, superfluous
 
