@@ -84,6 +84,7 @@ Options:
                  should start first. 0 = normal, >0 = high, <0 = low.
                  Only use > 0 for short, urgent jobs. [0]
   -t ARRAY       See "qsub -t" in the TORQUE admin manual or man qsub
+  -(no-)rerun    Job is (not) rerunnable/requeueable [is not]
   -noc(luster)   Block recursive jobs: the job will think it's running on a
                  stand-alone, non-clustered machine.
   -n             "not really" (dump the PBS script, but don't submit it)
@@ -187,6 +188,8 @@ NOT_REALLY=
 FORCE=
 REQUIREMENTS=
 CPU_REQUIREMENTS=
+# PSUB_RERUN can be set in the environment or on the command line.
+export PSUB_RERUN=${PSUB_RERUN:-no}
 
 ### GPSC
 PARALLEL_ENVIRONMENT=
@@ -287,6 +290,8 @@ while [ $# -gt 0 ]; do
    -t)              arg_check 1 $# $!;
                     JOB_ARRAY="$1 $2";
                     shift;;
+   -rerun)          export PSUB_RERUN=yes;;
+   -no-rerun)       export PSUB_RERUN=no;;
    -n)              NOT_REALLY=1;;
    -f)              FORCE=1;;
    -require)        REQUIREMENTS=1;;
@@ -531,7 +536,7 @@ if [[ $USE_JOBGEN ]]; then
 #JGEN -r name=$NAME
 #
 #${JOIN_OUT_ERR:+JGEN -r joinouterr=y}
-#JGEN -r rerun=false
+#JGEN -r rerun=$PSUB_RERUN
 #JGEN -r queue=$PARALLEL_ENVIRONMENT
 #JGEN -c nslots=1
 #JGEN -c ncores=$TOTAL_CPU_COUNT
@@ -611,7 +616,7 @@ export JOB_NAME="$NAME"
 `env | egrep '^PORTAGE' | sed -e 's/^/export /'`
 `env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
 `env | egrep '^(LANG|LC_[A-Z]+)=' | sed -e 's/^/export /'`
-`env | egrep '^(PSUB_DEFAULT_PE|PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|JOBCTL_CELL)=' | sed -e 's/^/export /'`
+`env | egrep '^(PSUB_DEFAULT_PE|PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|PSUB_RERUN|JOBCTL_CELL)=' | sed -e 's/^/export /'`
 $NOCLUSTER_OPTION
 
 # Export PSUB_RES_IMAGE so that children will use the same OS res_image.
