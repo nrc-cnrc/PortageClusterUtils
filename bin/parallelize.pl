@@ -126,8 +126,6 @@ BAD examples:
    exit @_ ? 1 : 0;
 }
 
-my $split_suffix_length = 4;
-
 my $debug_cmd = "";
 
 use Getopt::Long;
@@ -170,6 +168,8 @@ GetOptions(
    "resume"    => sub {die "Error: Not implemented yet"},
 ) or usage "Error: Invalid option(s).";
 
+my $split_suffix_length = int(log($N)/log(10))+1;
+$split_suffix_length = 4 if $split_suffix_length < 4;
 
 my %READERS = ( 'text/plain' => 'cat', 'application/x-gzip' => 'gzip -cqdf', 'application/x-xz' => 'xz -cqdf', 'application/x-bzip2' => 'bzip2 -cqdf' );
 my %WRITERS = ( '.gz' => 'gzip', '.xz' => 'xz', '.bz2' => 'bzip2' );
@@ -380,7 +380,7 @@ my $cmd_file = "$workdir/commands";
 open(CMD_FILE, ">$cmd_file") or die "Error: Unable to open command file";
 for (my $i=0; $i<$NUMBER_OF_CHUNK_GENERATED; ++$i) {
    my $SUB_CMD = $CMD;
-   my $index = sprintf("%4.4d", $i);
+   my $index = sprintf("%${split_suffix_length}.${split_suffix_length}d", $i);
 
    # For each occurence of a file to merge, replace it by a chunk.
    foreach my $m (@MERGES) {
