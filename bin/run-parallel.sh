@@ -228,6 +228,9 @@ else
    SHORT_JOB_ID=$$.local
 fi
 
+# We use $HOSTNAME in various places, initialize it in case that wasn't done yet.
+export HOSTNAME=`hostname`
+
 WORKER_CPU_STRING="Run-parallel-worker-CPU"
 START_TIME=`date +"%s"`
 CLUSTER_TYPE=`on-cluster.sh -type`
@@ -603,7 +606,7 @@ fi
 
 if (( $VERBOSE > 1 )); then
    echo "" >&2
-   echo Starting run-parallel.sh \(pid $$\) on `hostname` on `date` >&2
+   echo Starting run-parallel.sh \(pid $$\) on $HOSTNAME on `date` >&2
    echo $0 $SAVE_ARGS >&2
    echo Using: >&2
    which r-parallel-d.pl r-parallel-worker.pl psub >&2
@@ -655,7 +658,7 @@ elif [[ $NUM = 0 ]]; then
 fi
 
 if [[ $CLUSTER ]]; then
-   MY_HOST=`hostname`
+   MY_HOST=$HOSTNAME
 
    # This is no longer needed, but I'm keeping the code here in case we need it again later.
    #if (( $NUM == 1 )); then
@@ -879,7 +882,7 @@ else
       sleep 5
       if [[ "`echo PING | r-parallel-worker.pl -netcat -host $MY_HOST -port $MY_PORT`" != PONG ]]; then
 
-         error_exit "Daemon did not respond correctly to PING request. Running on `hostname`, trying to ping $MY_HOST:$MY_PORT."
+         error_exit "Daemon did not respond correctly to PING request. Running on $HOSTNAME, trying to ping $MY_HOST:$MY_PORT."
       fi
    fi
 fi
@@ -1108,7 +1111,7 @@ fi
 
 if (( $VERBOSE > 1 )); then
    echo "" >&2
-   echo Done run-parallel.sh \(pid $$\) on `hostname` on `date` >&2
+   echo Done run-parallel.sh \(pid $$\) on $HOSTNAME on `date` >&2
    echo $0 $SAVE_ARGS >&2
    echo "" >&2
 fi
