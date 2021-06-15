@@ -306,7 +306,7 @@ while [ $# -gt 0 ]; do
 done
 
 # TODO find a generic test for this rather than hard-coding the cell name(s)!
-if [[ $JOBCTL_CELL =~ gpsc3 ]]; then
+if [[ $JOBCTL_CELL =~ gpsc3 || $JOBCTL_CELL =~ gpsc5 ]]; then
    SCHEDULER=SLURM
 else
    SCHEDULER=SGE
