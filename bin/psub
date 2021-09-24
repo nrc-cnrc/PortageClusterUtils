@@ -469,6 +469,16 @@ function write_job_script {
          else
             PARALLEL_ENVIRONMENT=dev
          fi
+      elif [[ $JOBCTL_CELL =~ gpsc5 ]]; then
+         if [[ $NGPUS ]]; then
+            PARALLEL_ENVIRONMENT=gpu-v100
+         elif [[ $TOTAL_RES_MEM_MB -gt 144000 ]]; then
+            PARALLEL_ENVIRONMENT=dev-ln
+         elif [[ $PSUB_DEFAULT_PE ]]; then
+            PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
+         else
+            PARALLEL_ENVIRONMENT=dev
+         fi
       else
          PARALLEL_ENVIRONMENT=${PSUB_DEFAULT_PE:-dev}
       fi
