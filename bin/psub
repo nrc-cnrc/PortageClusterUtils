@@ -455,11 +455,7 @@ function write_job_script {
    if [[ ! $PARALLEL_ENVIRONMENT ]]; then
       if [[ $JOBCTL_CELL =~ gpsc1 ]]; then
          if [[ $NGPUS ]]; then
-            if [[ $USE_JOBGEN ]]; then
-               PARALLEL_ENVIRONMENT=gpu-k80
-            else
-               PARALLEL_ENVIRONMENT=gpu
-            fi
+            PARALLEL_ENVIRONMENT=gpu-v100
          elif [[ $TOTAL_RES_MEM_MB -gt 980000 || $CPU_COUNT -gt 40 ]]; then
             PARALLEL_ENVIRONMENT=dev-sln
          elif [[ $TOTAL_RES_MEM_MB -gt 100000 || $CPU_COUNT -gt 16 ]]; then
