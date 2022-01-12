@@ -1,4 +1,4 @@
-[Français](README-fr.md)
+[Français](LISEZMOI.md)
 
 # Portage Cluster Utilities
 
