@@ -68,13 +68,18 @@ if [[ $PARALLEL_MODE ]]; then
          egrep --line-buffered --color '.*\*.*|$|(^|[^-])[Ee][Rr][Rr][Oo][Rr]'
       fi
    grep PASSED $LOG | grep -v 'test suites' | sort -u
+   grep SKIPPED $LOG | grep -v 'test suites' | sort -u
    grep FAILED $LOG | grep -v 'test suites' | sort -u
 
    if grep -q FAILED $LOG; then
       exit 1
    elif perl -e 'while (<>) { if (m# (\d+)/\1 DONE #) { exit(0); } } exit(1)' $LOG; then
       echo ""
-      echo PASSED all test suites.
+      if grep -q SKIPPED $LOG; then
+         echo PASSED or SKIPPED all test suites
+      else
+         echo PASSED all test suites.
+      fi
       exit
    else
       echo ""
@@ -88,8 +93,10 @@ run_test() {
 }
 
 if [[ $TEST_SUITES =~ \  ]]; then
+   MULTIPLE_TESTS=1
    PIPE_LOG="tee $LOG"
 else
+   MULTIPLE_TESTS=
    PIPE_LOG="cat"
 fi
 
@@ -107,8 +114,14 @@ set -o pipefail
          elif run_test; then
             echo PASSED $TEST_SUITE
          else
-            echo '***' FAILED $TEST_SUITE: ./run-test.sh returned $?
-            FAIL="$FAIL $TEST_SUITE"
+            RC=$?
+            if [[ $RC -eq 3 ]]; then
+               echo '***' SKIPPED $TEST_SUITE: ./run-test.sh returned $RC
+               SKIP="$SKIP $TEST_SUITE"
+            else
+               echo '***' FAILED $TEST_SUITE: ./run-test.sh returned $RC
+               FAIL="$FAIL $TEST_SUITE"
+            fi
          fi
 
          cd ..
@@ -120,9 +133,15 @@ set -o pipefail
 
    echo ""
    echo =======================================
+   if [[ $SKIP ]]; then
+      echo '***' SKIPPED these test suites:$SKIP
+   fi
    if [[ $FAIL ]]; then
       echo '***' FAILED these test suites:$FAIL
       exit 1
+   elif [[ $SKIP ]]; then
+      echo PASSED or SKIPPED all test suites
+      [[ $MULTIPLE_TESTS ]] || exit 3
    else
       echo PASSED all test suites
    fi
