@@ -252,3 +252,12 @@ testcase.stripe.multiple.validate:  %.validate:  %
 	[[ `\ls $*.wk/$*.done/* | wc -l` -eq ${NUM_BLOCKS} ]] || ! echo "Not all output parts were processed" >&2
 	[[ `find $*.wk/$*.done/ -type f -empty | wc -l` -eq 0 ]] || ! echo "All output parts should be none empty." >&2
 	diff <(paste input input2) $*  --brief
+
+##########################################
+# Using stripe.py directly
+
+.PHONY: direct_stripe
+direct_stripe: input input.gz
+	stripe.py input testcase.direct.stripe
+	stripe.py input.gz testcase.direct.stripe.gz
+	diff <(zcat testcase.direct.stripe.gz) testcase.direct.stripe

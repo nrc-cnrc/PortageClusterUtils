@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # @file
 # @brief Daemon to monitor run-parallel.sh that maximizes cluster usage.
 #
@@ -25,7 +25,6 @@ import time
 from datetime import datetime  # now()
 import re
 from math import ceil
-from itertools import izip
 from subprocess import call, check_call, check_output, CalledProcessError
 from argparse import ArgumentParser, RawDescriptionHelpFormatter, Action
 
@@ -267,7 +266,7 @@ def add_cronjob(sched, cmd_args):
 
             w = float(w)
 
-            schedule = dict(izip(_sched_seq, splitted))
+            schedule = dict(zip(_sched_seq, splitted))
             info(("Adding cron for {} with these parameters: ".format(fonction.__name__), job, w, date, schedule))
             #sched.add_job(trigger=CronTrigger(**schedule), func=(lambda v: sys.stdout.write(v, "\n")), args=[w], kwargs={})
             sched.add_cron_job(func=fonction, name=job, args=[w], kwargs=None, **schedule)

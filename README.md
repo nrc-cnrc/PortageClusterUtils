@@ -33,6 +33,12 @@ make install INSTALL_DIR=/install/path
 which will copy all the scripts into `/install/path/bin/`.
 By default, the destination in `$HOME/bin`.
 
+## Dependencies
+
+PortageClusterUtilities requires:
+ - Perl >= 5.14, as `perl` on your PATH;
+ - any version of Python 3, as `python3` on your PATH;
+
 ## Usage
 
 ### Main Scripts

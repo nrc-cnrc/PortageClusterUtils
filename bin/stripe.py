@@ -1,7 +1,7 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # @file stripe.py
-# @brief Performs a strip split which allows splitting without using temporary files.
+# @brief Performs a striped split which allows splitting without using temporary files.
 #
 # @author Samuel Larkin
 #
@@ -95,7 +95,9 @@ def myopen(filename, mode='r'):
          print("Unsupported mode.", file=sys.stderr)
          sys.exit(1)
    elif filename[-3:] == ".gz":
-      theFile = gzip.open(filename, mode+'b')
+      if "b" not in mode:
+         mode += "b"
+      theFile = gzip.open(filename, mode)
    else:
       theFile = open(filename, mode)
    return theFile
