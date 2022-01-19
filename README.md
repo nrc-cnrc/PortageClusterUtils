@@ -103,12 +103,8 @@ cluster.
 
 ## Copyright
 
-Traitement multilingue de textes / Multilingual Text Processing
-
-Centre de recherche en technologies numériques / Digital Technologies Research Centre
-
-Conseil national de recherches Canada / National Research Council Canada
-
-Copyright 2021, Sa Majesté la Reine du Chef du Canada / Her Majesty in Right of Canada
-
+Traitement multilingue de textes / Multilingual Text Processing \
+Centre de recherche en technologies numériques / Digital Technologies Research Centre \
+Conseil national de recherches Canada / National Research Council Canada \
+Copyright 2021, Sa Majesté la Reine du Chef du Canada / Her Majesty in Right of Canada \
 Published under the MIT License (see [LICENSE](LICENSE))
