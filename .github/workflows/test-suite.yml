@@ -14,9 +14,6 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
-    - name: Install Perl dependencies
-      run: |
-        sudo apt-get install -y libxml-twig-perl libxml-writer-perl libxml-xpath-perl
     - name: Run tests
       run: >
         source SETUP.bash
