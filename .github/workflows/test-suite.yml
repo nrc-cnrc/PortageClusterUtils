@@ -18,5 +18,7 @@ jobs:
       run: |
         sudo apt-get install -y libxml-twig-perl libxml-writer-perl libxml-xpath-perl
     - name: Run tests
-      run: |
-        source SETUP.bash && cd tests && ./run-all-tests.sh
+      run: >
+        source SETUP.bash
+        && cd tests
+        && ./run-all-tests.sh
