@@ -21,4 +21,4 @@ jobs:
         source SETUP.bash
         && cd tests
         && echo "Using $(nproc) threads"
-        && ./run-all-tests.sh -j $(nproc)
+        && ./run-all-tests.sh -j 5
