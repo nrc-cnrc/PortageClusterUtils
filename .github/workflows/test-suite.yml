@@ -6,7 +6,7 @@ jobs:
   test-on-linux:
     runs-on: ubuntu-latest
     strategy:
-      max-parallel: 5
+      #max-parallel: 5
       matrix:
         python: [3.6, 3.7]
 
@@ -20,4 +20,4 @@ jobs:
       run: >
         source SETUP.bash
         && cd tests
-        && ./run-all-tests.sh
+        && ./run-all-tests.sh -j $(nproc)
