@@ -1,0 +1,24 @@
+name: PortageClusterUtils test suite
+
+on: [push]
+
+jobs:
+  test-on-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+      matrix:
+        python: [3.6, 3.7]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python }}
+    - name: Run tests
+      run: >
+        source SETUP.bash
+        && cd tests
+        && echo "Using $(nproc) threads"
+        && ./run-all-tests.sh -j 5
