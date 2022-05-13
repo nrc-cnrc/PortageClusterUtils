@@ -554,6 +554,7 @@ if [[ $USE_JOBGEN ]]; then
 #JGEN -r shell=/bin/bash
 #JGEN -r mail=$USER
 #JGEN -r mailopts=
+#SBATCH --signal=B:15@30
 #${PROJECT_NAME:+JGEN -r project=$PROJECT_NAME}
 #${NGPUS:+JGEN -c ngpus=$NGPUS}
 
@@ -700,17 +701,23 @@ if [[ -n "$NGPUS" && -n "$USAGE_GPU" ]]; then
 fi
 
 # Trap kill signals
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGINT, aborting." >&2; exit 2' 2
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGQUIT, aborting." >&2; exit 3' 3
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR1, aborting." >&2; exit 10' 10
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR2, aborting." >&2; exit 12' 12
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGTERM, aborting." >&2; exit 15' 15
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGINT, aborting." >&2; kill -15 "\$CMD_PID"; kill -15 -"\$CMD_PID"; wait "\$CMD_PID"; exit 2' 2
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGQUIT, aborting." >&2; kill -3 "\$CMD_PID"; kill -3 -"\$CMD_PID"; wait "\$CMD_PID"; exit 3' 3
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR1, aborting." >&2; kill -10 "\$CMD_PID"; kill -10 -"\$CMD_PID"; wait "\$CMD_PID"; exit 10' 10
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR2, aborting." >&2; kill -12 "\$CMD_PID"; kill -12 -"\$CMD_PID"; wait "\$CMD_PID"; exit 12' 12
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGTERM, aborting." >&2; kill -15 "\$CMD_PID"; kill -15 -"\$CMD_PID"; wait "\$CMD_PID"; exit 15' 15
 
 # Display the exact start time
-echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` >&2
+echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` OS \`cat /etc/*release | grep PRETTY_NAME | grep -o '".*"'\` >&2
 
-# User command
-$COMMAND
+# set -m makes it so that the command PID is also the PGID, so we can kill all
+# its child processes at once, with kill -N -PGID in the traps above.
+set -m
+
+# User command, in the background so we can catch signals on Slurm too
+$COMMAND &
+CMD_PID="\$!"
+wait "\$CMD_PID"
 RC=\$?
 
 # Display the exact end time
