@@ -783,8 +783,12 @@ if [[ $CLUSTER ]]; then
    [[ $? == 0 ]] || error_exit "Can't create temporary file for worker log files."
    LOGFILEPREFIX=$TMPLOGFILEPREFIX.
 
+   if [[ ! $DEBUG ]]; then
+      PSUBOPTS="-noscript $PSUBOPTS"
+   fi
+
    #SUBMIT_CMD=(psub -o $HOME/.run-parallel-logs/psub-dummy-output -noscript $PSUBOPTS)
-   SUBMIT_CMD=(psub -noscript $PSUBOPTS)
+   SUBMIT_CMD=(psub $PSUBOPTS)
 
    if [[ $QSUBOPTS ]]; then
       SUBMIT_CMD=("${SUBMIT_CMD[@]}" -qsparams "$QSUBOPTS")

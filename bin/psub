@@ -714,8 +714,9 @@ echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` OS \`ca
 # its child processes at once, with kill -N -PGID in the traps above.
 set -m
 
-# User command, in the background so we can catch signals on Slurm too
-$COMMAND &
+# User command, in the background so we can catch signals on Slurm too, and in a subshell
+# because the user command is allowed to be a whole one-liner script in itself.
+( $COMMAND ) &
 CMD_PID="\$!"
 wait "\$CMD_PID"
 RC=\$?
