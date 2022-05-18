@@ -701,11 +701,11 @@ if [[ -n "$NGPUS" && -n "$USAGE_GPU" ]]; then
 fi
 
 # Trap kill signals
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGINT, aborting." >&2; kill -15 "\$CMD_PID"; kill -15 -"\$CMD_PID"; wait "\$CMD_PID"; exit 2' 2
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGQUIT, aborting." >&2; kill -3 "\$CMD_PID"; kill -3 -"\$CMD_PID"; wait "\$CMD_PID"; exit 3' 3
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR1, aborting." >&2; kill -10 "\$CMD_PID"; kill -10 -"\$CMD_PID"; wait "\$CMD_PID"; exit 10' 10
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR2, aborting." >&2; kill -12 "\$CMD_PID"; kill -12 -"\$CMD_PID"; wait "\$CMD_PID"; exit 12' 12
-trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGTERM, aborting." >&2; kill -15 "\$CMD_PID"; kill -15 -"\$CMD_PID"; wait "\$CMD_PID"; exit 15' 15
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGINT, aborting." >&2; kill -15 "\$CMD_PID"; kill -15 -"\$CMD_PID"; sleep 15; wait "\$CMD_PID"; exit 2' 2
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGQUIT, aborting." >&2; kill -3 "\$CMD_PID"; kill -3 -"\$CMD_PID"; sleep 15; wait "\$CMD_PID"; exit 3' 3
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR1, aborting." >&2; kill -10 "\$CMD_PID"; kill -10 -"\$CMD_PID"; sleep 15; wait "\$CMD_PID"; exit 10' 10
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGUSR2, aborting." >&2; kill -12 "\$CMD_PID"; kill -12 -"\$CMD_PID"; sleep 15; wait "\$CMD_PID"; exit 12' 12
+trap 'echo "[\`date\` \`hostname\`] psub-generated script \`basename \$0\` caught SIGTERM, aborting." >&2; kill -15 "\$CMD_PID"; kill -15 -"\$CMD_PID"; sleep 15; wait "\$CMD_PID"; exit 15' 15
 
 # Display the exact start time
 echo ============ Starting job \$JOB_ID on \`date\` on node \`hostname\` OS \`cat /etc/*release | grep PRETTY_NAME | grep -o '".*"'\` >&2
