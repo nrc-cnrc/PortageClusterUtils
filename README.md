@@ -101,6 +101,17 @@ Each script accepts the `-h` option to output its full documentation.
 Scripts with a cluster/scheduler type in parentheses might only work on such a
 cluster.
 
+## Citation
+
+```bib
+@misc{Portage_Cluster_Utils,
+author = {Joanis, Eric and Stewart, Darlene and Larkin, Samuel and Leger, Serge},
+license = {MIT},
+title = {{Portage Cluster Utils}},
+url = {https://github.com/nrc-cnrc/PortageClusterUtils}
+}
+```
+
 ## Copyright
 
 Traitement multilingue de textes / Multilingual Text Processing \

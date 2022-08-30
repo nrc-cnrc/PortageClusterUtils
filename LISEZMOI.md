@@ -51,6 +51,17 @@ Voir [Main Scripts (en anglais)](README.md#Main-Scripts) pour plus de détails.
 
 Voir [Other Scripts (en anglais)](README.md#Other-Scripts) pour la liste.
 
+## Citation
+
+```bib
+@misc{Portage_Cluster_Utils,
+author = {Joanis, Eric and Stewart, Darlene and Larkin, Samuel and Leger, Serge},
+license = {MIT},
+title = {{Portage Cluster Utils}},
+url = {https://github.com/nrc-cnrc/PortageClusterUtils}
+}
+```
+
 ## Copyright
 
 Traitement multilingue de textes / Multilingual Text Processing
