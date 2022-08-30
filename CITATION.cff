@@ -1,0 +1,36 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Portage Cluster Utils
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Eric
+    family-names: Joanis
+    email: Eric.Joanis@nrc-cnrc.gc.ca
+    affiliation: National Research Council Canada
+  - given-names: Darlene
+    family-names: Stewart
+    email: Darlene.Stewart@nrc-cnrc.gc.ca
+    affiliation: National Research Council Canada
+  - given-names: Samuel
+    family-names: Larkin
+    email: Samuel.Larkin@nrc-cnrc.gc.ca
+    affiliation: National Research Council Canada
+  - given-names: Serge
+    family-names: Leger
+    email: Serge.Leger@nrc-cnrc.gc.ca
+    affiliation: National Research Council Canada
+repository-code: 'https://github.com/nrc-cnrc/PortageClusterUtils'
+abstract: >-
+  Cluster and parallelization utilities that came ouf
+  of the Portage SMT project — Outils de
+  parallélisation sur grappe de calcul issus du
+  projet Portage de TAS
+keywords:
+  - Machine Translation
+  - Parallel Processing
+license: MIT
