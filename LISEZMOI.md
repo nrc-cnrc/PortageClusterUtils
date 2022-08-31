@@ -59,6 +59,7 @@ author = {Joanis, Eric and Stewart, Darlene and Larkin, Samuel and Leger, Serge}
 license = {MIT},
 title = {{Portage Cluster Utils}},
 url = {https://github.com/nrc-cnrc/PortageClusterUtils}
+year = {2022},
 }
 ```
 
