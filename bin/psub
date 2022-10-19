@@ -80,11 +80,13 @@ Options:
                  (separate multiple resources with commas, or repeat -l)
   -qsparams QSUB_PARAMETERS  additional low-level job submission parameters
                  passed directly to underlying job submission tool
-  -p PRIORITY    set the job priority; queued jobs with higher priority
+  -p PRIORITY    SLURM: set the QoS priority; [normal] or low for slurm
+                 On nodes where we have no allocation , it will be set to low.
+                 QSUB:  set the job priority; queued jobs with higher priority
                  should start first. 0 = normal, >0 = high, <0 = low.
                  Only use > 0 for short, urgent jobs. [0]
   -t ARRAY       See "qsub -t" in the TORQUE admin manual or man qsub
-  -(no-)rerun    Job is (not) rerunnable/requeueable [is not]
+  -rerun         Job is rerunnable/requeueable when job is preempted [is not]
   -noc(luster)   Block recursive jobs: the job will think it's running on a
                  stand-alone, non-clustered machine.
   -n             "not really" (dump the PBS script, but don't submit it)
@@ -100,7 +102,13 @@ Options:
                  the jobs, in MB.
   -require-cpus  Displays, without executing, how many CPUs are required, if
                  specified explicitely; otherwise, has not output.
-  (-no)-jg|(-no)-jobgen    (Don't) use jobgen to submit the job [do]
+  (-no)-slurm   (Don't) use slurm to submit the job [do]
+  -include-node  Telling slurm to only use listed nodes
+                 ex: -include-node ib12gpu-001 # use only 1 node listed
+                 ex: -include-node ib14gpu-[001-004] # use the multi nodes listed
+  -exclude-node  Telling  slurm to exclude nodes from being used
+                 ex: -exclude-node ib12gpu-001 # exclude 1 nodes
+                 ex: -exclude-node  ib14gpu-[001-004] # to exclude multiple nodes
 
 ==EOF==
 
@@ -168,14 +176,14 @@ VMEM_LIMIT_MB=
 MEM_OPTION_MB=
 MEMORY_POLLING_DELAY=6
 MEMMAP_GB=
-PRIORITY=
+PRIORITY=normal
 JOB_ARRAY=
 OPT_J=1
 NGPUS=
 NOCLUSTER_OPTION=
 USAGE_CPU=
 USAGE_GPU=
-USE_JOBGEN=1
+USE_SLURM=1
 JOIN_OUT_ERR=
 PSUB_RESOURCE_OPTIONS=
 RESOURCES=
@@ -189,7 +197,7 @@ FORCE=
 REQUIREMENTS=
 CPU_REQUIREMENTS=
 # PSUB_RERUN can be set in the environment or on the command line.
-export PSUB_RERUN=${PSUB_RERUN:-no}
+export PSUB_RERUN=${PSUB_RERUN}
 
 ### GPSC
 PARALLEL_ENVIRONMENT=
@@ -285,19 +293,27 @@ while [ $# -gt 0 ]; do
    -join)           JOIN_OUT_ERR=1;;
    -noc|-nocluster) NOCLUSTER_OPTION="export PORTAGE_NOCLUSTER=1";;
    -p)              arg_check 1 $# $!;
-                    PRIORITY="$1 $2";
+                    PRIORITY="$2";
                     shift;;
    -t)              arg_check 1 $# $!;
                     JOB_ARRAY="$1 $2";
                     shift;;
-   -rerun)          export PSUB_RERUN=yes;;
-   -no-rerun)       export PSUB_RERUN=no;;
+   -rerun)          arg_check 1 $# $!;
+                    PSUB_RERUN=yes;;
+   -no-rerun)       arg_check 1 $# $!;
+                    PSUB_RERUN=;;
    -n)              NOT_REALLY=1;;
    -f)              FORCE=1;;
    -require)        REQUIREMENTS=1;;
    -require-cpus)   CPU_REQUIREMENTS=1;;
-   -jg|-jobgen)     USE_JOBGEN=1;;
-   -no-jg|-no-jobgen) USE_JOBGEN=;;
+   -slurm)          USE_SLURM=1;;
+   -no-slurm)       USE_SLURM=;;
+   -exclude-node)   arg_check 1 $# $!;
+                    NODE_EXCLUDE=$2;
+                    shift;;
+   -include-node)   arg_check 1 $# $!;
+                    NODE_INCLUDE=$2;
+                    shift;;
    --)              shift; break;;
    -*)              error_exit "Unknown options $1.";;
    *)               break;;
@@ -306,7 +322,7 @@ while [ $# -gt 0 ]; do
 done
 
 # TODO find a generic test for this rather than hard-coding the cell name(s)!
-if [[ $JOBCTL_CELL =~ gpsc3 || $JOBCTL_CELL =~ gpsc5 ]]; then
+if [[ $JOBCTL_CELL =~ gpsc7 || $JOBCTL_CELL =~ gpsc5 ]]; then
    SCHEDULER=SLURM
 else
    SCHEDULER=SGE
@@ -434,7 +450,7 @@ NAME=`echo "$NAME" | perl -e "
 function write_job_script {
    # PSUB_RES_IMAGE is set in portage/profile.d in order to have
    # control of the image at the project-level.
-   local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-6-amd64_latest}
+   local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-7-amd64_latest}
 
    # PSUB_PROJECT_NAME is set in portage/profile.d in order to have
    # control of the project for faireshare at the project-level.
@@ -442,64 +458,71 @@ function write_job_script {
 
    TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
    TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
-   if [[ $USE_JOBGEN ]]; then
-      mv $TMPSCRIPT $TMPSCRIPT.jgen
-      TMPSCRIPT=$TMPSCRIPT.jgen
+   if [[ $USE_SLURM ]]; then
+      mv $TMPSCRIPT $TMPSCRIPT.sbatch
+      TMPSCRIPT=$TMPSCRIPT.sbatch
    fi
    trap "rm -f $TMPSCRIPT; exit" 0 2 3 13 14 15
 
    # Calculate the total required value of res_mem
    TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
    
-   # If the PE was not specified using -pe, set it based on resources requested
-   if [[ ! $PARALLEL_ENVIRONMENT ]]; then
-      if [[ $JOBCTL_CELL =~ gpsc1 ]]; then
-         if [[ $NGPUS ]]; then
-            PARALLEL_ENVIRONMENT=gpu-v100
-         elif [[ $TOTAL_RES_MEM_MB -gt 980000 || $CPU_COUNT -gt 40 ]]; then
-            PARALLEL_ENVIRONMENT=dev-sln
-         elif [[ $TOTAL_RES_MEM_MB -gt 100000 || $CPU_COUNT -gt 16 ]]; then
-            PARALLEL_ENVIRONMENT=dev-ln
-         elif [[ $PSUB_DEFAULT_PE ]]; then
-            PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
-         else
-            PARALLEL_ENVIRONMENT=dev
-         fi
-      elif [[ $JOBCTL_CELL =~ gpsc5 ]]; then
-         if [[ $NGPUS ]]; then
-            PARALLEL_ENVIRONMENT=gpu-v100
-         elif [[ $TOTAL_RES_MEM_MB -gt 144000 ]]; then
-            PARALLEL_ENVIRONMENT=dev-ln
-         elif [[ $PSUB_DEFAULT_PE ]]; then
-            PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
-         else
-            PARALLEL_ENVIRONMENT=dev
-         fi
+   # Even if the PE was specified using -pe, setting the requiremenst needed for the PE
+   # This will also add the rules needed for QoS and the other node types.
+   if [[ $JOBCTL_CELL =~ gpsc7 ]]; then
+      PRIORITY=low
+      if [[ $NGPUS ]]; then
+         PARALLEL_ENVIRONMENT=gpu_a100
+         PROJECT_NAME_EXTRA=true
+      elif [[ $PSUB_DEFAULT_PE ]]; then
+         PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
       else
-         PARALLEL_ENVIRONMENT=${PSUB_DEFAULT_PE:-dev}
+         PARALLEL_ENVIRONMENT=standard
       fi
-      #echo "TOTAL_RES_MEM_MB = $TOTAL_RES_MEM_MB" >&2
-      #echo "PARALLEL_ENVIRONMENT = $PARALLEL_ENVIRONMENT" >&2
+   elif [[ $JOBCTL_CELL =~ gpsc5 ]]; then
+      if [[ $PRIORITY -lt 0 ]]; then
+         PRIORITY=low
+      else
+         PRIORITY=normal
+      fi
+      if [[ $NGPUS ]]; then
+         PARALLEL_ENVIRONMENT=gpu_v100
+         PROJECT_NAME_EXTRA=true
+      elif [[ $PARALLEL_ENVIRONMENT == large ]]; then
+         PROJECT_NAME_EXTRA=true
+         PRIORITY=low
+      elif [[ $TOTAL_RES_MEM_MB -gt 144160 ]]; then
+         PARALLEL_ENVIRONMENT=large
+         PROJECT_NAME_EXTRA=true
+         PRIORITY=low
+      elif [[ $PSUB_DEFAULT_PE ]]; then
+         PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
+      else
+         PARALLEL_ENVIRONMENT=standard
+      fi
+   else
+      PARALLEL_ENVIRONMENT=${PSUB_DEFAULT_PE:-standard}
    fi
 
    # The job's actual number of CPUs requested is $
    TOTAL_CPU_COUNT=$((OPT_J * CPU_COUNT))
 
    # Runtime is in seconds.
-   local RUNTIME_SECONDS=""
+   local RUNTIME_MINUTES=""
    if [[ $RUNTIME_SPECS =~ ^([0-9]+)s$ ]]; then
-      RUNTIME_SECONDS=${BASH_REMATCH[1]}
+      RUNTIME_MINUTES=${BASH_REMATCH[1]}
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)m$ ]]; then
-      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 60))
+      RUNTIME_MINUTES=$((${BASH_REMATCH[1]} ))
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)h$ ]]; then
-      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 60 * 60))
+      RUNTIME_MINUTES=$((${BASH_REMATCH[1]} * 60 ))
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)d$ ]]; then
-      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 24 * 60 * 60))
+      RUNTIME_MINUTES=$((${BASH_REMATCH[1]} * 24 * 60 ))
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)$ ]]; then
-      RUNTIME_SECONDS=$((RUNTIME_SPECS * 60))
+      RUNTIME_MINUTES=$((RUNTIME_SPECS ))
    else
       error_exit "Bad -rt value: $RUNTIME_SPECS; must be digits with optional d, h, m or s unit, e.g., 2h."
    fi
+   RUNTIME_SECONDS=$((RUNTIME_MINUTES * 60 ))
 
    local HERE=`pwd`
    ERR_FILE=${ERR_FILE:-$HERE}
@@ -532,43 +555,41 @@ function write_job_script {
       VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
    fi
 
-   SUBMIT_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
+   #SUBMIT_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
+   SUBMIT_CMD="sbatch"
 
-if [[ $USE_JOBGEN ]]; then
+if [[ $USE_SLURM ]]; then
    cat <<==EOF== > $TMPSCRIPT
 #!/bin/bash
-# psub-generated script, submitted with a .jgen extension
+# psub-generated script 
 #
-#JGEN -r name=$NAME
-#
-#${JOIN_OUT_ERR:+JGEN -r joinouterr=y}
-#JGEN -r rerun=$PSUB_RERUN
-#JGEN -r queue=$PARALLEL_ENVIRONMENT
-#JGEN -c nslots=1
-#JGEN -c ncores=$TOTAL_CPU_COUNT
-#JGEN -c memory=${TOTAL_RES_MEM_MB}M
-#JGEN -r wallclock=$RUNTIME_SECONDS
-#JGEN -c image=$RES_IMAGE
-#JGEN -r outpath=$OUT_FILE
-#JGEN -r errpath=$ERR_FILE
-#JGEN -r shell=/bin/bash
-#JGEN -r mail=$USER
-#JGEN -r mailopts=
-#SBATCH --signal=B:15@30
-#${PROJECT_NAME:+JGEN -r project=$PROJECT_NAME}
-#${NGPUS:+JGEN -c ngpus=$NGPUS}
+#SBATCH --job-name=$NAME
+#SBATCH --partition=$PARALLEL_ENVIRONMENT
+#SBATCH --account=nrc_ict${PROJECT_NAME_EXTRA:+__$PARALLEL_ENVIRONMENT}
+#SBATCH --qos=$PRIORITY
+#SBATCH --time=$RUNTIME_MINUTES
+#${PSUB_RERUN:+SBATCH --requeue}
 
-## User provided from the command line.
-## Job Array:
-#$ $JOB_ARRAY
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=$TOTAL_CPU_COUNT
+#SBATCH --mem=${TOTAL_RES_MEM_MB}M
+#${NGPUS:+SBATCH --gpus-per-task=$NGPUS}
+
+#SBATCH --comment="image=$RES_IMAGE"
+
+#SBATCH --output=$OUT_FILE
+#SBATCH --error=$ERR_FILE
+#SBATCH --open-mode=append
+#SBATCH --mail-user==$USER
+#SBATCH --mail-type=NONE
+
+#SBATCH --signal=B:15@30
+
 ## Priority:
 #$ $PRIORITY
 ## Resources:
-#$ ${RESOURCES:+-l $RESOURCES}
-## Additional user-specified job submission parameters
-#$ $QSPARAMS
-
-. jobsetup.sh >&2
+#${NODE_INCLUDE:+SBATCH --nodelist=$NODE_INCLUDE}
+#${NODE_EXCLUDE:+SBATCH --exclude=$NODE_EXCLUDE}
 
 ==EOF==
 else
@@ -783,8 +804,8 @@ if [[ ! $NOSCRIPT ]]; then
 fi
 
 if [[ $QSUB_RC != 0 ]]; then
-   if [[ $USE_JOBGEN ]]; then
-      error_exit "Job submission failed (resources requested might not exist, look for a jobgen error message above):" "SUBMIT_CMD $TMPSCRIPT"
+   if [[ $USE_SLURM ]]; then
+      error_exit "Job submission failed (resources requested might not exist, look for a slurm error message above):" "SUBMIT_CMD $TMPSCRIPT"
    else
       error_exit "Job submission failed:" "$SUBMIT_CMD $TMPSCRIPT"
    fi
