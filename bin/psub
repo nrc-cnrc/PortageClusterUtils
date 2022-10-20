@@ -176,7 +176,7 @@ VMEM_LIMIT_MB=
 MEM_OPTION_MB=
 MEMORY_POLLING_DELAY=6
 MEMMAP_GB=
-PRIORITY=normal
+PRIORITY=
 JOB_ARRAY=
 OPT_J=1
 NGPUS=
@@ -469,7 +469,7 @@ function write_job_script {
    
    # Even if the PE was specified using -pe, setting the requiremenst needed for the PE
    # This will also add the rules needed for QoS and the other node types.
-   if [[ $JOBCTL_CELL =~ gpsc7 ]]; then
+   if [[ $USE_SLURM == 1 &&  $JOBCTL_CELL =~ gpsc7 ]]; then
       PRIORITY=low
       if [[ $NGPUS ]]; then
          PARALLEL_ENVIRONMENT=gpu_a100
@@ -479,7 +479,7 @@ function write_job_script {
       else
          PARALLEL_ENVIRONMENT=standard
       fi
-   elif [[ $JOBCTL_CELL =~ gpsc5 ]]; then
+   elif [[ $USE_SLURM == 1 && $JOBCTL_CELL =~ gpsc5 ]]; then
       if [[ $PRIORITY -lt 0 ]]; then
          PRIORITY=low
       else
@@ -565,7 +565,8 @@ if [[ $USE_SLURM ]]; then
 #
 #SBATCH --job-name=$NAME
 #SBATCH --partition=$PARALLEL_ENVIRONMENT
-#SBATCH --account=nrc_ict${PROJECT_NAME_EXTRA:+__$PARALLEL_ENVIRONMENT}
+##SBATCH --account=nrc_ict${PROJECT_NAME_EXTRA:+__$PARALLEL_ENVIRONMENT}
+#SBATCH --account=$PROJECT_NAME${PROJECT_NAME_EXTRA:+__$PARALLEL_ENVIRONMENT}
 #SBATCH --qos=$PRIORITY
 #SBATCH --time=$RUNTIME_MINUTES
 #${PSUB_RERUN:+SBATCH --requeue}
