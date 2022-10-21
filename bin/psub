@@ -33,21 +33,37 @@ Usage: psub [options] <command line>
 
 Options:
 
-  GPSC options:
-  -gpu           Ask for a node with a GPU. Equivalent to -gpus 1
-  -gpus G        Ask for G GPUs.
+  Cluster options : SLURM / GPSC options:
+  -noc(luster)   Block recursive jobs: the job will think it's running on a
+                 stand-alone, non-clustered machine.
+  -no-slurm      Use SGE scheduler instead of default SLURM
   -i RES_IMAGE   Change the container's image [\$ENV{PSUB_RES_IMAGE}]
   -Q PROJECT     Project's name for fairshare scheduling [\$ENV{PSUB_PROJECT_NAME}]
-  -pe ENVIRONMENT Change the parallel environment (i.e., the queue) [dev]
+  -pe ENVIRONMENT Change the parallel environment or Partition (i.e. TrixieMain ) [dev]
   -pepp          Change parallel processes (i.e., number of slots) [1]
   -c CELL        Specify the cell you want your jobs to run in [gpsc1.science.gc.ca]
                  Default can be changed by setting the enviornment variable.
-                 export JOBCTL_CELL=gpsc2.science.gc.ca
+                 export JOBCTL_CELL=gpsc5.science.gc.ca
+  -p PRIORITY    SLURM: set the QoS priority; [normal] or low for slurm on GPSC
+                 On nodes where we have no allocation , it will be set to low.
+                 QSUB:  set the job priority; queued jobs with higher priority
+                 should start first. 0 = normal, >0 = high, <0 = low.
+                 Only use > 0 for short, urgent jobs. [0]
+  Extra SGE Cluster options:
+  -l RES=VAL[,RES2=VAL2[,...]]  request specific resources for job
+                 (separate multiple resources with commas, or repeat -l)
+  -qsparams QSUB_PARAMETERS  additional low-level job submission parameters
+                 passed directly to underlying job submission tool
+  -t ARRAY       See "qsub -t" in the TORQUE admin manual or man qsub
+
 
   General resource options:
+
+
   -cpus C        Specify the required number of cpus. [1]
   -mem M         Specify the required amount of memory.  By default, GB are
-                 assumed but user can specify G for GB or M for MB. [6G]
+  -gpu           Ask for a node with a GPU. Equivalent to -gpus 1
+  -gpus G        Ask for G GPUs.                 assumed but user can specify G for GB or M for MB. [6G]
   -#             shortcut option: # cpus with 6*# GB memory
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
                  mapped IO.
@@ -62,6 +78,13 @@ Options:
                  PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES, e.g. for ten days:
                  export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=\$((10*24*60))
                  or export PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES=10d
+  -include-node  Slurm to only use listed nodes
+                 ex: -include-node ib12gpu-001 # use only 1 node listed
+                 ex: -include-node ib14gpu-[001-004] # use the multi nodes listed
+  -exclude-node  Slurm to exclude nodes from being used
+                 ex: -exclude-node ib12gpu-001 # exclude 1 nodes
+                 ex: -exclude-node  ib14gpu-[001-004] # to exclude multiple nodes
+
 
   Note:
   Scripts run by psub can find out the values of the -cpus, -mem, and -memmap
@@ -76,19 +99,7 @@ Options:
   -o OUT_FILE    stdout destination
   -join          join stderr with stdout in one file
   -noscript      don't write out the script
-  -l RES=VAL[,RES2=VAL2[,...]]  request specific resources for job
-                 (separate multiple resources with commas, or repeat -l)
-  -qsparams QSUB_PARAMETERS  additional low-level job submission parameters
-                 passed directly to underlying job submission tool
-  -p PRIORITY    SLURM: set the QoS priority; [normal] or low for slurm
-                 On nodes where we have no allocation , it will be set to low.
-                 QSUB:  set the job priority; queued jobs with higher priority
-                 should start first. 0 = normal, >0 = high, <0 = low.
-                 Only use > 0 for short, urgent jobs. [0]
-  -t ARRAY       See "qsub -t" in the TORQUE admin manual or man qsub
   -rerun         Job is rerunnable/requeueable when job is preempted [is not]
-  -noc(luster)   Block recursive jobs: the job will think it's running on a
-                 stand-alone, non-clustered machine.
   -n             "not really" (dump the PBS script, but don't submit it)
   -f             force submission even if errors are detected
   -I             enter interactive mode thus getting a prompt to a node
@@ -102,13 +113,6 @@ Options:
                  the jobs, in MB.
   -require-cpus  Displays, without executing, how many CPUs are required, if
                  specified explicitely; otherwise, has not output.
-  (-no)-slurm   (Don't) use slurm to submit the job [do]
-  -include-node  Telling slurm to only use listed nodes
-                 ex: -include-node ib12gpu-001 # use only 1 node listed
-                 ex: -include-node ib14gpu-[001-004] # use the multi nodes listed
-  -exclude-node  Telling  slurm to exclude nodes from being used
-                 ex: -exclude-node ib12gpu-001 # exclude 1 nodes
-                 ex: -exclude-node  ib14gpu-[001-004] # to exclude multiple nodes
 
 ==EOF==
 
@@ -208,7 +212,7 @@ RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: on
 
 while [ $# -gt 0 ]; do
    case "$1" in
-   -h|-help)        usage;;
+   -h|-help|--help)        usage;;
    -v|-verbose)     VERBOSE=1;;
    -N)              arg_check 1 $# $!;
                     NAME=$2;
@@ -298,15 +302,12 @@ while [ $# -gt 0 ]; do
    -t)              arg_check 1 $# $!;
                     JOB_ARRAY="$1 $2";
                     shift;;
-   -rerun)          arg_check 1 $# $!;
-                    PSUB_RERUN=yes;;
-   -no-rerun)       arg_check 1 $# $!;
-                    PSUB_RERUN=;;
+   -rerun)          PSUB_RERUN=yes;
+                    export PSUB_RERUN=yes;;
    -n)              NOT_REALLY=1;;
    -f)              FORCE=1;;
    -require)        REQUIREMENTS=1;;
    -require-cpus)   CPU_REQUIREMENTS=1;;
-   -slurm)          USE_SLURM=1;;
    -no-slurm)       USE_SLURM=;;
    -exclude-node)   arg_check 1 $# $!;
                     NODE_EXCLUDE=$2;
@@ -321,8 +322,8 @@ while [ $# -gt 0 ]; do
    shift
 done
 
-# TODO find a generic test for this rather than hard-coding the cell name(s)!
-if [[ $JOBCTL_CELL =~ gpsc7 || $JOBCTL_CELL =~ gpsc5 ]]; then
+# Default is Slurm else it is SGE
+if [[ $USE_SLURM == 1 ]]; then
    SCHEDULER=SLURM
 else
    SCHEDULER=SGE
@@ -468,7 +469,7 @@ function write_job_script {
    TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
    
    # Even if the PE was specified using -pe, setting the requiremenst needed for the PE
-   # This will also add the rules needed for QoS and the other node types.
+   # This will also add the rules needed for QoS and the other node types on GPSC*.
    if [[ $USE_SLURM == 1 &&  $JOBCTL_CELL =~ gpsc7 ]]; then
       PRIORITY=low
       if [[ $NGPUS ]]; then
@@ -500,29 +501,48 @@ function write_job_script {
       else
          PARALLEL_ENVIRONMENT=standard
       fi
-   else
-      PARALLEL_ENVIRONMENT=${PSUB_DEFAULT_PE:-standard}
+   #New Collab GPSCC-3 (night need to adjust this below once know the real settings)
+   elif [[ $USE_SLURM == 1 &&  $JOBCTL_CELL =~ gpscc3 ]]; then
+         PRIORITY=low
+      if [[ $NGPUS ]]; then
+         PARALLEL_ENVIRONMENT=gpu_a100
+         PROJECT_NAME_EXTRA=true
+      elif [[ $PARALLEL_ENVIRONMENT == large ]]; then
+         PROJECT_NAME_EXTRA=true
+      elif [[ $TOTAL_RES_MEM_MB -gt 512000 ]]; then
+         PARALLEL_ENVIRONMENT=large
+         PROJECT_NAME_EXTRA=true
+      elif [[ $PSUB_DEFAULT_PE ]]; then
+         PARALLEL_ENVIRONMENT=$PSUB_DEFAULT_PE
+      else
+         PARALLEL_ENVIRONMENT=standard
+      fi
+
+   fi
+   # Adding default for Trixie
+   if [[ $USE_SLURM == 1 && $CC_CLUSTER == trixie ]]; then
+      PARALLEL_ENVIRONMENT=TrixieMain
    fi
 
    # The job's actual number of CPUs requested is $
    TOTAL_CPU_COUNT=$((OPT_J * CPU_COUNT))
 
    # Runtime is in seconds.
-   local RUNTIME_MINUTES=""
+   local RUNTIME_SECONDS=""
    if [[ $RUNTIME_SPECS =~ ^([0-9]+)s$ ]]; then
-      RUNTIME_MINUTES=${BASH_REMATCH[1]}
+      RUNTIME_SECONDS=${BASH_REMATCH[1]}
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)m$ ]]; then
-      RUNTIME_MINUTES=$((${BASH_REMATCH[1]} ))
+      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 60))
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)h$ ]]; then
-      RUNTIME_MINUTES=$((${BASH_REMATCH[1]} * 60 ))
+      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 60 * 60))
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)d$ ]]; then
-      RUNTIME_MINUTES=$((${BASH_REMATCH[1]} * 24 * 60 ))
+      RUNTIME_SECONDS=$((${BASH_REMATCH[1]} * 24 * 60 * 60))
    elif [[ $RUNTIME_SPECS =~ ^([0-9]+)$ ]]; then
-      RUNTIME_MINUTES=$((RUNTIME_SPECS ))
+      RUNTIME_SECONDS=$((RUNTIME_SPECS * 60))
    else
       error_exit "Bad -rt value: $RUNTIME_SPECS; must be digits with optional d, h, m or s unit, e.g., 2h."
    fi
-   RUNTIME_SECONDS=$((RUNTIME_MINUTES * 60 ))
+   RUNTIME_MINUTES=$((RUNTIME_SECONDS / 60 ))
 
    local HERE=`pwd`
    ERR_FILE=${ERR_FILE:-$HERE}
@@ -555,8 +575,11 @@ function write_job_script {
       VMEM_ULIMIT_KB=$(( ( VMEM_LIMIT_MB - 10 + MEMMAP_GB * 1024 ) * 1024))
    fi
 
-   #SUBMIT_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
-   SUBMIT_CMD="sbatch"
+   if [[ $SCHEDULER == SGE ]]; then
+      SUBMIT_CMD="jobsub ${JOBCTL_CELL:+-c $JOBCTL_CELL}"
+   else
+      SUBMIT_CMD="sbatch"
+   fi
 
 if [[ $USE_SLURM ]]; then
    cat <<==EOF== > $TMPSCRIPT
@@ -565,16 +588,15 @@ if [[ $USE_SLURM ]]; then
 #
 #SBATCH --job-name=$NAME
 #SBATCH --partition=$PARALLEL_ENVIRONMENT
-##SBATCH --account=nrc_ict${PROJECT_NAME_EXTRA:+__$PARALLEL_ENVIRONMENT}
-#SBATCH --account=$PROJECT_NAME${PROJECT_NAME_EXTRA:+__$PARALLEL_ENVIRONMENT}
-#SBATCH --qos=$PRIORITY
+#${PROJECT_NAME:+SBATCH --account=$PROJECT_NAME${PROJECT_NAME_EXTRA:+__$PARALLEL_ENVIRONMENT}}
+#${PRIORITY:+SBATCH --qos=$PRIORITY}
 #SBATCH --time=$RUNTIME_MINUTES
 #${PSUB_RERUN:+SBATCH --requeue}
 
-#SBATCH --ntasks=1
+#SBATCH --ntasks=$PE_PARALLEL_PROCESSES
 #SBATCH --cpus-per-task=$TOTAL_CPU_COUNT
 #SBATCH --mem=${TOTAL_RES_MEM_MB}M
-#${NGPUS:+SBATCH --gpus-per-task=$NGPUS}
+#${NGPUS:+SBATCH --gres=gpu:$NGPUS}
 
 #SBATCH --comment="image=$RES_IMAGE"
 
@@ -749,11 +771,17 @@ echo ============ Finished job \$JOB_ID on \`date\` with rc=\$RC >&2
 # Stop monitoring
 [[ -n "\$pmu_pid\$nvidia_pid" ]] && kill -9 \$pmu_pid \$nvidia_pid
 
-# Display resources used on stderr when the user command has completed
-echo jobst -f -j \$JOB_ID >&2
-jobst -f -j \$JOB_ID >&2
+# Display resources used on stderr when the user command has completed}
+echo scheduler = $SCHEDULER  >&2
+if [[ $SCHEDULER = SLURM ]]; then
+   echo scontrol show jobid -dd \$JOB_ID >&2
+   scontrol show jobid -dd \$JOB_ID >&2
+else
+   echo jobst -f -j \$JOB_ID >&2
+   jobst -f -j \$JOB_ID >&2
+fi
 
-# qsub command executed
+# Command executed
 # $SUBMIT_CMD $TMPSCRIPT
 
 # original psub command given by user (with quotes and \\ removed)
