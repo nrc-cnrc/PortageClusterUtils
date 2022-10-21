@@ -56,6 +56,10 @@ if [[ $PORTAGE_NOCLUSTER ]]; then
    [[ $VERBOSE ]] && echo PORTAGE_NOCLUSTER set >&2
    [[ $PRINT_TYPE ]] && echo disabled
    exit 1
+elif [[ -x "`which sbatch 2> /dev/null`" ]]; then
+   [[ $VERBOSE ]] && echo found: sbatch >&2
+   [[ $PRINT_TYPE ]] && echo sbatch
+   exit 0
 elif [[ -x "`which jobsub 2> /dev/null`" ]]; then
    [[ $VERBOSE ]] && echo found: jobsub >&2
    [[ $PRINT_TYPE ]] && echo jobsub
