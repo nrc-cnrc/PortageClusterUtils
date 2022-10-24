@@ -659,7 +659,7 @@ else
 ## Job Array:
 #$ $JOB_ARRAY
 ## Priority:
-#$ $PRIORITY
+#$ ${PRIORITY:+-p $PRIORITY}
 ## Resources:
 #$ ${RESOURCES:+-l $RESOURCES}
 ## Additional user-specified job submission parameters
