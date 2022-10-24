@@ -62,8 +62,9 @@ Options:
 
   -cpus C        Specify the required number of cpus. [1]
   -mem M         Specify the required amount of memory.  By default, GB are
+                 assumed but user can specify G for GB or M for MB. [6G]
   -gpu           Ask for a node with a GPU. Equivalent to -gpus 1
-  -gpus G        Ask for G GPUs.                 assumed but user can specify G for GB or M for MB. [6G]
+  -gpus G        Ask for G GPUs.  
   -#             shortcut option: # cpus with 6*# GB memory
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
                  mapped IO.
@@ -322,6 +323,10 @@ while [ $# -gt 0 ]; do
    shift
 done
 
+# GPSCC-2 has slurm installed but does not work , forcing SGE in this case
+if [[ $JOBCTL_CELL =~ gpscc2 ]]; then
+   USE_SLURM=""
+fi
 # Default is Slurm else it is SGE
 if [[ $USE_SLURM == 1 ]]; then
    SCHEDULER=SLURM
@@ -517,12 +522,19 @@ function write_job_script {
       else
          PARALLEL_ENVIRONMENT=standard
       fi
-
-   fi
    # Adding default for Trixie
-   if [[ $USE_SLURM == 1 && $CC_CLUSTER == trixie ]]; then
+   elif [[ $USE_SLURM == 1 && $CC_CLUSTER == trixie ]]; then
       PARALLEL_ENVIRONMENT=TrixieMain
+   elif [[ $JOBCTL_CELL =~ gpscc2 ]]; then
+      if [[ $NGPUS ]]; then
+         PARALLEL_ENVIRONMENT=gpu-v100
+      elif [[ $TOTAL_RES_MEM_MB -gt 100000 || $CPU_COUNT -gt 16 ]]; then
+         PARALLEL_ENVIRONMENT=dev-sln
+      else
+         PARALLEL_ENVIRONMENT=dev
+      fi
    fi
+   
 
    # The job's actual number of CPUs requested is $
    TOTAL_CPU_COUNT=$((OPT_J * CPU_COUNT))
