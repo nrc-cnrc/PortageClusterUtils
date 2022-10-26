@@ -73,7 +73,7 @@ Options:
                  Your job will have J*M+SIZE RAM and J*C cpus, but a ulimit of
                  M+SIZE VMEM and OMP_NUM_THREADS=C for each process. [1]
   -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]. 
-                 When on Trixie the default is 6h (360)  ( max RUNTIME for Trixie ) 
+                 When on Trixie the default is 12h (720)  ( max RUNTIME for Trixie ) 
                  The runtime can also use of the following units: s, m, h, d,
                  e.g., -rt 4d will request 4 days of runtime.
                  Default can be changed by setting the enviornment variable
@@ -213,7 +213,7 @@ PE_PARALLEL_PROCESSES=1
 
 #When on TRIXIE, set a 6h default runtime IF  not set, ELSE 24h is the default
 if [[ $CC_CLUSTER == trixie ]]; then
-   RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((6*60))} # default: one day in minutes (24 x 60 = 1440).
+   RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((12*60))} # default: one day in minutes (24 x 60 = 1440).
 else
    RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: one day in minutes (24 x 60 = 1440).
 fi
