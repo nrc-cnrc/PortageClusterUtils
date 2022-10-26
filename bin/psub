@@ -72,7 +72,8 @@ Options:
                  needing C cpus, M RAM and SIZE GB of shared memory-mapped data.
                  Your job will have J*M+SIZE RAM and J*C cpus, but a ulimit of
                  M+SIZE VMEM and OMP_NUM_THREADS=C for each process. [1]
-  -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]
+  -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]. 
+                 When on Trixie the default is 6h (360)  ( max RUNTIME for Trixie ) 
                  The runtime can also use of the following units: s, m, h, d,
                  e.g., -rt 4d will request 4 days of runtime.
                  Default can be changed by setting the enviornment variable
@@ -209,7 +210,14 @@ PARALLEL_ENVIRONMENT=
 # NOTE, PE_PARALLEL_PROCESSES should always be 1, unless using MPI or other
 # mechanisms that take advantage of multiple slots in one job, i.e., multiple nodes.
 PE_PARALLEL_PROCESSES=1
-RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: one day in minutes (24 x 60 = 1440).
+
+#When on TRIXIE, set a 6h default runtime IF  not set, ELSE 24h is the default
+if [[ $CC_CLUSTER == trixie ]]; then
+   RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((6*60))} # default: one day in minutes (24 x 60 = 1440).
+else
+   RUNTIME_SPECS=${PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES:-$((24*60))} # default: one day in minutes (24 x 60 = 1440).
+fi
+
 
 while [ $# -gt 0 ]; do
    case "$1" in
@@ -475,6 +483,7 @@ function write_job_script {
    
    # Even if the PE was specified using -pe, setting the requiremenst needed for the PE
    # This will also add the rules needed for QoS and the other node types on GPSC*.
+   # Defaults for GPSC7
    if [[ $USE_SLURM == 1 &&  $JOBCTL_CELL =~ gpsc7 ]]; then
       PRIORITY=low
       if [[ $NGPUS ]]; then
@@ -485,6 +494,7 @@ function write_job_script {
       else
          PARALLEL_ENVIRONMENT=standard
       fi
+   # Defaults for GPSC5
    elif [[ $USE_SLURM == 1 && $JOBCTL_CELL =~ gpsc5 ]]; then
       if [[ $PRIORITY -lt 0 ]]; then
          PRIORITY=low
@@ -506,7 +516,7 @@ function write_job_script {
       else
          PARALLEL_ENVIRONMENT=standard
       fi
-   #New Collab GPSCC-3 (night need to adjust this below once know the real settings)
+   #New Collab GPSCC-3 (night need to adjust this below onc we know the real settings)
    elif [[ $USE_SLURM == 1 &&  $JOBCTL_CELL =~ gpscc3 ]]; then
          PRIORITY=low
       if [[ $NGPUS ]]; then
@@ -522,9 +532,10 @@ function write_job_script {
       else
          PARALLEL_ENVIRONMENT=standard
       fi
-   # Adding default for Trixie
+   # Defaults for Trixie
    elif [[ $USE_SLURM == 1 && $CC_CLUSTER == trixie ]]; then
       PARALLEL_ENVIRONMENT=TrixieMain
+   # Defaults for GPSCC-2 ( COLLAB)
    elif [[ $JOBCTL_CELL =~ gpscc2 ]]; then
       if [[ $NGPUS ]]; then
          PARALLEL_ENVIRONMENT=gpu-v100
