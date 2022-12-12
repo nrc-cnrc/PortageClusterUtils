@@ -499,7 +499,8 @@ function write_job_script {
       if [[ $PRIORITY -lt 0 ]]; then
          PRIORITY=low
       else
-         PRIORITY=normal
+         #New rule on GPSC5, we don't specify the PRIORITY on nodes we have allocations.
+         PRIORITY=
       fi
       if [[ $NGPUS ]]; then
          PARALLEL_ENVIRONMENT=gpu_v100
