@@ -234,7 +234,9 @@ export HOSTNAME=`hostname`
 WORKER_CPU_STRING="Run-parallel-worker-CPU"
 START_TIME=`date +"%s"`
 CLUSTER_TYPE=`on-cluster.sh -type`
-if [[ $CLUSTER_TYPE == jobsub ]]; then
+if [[ $CLUSTER_TYPE == sbatch ]]; then
+   QDEL=scancel
+elif [[ $CLUSTER_TYPE == jobsub ]]; then
    QDEL=jobdel
 else
    QDEL=qdel
