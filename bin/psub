@@ -722,8 +722,8 @@ if [[ ! \$PSUB_NO_DEBUG ]]; then
    whoami
    id
    pwd
-   ls -l /space/project/portage
-   ls -l /space/group/nrc_ict/pkgs/
+   [[ -d /space/project/portage ]] && ls -l /space/project/portage
+   [[ -d /space/group/nrc_ict/pkgs ]] && ls -l /space/group/nrc_ict/pkgs
    echo
    lsb_release -a
    lscpu
