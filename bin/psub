@@ -718,7 +718,7 @@ ulimit -v $VMEM_ULIMIT_KB
 # DEBUGGING
 if [[ ! \$PSUB_NO_DEBUG ]]; then
    echo DEBUGGING
-   env
+   ( set -o posix ; set )
    whoami
    id
    pwd
