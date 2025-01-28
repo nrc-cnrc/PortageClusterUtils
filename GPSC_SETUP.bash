@@ -9,15 +9,15 @@
 # Traitement multilingue de textes / Multilingual Text Processing
 # Technologies numériques / Digital Technologies
 # Conseil national de recherches Canada / National Research Council Canada
-# Copyright 2024, Sa Majeste le Roi du Chef du Canada /
-# Copyright 2024, His Majesty the King in Right of Canada
+# Copyright 2025, Sa Majeste le Roi du Chef du Canada /
+# Copyright 2025, His Majesty the King in Right of Canada
 
 #Set to your assigned project name
 export PSUB_PROJECT_NAME=nrc_ict
 
 
 
-echo "PortageClusterUtils, NRC-CNRC, (c) 2005 - 2024, His Majesty the King in Right of Canada" >&2
+echo "PortageClusterUtils, NRC-CNRC, (c) 2005 - 2025, His Majesty the King in Right of Canada" >&2
 SOURCE="${BASH_SOURCE[0]}"
 if [[ -h $SOURCE ]]; then
     SOURCE=$(readlink -f "$SOURCE")
