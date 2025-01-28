@@ -20,7 +20,7 @@ export PSUB_PROJECT_NAME=nrc_ict
 echo "PortageClusterUtils, NRC-CNRC, (c) 2005 - 2024, His Majesty the King in Right of Canada" >&2
 SOURCE="${BASH_SOURCE[0]}"
 if [[ -h $SOURCE ]]; then
-    SOURCE=$(readlink -f $SOURCE)
+    SOURCE=$(readlink -f "$SOURCE")
 fi
 BASE_DIR="$( cd "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 echo "PortageClusterUtils path: $BASE_DIR" >&2
