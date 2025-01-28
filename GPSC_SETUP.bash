@@ -29,10 +29,14 @@ export PATH=$BASE_DIR/bin:$PATH
 
 # Set default container OS.
 if grep "CentOS Linux release 7" /etc/centos-release >& /dev/null; then
-    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-nrc/nrc_all_default_centos-7-amd64_latest}
+    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-registry.maze.science.gc.ca/ssc-hpcs/generic-job:centos7}
+elif grep "CentOS Linux release 9" /etc/centos-release >& /dev/null; then
+    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-registry.maze.science.gc.ca/ssc-hpcs/generic-job:centos9}
 elif grep "Ubuntu 20" /etc/os-release >& /dev/null; then
-    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-nrc/nrc_all_default_ubuntu-20.04-amd64_latest}
+    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-registry.maze.science.gc.ca/ssc-hpcs/generic-job:ubuntu20.04}
 elif grep "Ubuntu 22" /etc/os-release >& /dev/null; then
-    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-nrc/nrc_all_default_ubuntu-22.04-amd64_latest}
+    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-registry.maze.science.gc.ca/ssc-hpcs/generic-job:ubuntu22.04}
+elif grep "Ubuntu 24" /etc/os-release >& /dev/null; then
+    export PSUB_RES_IMAGE=${PSUB_RES_IMAGE_OVERRIDE:-registry.maze.science.gc.ca/ssc-hpcs/generic-job:ubuntu24.04}
 fi
 

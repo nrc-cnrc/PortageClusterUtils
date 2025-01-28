@@ -465,7 +465,7 @@ NAME=$(echo "$NAME" | perl -e "
 function write_job_script {
    # PSUB_RES_IMAGE is set in portage/profile.d in order to have
    # control of the image at the project-level.
-   local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-7-amd64_latest}
+   local RES_IMAGE=${PSUB_RES_IMAGE:-registry.maze.science.gc.ca/ssc-hpcs/generic-job:ubuntu24.04}
 
    # PSUB_PROJECT_NAME is set in portage/profile.d in order to have
    # control of the project for faireshare at the project-level.
