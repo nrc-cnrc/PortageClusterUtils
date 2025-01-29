@@ -8,17 +8,17 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        python: [3.7, 3.8]
+        python: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python }}
-    - name: Run tests
-      run: >
-        source SETUP.bash
-        && cd tests
-        && echo "Using $(nproc) threads"
-        && ./run-all-tests.sh -j 5
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run tests
+        run: >
+          source SETUP.bash
+          && cd tests
+          && echo "Using $(nproc) threads"
+          && ./run-all-tests.sh -j 5
