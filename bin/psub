@@ -16,12 +16,12 @@
 # Traitement multilingue de textes / Multilingual Text Processing
 # Tech. de l'information et des communications / Information and Communications Tech.
 # Conseil national de recherches Canada / National Research Council Canada
-# Copyright 2006 - 2020, Sa Majeste la Reine du Chef du Canada /
-# Copyright 2006 - 2020, Her Majesty in Right of Canada
+# Copyright 2006 - 2025, Sa Majeste la Reine du Chef du Canada /
+# Copyright 2006 - 2025, Her Majesty in Right of Canada
 
 usage() {
    for msg in "$@"; do
-      echo $msg >&2
+      echo "$msg" >&2
    done
    cat <<==EOF== >&2
 
@@ -64,7 +64,7 @@ Options:
   -mem M         Specify the required amount of memory.  By default, GB are
                  assumed but user can specify G for GB or M for MB. [6G]
   -gpu           Ask for a node with a GPU. Equivalent to -gpus 1
-  -gpus G        Ask for G GPUs.  
+  -gpus G        Ask for G GPUs.
   -#             shortcut option: # cpus with 6*# GB memory
   -memmap SIZE   request SIZE GB extra virtual memory, to accomodate memory
                  mapped IO.
@@ -72,8 +72,8 @@ Options:
                  needing C cpus, M RAM and SIZE GB of shared memory-mapped data.
                  Your job will have J*M+SIZE RAM and J*C cpus, but a ulimit of
                  M+SIZE VMEM and OMP_NUM_THREADS=C for each process. [1]
-  -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)]. 
-                 When on Trixie the default is 12h (720)  ( max RUNTIME for Trixie ) 
+  -rt RUNTIME    Specify the job's run time in minutes [1440 (one day)].
+                 When on Trixie the default is 12h (720)  ( max RUNTIME for Trixie )
                  The runtime can also use of the following units: s, m, h, d,
                  e.g., -rt 4d will request 4 days of runtime.
                  Default can be changed by setting the enviornment variable
@@ -124,7 +124,7 @@ Options:
 error_exit() {
    echo -n "psub fatal error: " >&2
    for msg in "$@"; do
-      echo $msg >&2
+      echo "$msg" >&2
    done
    echo "Use -h for help." >&2
    exit 1
@@ -134,15 +134,15 @@ error_exit() {
 # represent a positive integer, using $arg_name to provide a meaningful error
 # message.
 arg_check_pos_int() {
-   expr $1 + 0 &> /dev/null
+   expr "$1" + 0 &> /dev/null
    RC=$?
-   if [ $RC != 0 -a $RC != 1 ] || [ $1 -le 0 ]; then
+    if [[ $RC != 0 && $RC != 1 ]] || [[ $1 -le 0 ]]; then
       error_exit "Invalid argument to $2 option: $1; positive integer expected."
    fi
 }
 
 arg_check() {
-   if [ $2 -le $1 ]; then
+   if [[ $2 -le $1 ]]; then
       error_exit "Missing argument to $3 option."
    fi
 }
@@ -154,18 +154,18 @@ normalizeMemoryRequirement() {
    if [[ $MEM_AMOUNT ]]; then
       if [[ $MEM_AMOUNT =~ [gG]$ ]]; then
          MEM_AMOUNT=${MEM_AMOUNT%%[gG]};
-         MEM_AMOUNT=$(($MEM_AMOUNT * 1024));
+         MEM_AMOUNT=$((MEM_AMOUNT * 1024));
       elif [[ $MEM_AMOUNT =~ [mM]$ ]]; then
          MEM_AMOUNT=${MEM_AMOUNT%%[mM]};
       else
-         MEM_AMOUNT=$(($MEM_AMOUNT * 1024));
+         MEM_AMOUNT=$((MEM_AMOUNT * 1024));
       fi
    fi
-   echo $MEM_AMOUNT
+   echo "$MEM_AMOUNT"
 }
 
 # Determine what cluster / cluster type we're on
-if [[ `on-cluster.sh -type` == jobsub ]]; then
+if [[ $(on-cluster.sh -type) == jobsub ]]; then
    GPSC=1
 else
    # Set your cluster's flag here, to customize to your environment
@@ -176,7 +176,7 @@ fi
 # Note: a be node has 100000M of ram and 16 cores thus ~6GB of ram per core
 VMEM_LIMIT_MB_PER_CPU=6144   # 6 GB
 
-PSUB_CMD=`echo "$0 $*" | perl -pe 'print "# " if $. > 1'`
+PSUB_CMD=$( echo "$0 $*" | perl -pe 'print "# " if $. > 1' )
 CPU_COUNT=
 VMEM_LIMIT_MB=
 MEM_OPTION_MB=
@@ -250,18 +250,18 @@ while [ $# -gt 0 ]; do
    -uc)             USAGE_CPU=1;;
    -ug)             USAGE_GPU=1;;
    -memmap)         arg_check 1 $# $!
-                    arg_check_pos_int $2 $1
+                    arg_check_pos_int "$2" "$1"
                     MEMMAP_GB=$2
                     PSUB_RESOURCE_OPTIONS="$PSUB_RESOURCE_OPTIONS $1 $2"
                     shift;;
    -j)              arg_check 1 $# $!
-                    arg_check_pos_int $2 $1
+                    arg_check_pos_int "$2" "$1"
                     OPT_J=$2
                     shift;;
    -gpu)            NGPUS=1
                     ;;
    -gpus)           arg_check 1 $# $!
-                    arg_check_pos_int $2 $1
+                    arg_check_pos_int "$2" "$1"
                     NGPUS=$2
                     shift;;
    -I)              INTMODE=1;
@@ -358,7 +358,7 @@ function requirements {
       exit
    elif [[ $CPU_REQUIREMENTS ]]; then
       if [[ ! $USING_DEFAULT_CPU_COUNT ]]; then
-         echo $CPU_COUNT
+         echo "$CPU_COUNT"
       fi
       exit
    fi
@@ -371,10 +371,11 @@ function script2Command {
 
    # If the command is a script but doesn't have its x permission bit set,
    # call it with its interpreter
-   if [ -f "$PROG_NAME" -a ! -x "$PROG_NAME" -a ! "$FORCE" ]; then
-      if LC_ALL=C file $PROG_NAME | grep -q "script text"; then
+   if [[ -f $PROG_NAME && ! -x $PROG_NAME && ! $FORCE ]]; then
+      if LC_ALL=C file "$PROG_NAME" | grep -q "script text"; then
          # file is a script
-         local HASH_BANG_LINE=`head -1 $PROG_NAME`
+         local HASH_BANG_LINE
+         HASH_BANG_LINE=$( head -1 "$PROG_NAME" )
          local INTERPRETER=${HASH_BANG_LINE/#\#\!}
          INTERPRETER=${INTERPRETER%% *}
          if which-test.sh "$INTERPRETER"; then
@@ -420,14 +421,14 @@ if [ $INTMODE ]; then
    PROG_NAME=Interactive
 else
    # Guess the executable program or script name
-   PROG_NAME=`echo "$COMMAND" | perl -e '
+   PROG_NAME=$( echo "$COMMAND" | perl -e '
       $_ = <>;
       chomp;
       # Use STDIN as the job name if the command seems empty
       $_ or $_ = "STDIN";
       @tokens = split;
       print $tokens[0];
-   '`
+   ' )
 fi
 
 # The following call modifies COMMAND.
@@ -435,7 +436,7 @@ script2Command "$PROG_NAME" "$FORCE"
 
 # Determine the default job name if -N is not specified on the command line.
 if [[ ! $NAME ]]; then
-   NAME=`basename $PROG_NAME`
+   NAME=$( basename "$PROG_NAME" )
 fi
 
 if [[ $GPSC ]]; then
@@ -447,13 +448,13 @@ fi
 # Make sure $NAME is not longer that 15 characters (30 on GPSC), and starts with a letter
 # GPSC Note: name length is not limited, but the name must still start with a letter
 # Also, / is not allowed in $NAME
-NAME=`echo "$NAME" | perl -e "
-   \\$_ = <>;
+NAME=$(echo "$NAME" | perl -e "
+   \$_ = <>;
    chomp;
    s#/#_#;
    s/^([^a-z])/J\\$1/i;
-   print substr(\\$_, 0, $MAX_NAME_LENGTH);
-"`
+   print substr(\$_, 0, $MAX_NAME_LENGTH);
+")
 #printf -v NAME '%q' "$NAME"    # Escape $NAME for reuse as shell input
 
 ###############################################################################
@@ -464,23 +465,23 @@ NAME=`echo "$NAME" | perl -e "
 function write_job_script {
    # PSUB_RES_IMAGE is set in portage/profile.d in order to have
    # control of the image at the project-level.
-   local RES_IMAGE=${PSUB_RES_IMAGE:-nrc/nrc_all_default_centos-7-amd64_latest}
+   local RES_IMAGE=${PSUB_RES_IMAGE:-registry.maze.science.gc.ca/ssc-hpcs/generic-job:ubuntu24.04}
 
    # PSUB_PROJECT_NAME is set in portage/profile.d in order to have
    # control of the project for faireshare at the project-level.
    local PROJECT_NAME=$PSUB_PROJECT_NAME
 
-   TMPSCRIPT=/tmp/psub.`whoami`.`date +%s`.$$
-   TMPSCRIPT=`mktemp $TMPSCRIPT.XXX` || error_exit "Cannot create temp file."
+   TMPSCRIPT=/tmp/psub.$( whoami ).$( date +%s ).$$
+   TMPSCRIPT=$( mktemp "$TMPSCRIPT.XXX" ) || error_exit "Cannot create temp file."
    if [[ $USE_SLURM ]]; then
-      mv $TMPSCRIPT $TMPSCRIPT.sbatch
+      mv "$TMPSCRIPT" "$TMPSCRIPT.sbatch"
       TMPSCRIPT=$TMPSCRIPT.sbatch
    fi
    trap "rm -f $TMPSCRIPT; exit" 0 2 3 13 14 15
 
    # Calculate the total required value of res_mem
    TOTAL_RES_MEM_MB=$((VMEM_LIMIT_MB * OPT_J + MEMMAP_GB * 1024))
-   
+
    # Even if the PE was specified using -pe, setting the requiremenst needed for the PE
    # This will also add the rules needed for QoS and the other node types on GPSC*.
    # Defaults for GPSC7
@@ -546,7 +547,7 @@ function write_job_script {
          PARALLEL_ENVIRONMENT=dev
       fi
    fi
-   
+
 
    # The job's actual number of CPUs requested is $
    TOTAL_CPU_COUNT=$((OPT_J * CPU_COUNT))
@@ -568,7 +569,8 @@ function write_job_script {
    fi
    RUNTIME_MINUTES=$((RUNTIME_SECONDS / 60 ))
 
-   local HERE=`pwd`
+   local HERE
+   HERE=$( pwd )
    ERR_FILE=${ERR_FILE:-$HERE}
    OUT_FILE=${OUT_FILE:-$HERE}
 
@@ -606,9 +608,9 @@ function write_job_script {
    fi
 
 if [[ $USE_SLURM ]]; then
-   cat <<==EOF== > $TMPSCRIPT
+   cat <<==EOF== > "$TMPSCRIPT"
 #!/bin/bash
-# psub-generated script 
+# psub-generated script
 #
 #SBATCH --job-name=$NAME
 #SBATCH --partition=$PARALLEL_ENVIRONMENT
@@ -640,7 +642,7 @@ if [[ $USE_SLURM ]]; then
 
 ==EOF==
 else
-   cat <<==EOF== > $TMPSCRIPT
+   cat <<==EOF== > "$TMPSCRIPT"
 #!/bin/bash
 #
 #$ -N "$NAME"
@@ -681,17 +683,17 @@ else
 fi
 
 if [[ $SCHEDULER = SLURM ]]; then
-   echo "export JOB_ID=\$SLURM_JOB_ID" >> $TMPSCRIPT
+   echo "export JOB_ID=\$SLURM_JOB_ID" >> "$TMPSCRIPT"
 fi
 
-cat <<==EOF== >> $TMPSCRIPT
+cat <<==EOF== >> "$TMPSCRIPT"
 export JOB_NAME="$NAME"
 
 # User's environment.
-`env | egrep '^PORTAGE' | sed -e 's/^/export /'`
-`env | egrep '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /'`
-`env | egrep '^(LANG|LC_[A-Z]+)=' | sed -e 's/^/export /'`
-`env | egrep '^(PSUB_DEFAULT_PE|PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|PSUB_RERUN|JOBCTL_CELL)=' | sed -e 's/^/export /'`
+$( env | grep -E '^PORTAGE' | sed -e 's/^/export /' )
+$( env | grep -E '^(LD_LIBRARY_PATH|PERL5LIB|PYTHONPATH|MANPATH|TMPDIR|PATH|MADA_HOME)=' | sed -e 's/^/export /' )
+$( env | grep -E '^(LANG|LC_[A-Z]+)=' | sed -e 's/^/export /' )
+$( env | grep -E '^(PSUB_DEFAULT_PE|PSUB_NO_DEBUG|PSUB_OVERRIDE_DEFAULT_RUNTIME_MINUTES|PSUB_RERUN|JOBCTL_CELL)=' | sed -e 's/^/export /' )
 $NOCLUSTER_OPTION
 
 # Export PSUB_RES_IMAGE so that children will use the same OS res_image.
@@ -751,7 +753,7 @@ fi | sed 's/^/   /' >&2
 cd $HERE || { ! echo "Error: Cannot change directory to $HERE" >&2; exit; }
 
 if [[ -n "$USAGE_CPU" ]]; then
-   process-memory-usage.pl -s 3 $(($MEMORY_POLLING_DELAY*60)) \$\$ &> "$NAME".c\$JOB_ID &
+   process-memory-usage.pl -s 3 $((MEMORY_POLLING_DELAY*60)) \$\$ &> "$NAME".c\$JOB_ID &
    readonly pmu_pid=\$!
 fi
 
@@ -817,23 +819,22 @@ fi
 write_job_script
 
 # On some clusters, the script has to be executable
-chmod +x $TMPSCRIPT
+chmod +x "$TMPSCRIPT"
 
 if [[ $VERBOSE ]]; then
-   cat $TMPSCRIPT >&2
+   cat "$TMPSCRIPT" >&2
    echo "" >&2
 fi
 
 if [[ $NOT_REALLY ]]; then
-   ls -l $TMPSCRIPT >&2
-   cat $TMPSCRIPT
+   ls -l "$TMPSCRIPT" >&2
+   cat "$TMPSCRIPT"
    echo ""
    exit
 fi
 
-START=`date`
 # Note: we explicitly delete the warning about -N being set twice, because we really, really don't care!
-JOBID=`$SUBMIT_CMD $TMPSCRIPT | grep -v '^warning: "-N" option has already been set, overriding previous setting$'`
+JOBID=$( $SUBMIT_CMD "$TMPSCRIPT" | grep -v '^warning: "-N" option has already been set, overriding previous setting$' )
 QSUB_RC=$?
 SAVE_JOBID=$JOBID
 # To work around issues with jobsub directing error messages to stdout, we
@@ -844,8 +845,8 @@ if [[ $JOBID =~ ([0-9]+) ]]; then
 else
     JOBID=Unknown
 fi
-[[ $SAVE_JOBID != $JOBID ]] && echo $SAVE_JOBID >&2
-echo $JOBID
+[[ "$SAVE_JOBID" != "$JOBID" ]] && echo "$SAVE_JOBID" >&2
+echo "$JOBID"
 
 if [[ ! $NOSCRIPT ]]; then
    JOBSCRIPT="$NAME".j${JOBID:-0}
