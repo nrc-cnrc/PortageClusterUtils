@@ -16,11 +16,18 @@ partir d'un clone Git:
 git clone https://github.com/nrc-cnrc/PortageClusterUtils.git
 ```
 
-ajouter ensuite cette ligne à votre .profile ou .bashrc:
+ajouter ensuite cette ligne à votre .profile ou .bashrc pour le GPSC ou le GPSCC:
 
 ```
-source /path/to/PortageClusterUtils/SETUP.bash
+source /path/to/PortageClusterUtils/GPSC_SETUP.bash
 ```
+
+ou  ajouter  cette ligne à votre .profile ou .bashrc pour TRIXIE:
+
+```
+source /path/to/PortageClusterUtils/TRIXIE_SETUP.bash
+```
+
 
 Si vous préférez, vous pouvez aussi installer ces scripts à la destination de
 votre choix ainsi:
